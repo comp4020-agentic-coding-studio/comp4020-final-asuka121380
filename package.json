@@ -4,6 +4,10 @@
   "type": "module",
   "scripts": {
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "dev": "vite",
+    "dev:server": "DATA_DIR=./data node --watch src/server/index.ts",
+    "build": "vite build",
+    "start": "node src/server/index.ts",
     "typecheck": "tsc --noEmit",
     "check": "pnpm typecheck && pnpm test",
     "check:evidence": "node scripts/check-evidence.ts",

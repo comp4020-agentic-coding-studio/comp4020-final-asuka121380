@@ -64,6 +64,16 @@ log.push(`mouse click: ${await notice(page)} | B12 ${await count(page, "B12")}`)
 
 await page.mouse.move(10, 10);
 await page.screenshot({ path: `${out}/experiment-result.png` });
+
+// leave and come back: same browser context, so the same visitor cookie
+const counts = async () => Promise.all(["P22", "B24", "S22", "D46", "B12"].map((c) => count(page, c)));
+const beforeReload = await counts();
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForTimeout(800);
+const afterReload = await counts();
+log.push(`status after reload: ${await page.locator(".status").innerText()}`);
+log.push(`stock before reload ${beforeReload.join(" ")} / after ${afterReload.join(" ")}`);
+await page.screenshot({ path: `${out}/experiment-reloaded.png` });
 console.log(log.join("\n"));
 console.log(errors.length ? `page errors: ${errors.join(" | ")}` : "no page errors");
 await browser.close();

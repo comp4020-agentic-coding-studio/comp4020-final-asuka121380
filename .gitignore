@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# the local development database (production's lives on the Fly volume)
+data/
 *.log
 
 # editor and OS junk

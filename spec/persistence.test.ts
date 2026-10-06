@@ -1,0 +1,136 @@
+import { randomUUID } from "node:crypto";
+import { describe, expect, inject, it } from "vitest";
+
+// The promise behind "find their trace still there when they come back":
+// a committed part survives a fresh request with the same visitor cookie, and
+// the server, not the client, decides what's allowed and what stock is left.
+//
+// These run against whatever APP_URL points at, the live app included, so
+// each test is a brand-new anonymous visitor with its own build: they never
+// touch anyone else's. They do leave those small test builds behind.
+
+const baseUrl = inject("baseUrl");
+
+interface Snapshot {
+  buildId: string;
+  revision: number;
+  parts: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string }[];
+  inventory: Record<string, number>;
+}
+
+async function newVisitor(): Promise<{ cookie: string; build: Snapshot }> {
+  const res = await fetch(new URL("/api/build", baseUrl));
+  expect(res.status).toBe(200);
+  const cookie = res.headers.get("set-cookie")?.split(";")[0];
+  expect(cookie, "the first visit sets a visitor cookie").toBeTruthy();
+  return { cookie: cookie!, build: (await res.json()) as Snapshot };
+}
+
+async function load(cookie: string): Promise<Snapshot> {
+  const res = await fetch(new URL("/api/build", baseUrl), { headers: { cookie } });
+  expect(res.status).toBe(200);
+  return (await res.json()) as Snapshot;
+}
+
+async function send(cookie: string, body: unknown): Promise<{ status: number; json: any }> {
+  const res = await fetch(new URL("/api/command", baseUrl), {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, json: await res.json() };
+}
+
+const place = (revision: number, placement: Record<string, unknown>, commandId = randomUUID()) => ({
+  commandId,
+  expectedRevision: revision,
+  command: { type: "place", placement: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "navy", ...placement } },
+});
+
+describe("a visitor's build", () => {
+  it("keeps a committed part across a fresh request", async () => {
+    const { cookie, build } = await newVisitor();
+    expect(build.parts).toEqual([]);
+    const before = build.inventory["brick-2x4"];
+
+    const r = await send(cookie, place(build.revision, { x: 2, z: 3, colour: "rose" }));
+    expect(r.status).toBe(200);
+    expect(r.json.ok).toBe(true);
+
+    const again = await load(cookie);
+    expect(again.buildId).toBe(build.buildId);
+    expect(again.revision).toBe(build.revision + 1);
+    expect(again.parts).toHaveLength(1);
+    expect(again.parts[0]).toMatchObject({ partId: "brick-2x4", x: 2, y: 0, z: 3, rot: 0, colour: "rose" });
+    expect(again.inventory["brick-2x4"]).toBe(before - 1);
+  });
+
+  it("is separate for a different visitor", async () => {
+    const a = await newVisitor();
+    await send(a.cookie, place(a.build.revision, {}));
+    const b = await newVisitor();
+    expect(b.build.buildId).not.toBe(a.build.buildId);
+    expect(b.build.parts).toEqual([]);
+  });
+
+  it("runs a retried command only once", async () => {
+    const { cookie, build } = await newVisitor();
+    const command = place(build.revision, {});
+    const first = await send(cookie, command);
+    const retry = await send(cookie, command);
+    expect(first.json.ok).toBe(true);
+    expect(retry.json.ok).toBe(true);
+    const after = await load(cookie);
+    expect(after.parts).toHaveLength(1);
+    expect(after.inventory["brick-2x4"]).toBe(build.inventory["brick-2x4"] - 1);
+  });
+
+  it("refuses an invalid placement and charges nothing", async () => {
+    const { cookie, build } = await newVisitor();
+    const floating = await send(cookie, place(build.revision, { y: 3 }));
+    expect(floating.status).toBe(422);
+    expect(floating.json).toMatchObject({ ok: false, code: "unsupported" });
+    const outside = await send(cookie, place(build.revision, { x: 99 }));
+    expect(outside.json).toMatchObject({ ok: false, code: "out_of_bounds" });
+    const after = await load(cookie);
+    expect(after.parts).toEqual([]);
+    expect(after.revision).toBe(build.revision);
+    expect(after.inventory).toEqual(build.inventory);
+  });
+
+  it("refuses a command made against a stale revision", async () => {
+    const { cookie, build } = await newVisitor();
+    await send(cookie, place(build.revision, {}));
+    const stale = await send(cookie, place(build.revision, { x: 4 }));
+    expect(stale.status).toBe(409);
+    expect(stale.json.code).toBe("revision_conflict");
+    expect((await load(cookie)).parts).toHaveLength(1);
+  });
+
+  it("won't remove a part that is something's only support, and returns removed parts to the kit", async () => {
+    const { cookie, build } = await newVisitor();
+    await send(cookie, place(0, {}));
+    let s = await load(cookie);
+    await send(cookie, place(s.revision, { y: 3 }));
+    s = await load(cookie);
+    const [bottom, top] = s.parts;
+
+    const blocked = await send(cookie, { commandId: randomUUID(), expectedRevision: s.revision, command: { type: "remove", placedId: bottom.id } });
+    expect(blocked.json).toMatchObject({ ok: false, code: "would_unsupport" });
+
+    const removed = await send(cookie, { commandId: randomUUID(), expectedRevision: s.revision, command: { type: "remove", placedId: top.id } });
+    expect(removed.json.ok).toBe(true);
+    const after = await load(cookie);
+    expect(after.parts.map((p) => p.id)).toEqual([bottom.id]);
+    expect(after.inventory["brick-2x4"]).toBe(build.inventory["brick-2x4"] - 1);
+  });
+
+  it("refuses commands without a visitor", async () => {
+    const res = await fetch(new URL("/api/command", baseUrl), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(place(0, {})),
+    });
+    expect(res.status).toBe(401);
+  });
+});
