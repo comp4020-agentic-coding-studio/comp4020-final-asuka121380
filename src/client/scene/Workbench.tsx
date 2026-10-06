@@ -1,6 +1,6 @@
 import { Html, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, type ComponentRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, type ComponentRef } from "react";
 import * as THREE from "three";
 import { partDef } from "../../domain/catalog.ts";
 import { footprint } from "../../domain/rules.ts";
@@ -19,7 +19,9 @@ import {
 import { setViewAzimuth } from "../state/view.ts";
 import { PLATE } from "./geometry.ts";
 import { PartMesh } from "./PartMesh.tsx";
-import { Street } from "./Street.tsx";
+import { ENVIRONMENTS } from "../scenes/environments.tsx";
+import { keepCameraOutside } from "./obstacles.ts";
+import { Plot } from "./Plot.tsx";
 
 // The 3D workbench: camera, light, the street and the player's parts, and the
 // pointer path into the same store actions the dock and the keyboard use.
@@ -129,6 +131,7 @@ function CameraRig({ dock }: { dock: number }) {
       if (!c) return;
       const dist = camera.position.distanceTo(c.target);
       camera.position.copy(c.target).add(new THREE.Vector3().setFromSphericalCoords(dist, polar, azimuth));
+      keepCameraOutside(camera.position, c.target);
       c.update();
       setViewAzimuth(c.getAzimuthalAngle());
     };
@@ -140,16 +143,19 @@ function CameraRig({ dock }: { dock: number }) {
   }, [camera, dock, size.width, size.height]);
 
   // pan stays near the plot: move target and camera together back inside;
-  // and the heading is reported for the screen-relative arrow keys
+  // the camera never ends up inside a neighbour's house; and the heading is
+  // reported for the screen-relative arrow keys
   const clampPan = () => {
     const c = controls.current;
     if (!c) return;
     setViewAzimuth(c.getAzimuthalAngle());
     const clamped = c.target.clone().clamp(PAN_MIN, PAN_MAX);
-    if (clamped.equals(c.target)) return;
-    const d = clamped.sub(c.target);
-    c.target.add(d);
-    camera.position.add(d);
+    if (!clamped.equals(c.target)) {
+      const d = clamped.sub(c.target);
+      c.target.add(d);
+      camera.position.add(d);
+    }
+    keepCameraOutside(camera.position, c.target);
   };
 
   return (
@@ -298,7 +304,7 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
 
   return (
     <group onPointerMove={onMove} onClick={onClick}>
-      <Street />
+      <Plot />
       {snapshot?.parts.map((p) => (
         <PartMesh
           key={p.id}
@@ -330,33 +336,14 @@ function GhostLabel({ placement: p, ok }: { placement: { partId: string; x: numb
   );
 }
 
-function Sun() {
-  const target = useMemo(() => {
-    const o = new THREE.Object3D();
-    o.position.set(PLOT_CENTRE.x, 0, PLOT_CENTRE.z);
-    return o;
-  }, []);
-  return (
-    <>
-      <primitive object={target} />
-      <directionalLight
-        position={[PLOT_CENTRE.x - 26, 34, PLOT_CENTRE.z + 22]}
-        target={target}
-        intensity={2.6}
-        color="#ffe2b8"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.03}
-        shadow-camera-left={-34}
-        shadow-camera-right={34}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
-        shadow-camera-near={1}
-        shadow-camera-far={120}
-      />
-    </>
-  );
+/** The scene's surroundings and light, from the scene registry. */
+function Surroundings() {
+  const Env = ENVIRONMENTS[scene.id];
+  return Env ? (
+    <Suspense fallback={null}>
+      <Env />
+    </Suspense>
+  ) : null;
 }
 
 export function Workbench({ dock }: { dock: number }) {
@@ -370,10 +357,11 @@ export function Workbench({ dock }: { dock: number }) {
 
   return (
     <Canvas
-      shadows
+      shadows="soft"
       dpr={[1, 2]}
-      camera={{ fov: 40, near: 0.5, far: 900, position: [20, 26, 40] }}
-      gl={{ antialias: true, preserveDrawingBuffer: true }}
+      camera={{ fov: 40, near: 0.5, far: 1000, position: [20, 26, 40] }}
+      // neutral tone mapping keeps saturated colours recognisable (ADR 0004)
+      gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.NeutralToneMapping, toneMappingExposure: 1 }}
       onPointerDown={(e) => {
         down.current = { x: e.clientX, y: e.clientY, type: e.pointerType };
       }}
@@ -386,7 +374,7 @@ export function Workbench({ dock }: { dock: number }) {
       }}
     >
       <CameraRig dock={dock} />
-      <Sun />
+      <Surroundings />
       <Build isDrag={isDrag} />
     </Canvas>
   );

@@ -663,3 +663,50 @@ traces the first to four combined causes.
 - Touch is emulated.
 - With the keyboard, continuing a course sideways after a placement needs
   Lower.
+
+### 2026-10-06 20:38 AEDT — [`d6746df`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/d6746df) Shared red/white/yellow identity and a designed homepage
+
+**Changes:**
+- New `src/client/ui/theme.css`, the shared tokens and components:
+  - red `#e3241b`, yellow `#ffcd00`, paper `#fffaf1` and ink `#1b1b1f`
+  - tactile `.btn` variants, `.card`, `.tag` / `.tag-planned`
+  - `.stud-swatch` colour studs, `.tile` tray tiles, `.brand`
+- New `src/client/ui/iso.ts`, an SVG isometric brick builder (drawn column
+  by column, so faces overlap correctly), plus the brand mark.
+- `src/client/index.html`, `src/client/home/main.ts` and
+  `src/client/home/home.css`: the homepage at `/`, in static HTML. It has:
+  - a hero with an animated brick composition and a Start/Continue button
+    (Continue only when `/api/summary` reports a saved build)
+  - "how it works"
+  - a "together" section labelled as planned, with no working-looking
+    controls
+  - the scene list, rendered from the registry
+  - links to `/readme/`
+  - a disclaimer that the site is not a LEGO product
+- New `src/client/scenes/registry.ts` and `scenes/beach/info.ts`: scene
+  metadata only (title, setting, blurb, cover, suggested colours). The scene
+  id stays `street-01`, so saved builds are untouched.
+- `src/domain/colours.ts`: six bright colours, added only.
+- `package.json`: self-hosted OFL fonts (`@fontsource-variable/fredoka`,
+  `/nunito`).
+
+**Why.** The author's brief asks for a global identity separate from the
+first scene, and a homepage at `/` that loads no editor code.
+
+**Who decided:**
+- **Author:** the palette direction, the homepage contents, and cooperation
+  shown as planned only.
+- **Agent:** the tokens, the component set, the isometric drawings, the
+  font choice, and the working title "Brick Commons", which is a placeholder
+  for the author to replace.
+
+**Tests:**
+- `pnpm build`.
+- The homepage was checked by eye in Chrome at 1920×1080 and 390×844.
+- `pnpm check` was not re-run at this commit; it is recorded with the next
+  entry.
+
+**Limitations:**
+- The scene card's cover image (`/scenes/beach-houses.webp`) does not exist
+  yet; the card shows a gradient placeholder.
+- The editor is not restyled yet.

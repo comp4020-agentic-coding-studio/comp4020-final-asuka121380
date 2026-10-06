@@ -60,7 +60,7 @@ export function pictures(reference: readonly Placement[]): Promise<Pictures> {
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
       renderer.setPixelRatio(1);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMapping = THREE.NeutralToneMapping;
       renderer.setClearColor(0x000000, 0);
       const parts: Record<string, string> = {};
       for (const def of CATALOG) {

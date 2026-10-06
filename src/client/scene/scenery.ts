@@ -46,6 +46,18 @@ export class Batch {
     for (const [c, list] of other.byColour) for (const g of list) this.add(c, g);
   }
 
+  /** The box round everything added so far. */
+  bounds(): THREE.Box3 {
+    const box = new THREE.Box3();
+    for (const list of this.byColour.values()) {
+      for (const g of list) {
+        g.computeBoundingBox();
+        box.union(g.boundingBox!);
+      }
+    }
+    return box;
+  }
+
   build(): { colour: string; geometry: THREE.BufferGeometry }[] {
     return [...this.byColour].map(([colour, list]) => {
       const geometry = mergeGeometries(list.map((g) => (g.attributes.uv ? g : withUv(g))));
@@ -100,9 +112,11 @@ export interface Opening {
   /** Position along the face, in studs from its left end seen from outside. */
   at: number;
   kind: "door" | "window";
-  /** 0 for the ground floor, 1 for the first floor. */
+  /** 0 for the ground floor, 1 for the first floor, 2 for the second. */
   storey?: number;
   flowers?: boolean;
+  /** A window 4 studs wide instead of 2. */
+  wide?: boolean;
 }
 
 export interface HouseSpec {
@@ -113,7 +127,7 @@ export interface HouseSpec {
   /** Local footprint: w along the ridge, d across it (even). */
   w: number;
   d: number;
-  storeys: 1 | 2;
+  storeys: 1 | 2 | 3;
   wall: string;
   base: string;
   trim: string;
@@ -122,6 +136,12 @@ export interface HouseSpec {
   openings: Opening[];
   chimney?: boolean;
   canopy?: boolean;
+  /** A pitched roof to a ridge (default), or a flat roof behind a parapet. */
+  roofKind?: "gable" | "flat";
+  /** How high the house's floor sits above the ground, on a plinth with steps. */
+  y?: number;
+  /** A balcony across part of the front, on the given storey, with a glass rail. */
+  balcony?: { storey: number; from: number; to: number };
 }
 
 // Each face as a frame: u runs left to right seen from outside, +z points out.
@@ -139,7 +159,7 @@ function faceFrame(face: Face, w: number, d: number): { len: number; m: THREE.Ma
   }
 }
 
-const GLASS = "#9fb7c6";
+export const GLASS = "#9fb7c6";
 const SOIL = "#4b3427";
 const LEAF = "#4f8f4a";
 const BLOOMS = ["#ef8fae", "#f6f1e9", "#e5c14a"];
@@ -154,7 +174,7 @@ interface Hole {
 function holeOf(o: Opening): Hole {
   if (o.kind === "door") return { u0: o.at, u1: o.at + 2, c0: 1, c1: 6 };
   const base = 1 + (o.storey ?? 0) * 6;
-  return { u0: o.at, u1: o.at + 2, c0: base + 2, c1: base + 4 };
+  return { u0: o.at, u1: o.at + (o.wide ? 4 : 2), c0: base + 2, c1: base + 5 };
 }
 
 /** Bricks for one course of one face, around its openings. */
@@ -214,7 +234,8 @@ function windowDetail(b: Batch, s: HouseSpec, o: Opening, h: Hole, m: THREE.Matr
   const w = h.u1 - h.u0;
   b.box(GLASS, w - 0.1, hgt - 0.1, 0.06, cx, y0 + 0.05, -0.55, m);
   // glazing bars
-  b.box(s.trim, 0.1, hgt, 0.08, cx, y0, -0.49, m);
+  for (let i = 1; i < w / 2; i++) b.box(s.trim, 0.1, hgt, 0.08, h.u0 + i * 2, y0, -0.49, m);
+  if (w === 2) b.box(s.trim, 0.1, hgt, 0.08, cx, y0, -0.49, m);
   b.box(s.trim, w, 0.1, 0.08, cx, y0 + hgt / 2 - 0.05, -0.49, m);
   // reveal, frame, lintel, sill
   b.box(s.trim, 0.14, hgt, 0.55, h.u0 + 0.07, y0, -0.28, m);
@@ -251,12 +272,40 @@ export function house(s: HouseSpec): Batch {
       course(b, c === 0 ? s.base : s.wall, full ? 0 : 1, full ? len : len - 1, c, holes, m);
     }
     // a string course of trim between storeys
-    if (s.storeys === 2) b.box(s.trim, len + 0.2, PLATE * 0.6, 0.2, len / 2, 7 * COURSE - 0.1, 0.06, m);
+    for (let k = 1; k < s.storeys; k++) b.box(s.trim, len + 0.2, PLATE * 0.6, 0.2, len / 2, (1 + 6 * k) * COURSE - 0.1, 0.06, m);
     mine.forEach((o, i) => (o.kind === "door" ? doorDetail(b, s, holes[i], m) : windowDetail(b, s, o, holes[i], m)));
   }
 
-  // roof: an eave plate, then slopes stepping in from front and back to a ridge
+  if (s.balcony) {
+    // a slab on two brackets with a glass rail and a top rail, across the front
+    const { from, to, storey } = s.balcony;
+    const y = (1 + 6 * storey) * COURSE - PLATE;
+    const fm = new THREE.Matrix4().makeTranslation(0, 0, s.d);
+    const w = to - from;
+    b.box(s.trim, w, PLATE, 1.8, from + w / 2, y, 0.9, fm);
+    b.box(GLASS, w - 0.2, 1.1, 0.08, from + w / 2, y + PLATE, 1.74, fm);
+    b.box(s.trim, w, 0.16, 0.22, from + w / 2, y + PLATE + 1.1, 1.74, fm);
+    for (const x of [from + 0.15, to - 0.15]) b.box(s.trim, 0.2, 1.26, 0.2, x, y + PLATE, 1.74, fm);
+  }
+
   const top = courses * COURSE;
+  if (s.roofKind === "flat") {
+    // a flat roof: a slab, then a parapet a course high all round
+    b.box(s.trim, s.w + 0.6, PLATE, s.d + 0.6, s.w / 2, top, s.d / 2);
+    b.box(s.roof, s.w - 1.4, 0.12, s.d - 1.4, s.w / 2, top + PLATE, s.d / 2);
+    for (const [w, d, x, z] of [
+      [s.w + 0.6, 0.6, s.w / 2, -0.0],
+      [s.w + 0.6, 0.6, s.w / 2, s.d],
+      [0.6, s.d, 0, s.d / 2],
+      [0.6, s.d, s.w, s.d / 2],
+    ] as const) {
+      b.box(s.wall, w, COURSE * 0.7, d, x, top + PLATE, z);
+      b.box(s.trim, w + 0.1, 0.2, d + 0.1, x, top + PLATE + COURSE * 0.7, z);
+    }
+    return placeHouse(s, b);
+  }
+
+  // roof: an eave plate, then slopes stepping in from front and back to a ridge
   const over = 0.5;
   b.box(s.trim, s.w + 2 * over, PLATE, s.d + 0.6, s.w / 2, top, s.d / 2);
   const len = s.w + 2 * over;
@@ -285,10 +334,25 @@ export function house(s: HouseSpec): Batch {
     b.box("#5f5a55", 2.3, PLATE, 2.3, cx, top + PLATE + (k + 1.6) * COURSE, s.d / 2 - 1.5);
   }
 
-  // turn and place the whole house
+  return placeHouse(s, b);
+}
+
+/** Raise the house on its plinth, with a flight of steps to the street door, then turn and place it. */
+function placeHouse(s: HouseSpec, b: Batch): Batch {
+  const lift = s.y ?? 0;
+  if (lift > 0) {
+    b.box(s.base, s.w + 0.4, lift, s.d + 0.4, s.w / 2, -lift, s.d / 2);
+    const street: Face = s.turn === 1 ? "right" : "front";
+    for (const o of s.openings.filter((q) => q.kind === "door" && q.face === street)) {
+      const { m } = faceFrame(street, s.w, s.d);
+      const n = Math.ceil(lift / PLATE);
+      // the door's own three steps start at the floor; these carry on down
+      for (let i = 0; i < n; i++) b.box("#d6d0c4", 3.6, lift - i * PLATE, 0.5, o.at + 1, -lift, 1.6 + i * 0.5, m);
+    }
+  }
   const m = new THREE.Matrix4();
-  if (s.turn === 1) m.makeRotationY(-Math.PI / 2).setPosition(s.x + s.d, 0, s.z);
-  else m.makeTranslation(s.x, 0, s.z);
+  if (s.turn === 1) m.makeRotationY(-Math.PI / 2).setPosition(s.x + s.d, lift, s.z);
+  else m.makeTranslation(s.x, lift, s.z);
   const placed = new Batch();
   for (const { colour, geometry } of b.build()) placed.add(colour, geometry, m);
   return placed;
