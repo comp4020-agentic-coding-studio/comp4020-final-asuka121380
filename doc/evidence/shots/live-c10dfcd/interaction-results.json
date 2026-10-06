@@ -1,0 +1,492 @@
+{
+  "base": "https://comp4020-final-asuka121380.fly.dev",
+  "at": "2026-10-06T10:47:09.681Z",
+  "results": [
+    {
+      "run": "desktop-mouse",
+      "name": "fresh visitor starts with an empty plot",
+      "ok": true,
+      "detail": "0 parts"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "T gives a top view",
+      "ok": true,
+      "detail": "polar 0.020"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "choosing a tray part holds it",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x4\",\"rot\":0,\"anchor\":null,\"level\":null,\"snap\":false}"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "hovering shows a snapped preview that says it fits, in text",
+      "ok": true,
+      "detail": "✓ Fits here."
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "a click places the held part where the preview was",
+      "ok": true,
+      "detail": "[\"brick-2x4@0,0,0\"]"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the part stays held for the next one",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "stock goes down by one",
+      "ok": true,
+      "detail": "19 → 18"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the save chip says Saved after the server commits",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "repeated placement without re-choosing",
+      "ok": true,
+      "detail": "3 parts"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "Esc puts the held part down",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "choosing the same tray part again puts it down",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "clicking a placed part selects it",
+      "ok": true,
+      "detail": "50bbcbc9-df05-4f82-ab32-2e7023dbc74d"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the selection is identified by name and code",
+      "ok": true,
+      "detail": "Brick 2×4\nB24\nPale mint"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "recolouring goes through the server",
+      "ok": true,
+      "detail": "revision 3 → 4"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "R after clicking a swatch reaches the rotate action (this one is refused: turning would leave the plot)",
+      "ok": true,
+      "detail": "Can't turn it there: that would stick out of the build plot."
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "a valid rotation is a server command, turning about the centre",
+      "ok": true,
+      "detail": "{\"id\":\"431ddaaa-c43c-49a7-9d6c-6ec58f5b9f5b\",\"partId\":\"brick-2x4\",\"x\":11,\"y\":0,\"z\":2,\"rot\":1,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "a button clicked with the mouse doesn't keep focus",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "Enter on a focused button acts once (one turn, one revision)",
+      "ok": true,
+      "detail": "rot 0, revision 5 → 6"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the button keeps keyboard focus through the save",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the Next and Previous part buttons step the selection",
+      "ok": true,
+      "detail": "431ddaaa → 4c0adc5f → 431ddaaa"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "clicking a placed part while holding one stacks onto its studs",
+      "ok": true,
+      "detail": "{\"id\":\"af3617c4-dff7-4443-bf5c-a857a915d52a\",\"partId\":\"brick-2x4\",\"x\":0,\"y\":3,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the delete tool button turns the tool on",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "hovering with the delete tool names the target",
+      "ok": true,
+      "detail": "Click to remove: Brick 2×4 (B24)"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "Enter after clicking the tool's button reaches the delete action; removing a part that holds another up is refused, nothing cascades",
+      "ok": true,
+      "detail": "Can't remove this yet: it's the only support for a Brick 2×4 above it. Remove that first."
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "clicking with the delete tool removes the part",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the removed part goes back in the kit",
+      "ok": true,
+      "detail": "15 → 16"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the delete tool stays on until turned off",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "Esc turns the delete tool off",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "D turns it on",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "choosing a part leaves the delete tool",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "drag while holding a part moves the camera and places nothing",
+      "ok": true,
+      "detail": "3 → 3 parts; azimuth 0.20 → -0.73"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "Home after a camera drag resets the view",
+      "ok": true,
+      "detail": "polar 1.319"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "drag starting on a part with nothing held selects nothing",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "drag starting on a part with the delete tool removes nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the camera orbits a full 360° horizontally",
+      "ok": true,
+      "detail": "419° turned"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "dragging down to the ground stops above it",
+      "ok": true,
+      "detail": "polar 1.360, camera y 6.93"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "zoom is bounded both ways",
+      "ok": true,
+      "detail": "nearest 14.0, farthest 95.0"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "panning keeps the target near the plot",
+      "ok": true,
+      "detail": "[\"22.0\",\"4.0\",\"14.0\"]"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "window, fence and planters place as ordinary parts",
+      "ok": true,
+      "detail": "[\"brick-2x4\",\"brick-2x4\",\"brick-2x4\",\"window-1x2x2\",\"fence-1x4x1\",\"planter-1x2\",\"planter-1x2\",\"planter-1x2\"]"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the planter runs out after three",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the tray shows it as empty",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "placing with none left is refused before any request",
+      "ok": true,
+      "detail": "Can't place there: No Planter with flowers (PL2) left in your kit."
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "the target card opens",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "after a reload the build is exactly as left",
+      "ok": true,
+      "detail": "8 parts"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "after a reload the kit is exactly as left",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "after resizing to 1280×720 the part is still held, places where aimed, and the dock fits",
+      "ok": true,
+      "detail": "{\"x\":90,\"y\":443.5,\"width\":1100,\"height\":264.5}"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "narrowing to 390 px keeps the dock on screen",
+      "ok": true,
+      "detail": "{\"x\":0,\"y\":519.90625,\"width\":390,\"height\":324.09375}"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "Tab reaches a tray part",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "the focused control shows a focus ring",
+      "ok": true,
+      "detail": "solid"
+    },
+    {
+      "run": "keyboard-only",
+      "name": "Enter on a tray part holds it, starts a preview and moves focus to Place",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"rot\":0,\"anchor\":{\"x\":8,\"z\":4},\"level\":null,\"snap\":false}"
+    },
+    {
+      "run": "keyboard-only",
+      "name": "arrow keys move the preview",
+      "ok": true,
+      "detail": "{\"x\":6,\"z\":3}"
+    },
+    {
+      "run": "keyboard-only",
+      "name": "Enter on Place places it, once",
+      "ok": true,
+      "detail": "[{\"id\":\"9e434cfc-44e3-4320-8c89-cba61a8e7106\",\"partId\":\"brick-2x2\",\"x\":6,\"y\":0,\"z\":3,\"rot\":0,\"colour\":\"pale-mint\"}]"
+    },
+    {
+      "run": "keyboard-only",
+      "name": "a second Enter stacks the next one on top",
+      "ok": true,
+      "detail": "[0,3]"
+    },
+    {
+      "run": "keyboard-only",
+      "name": "[ selects a placed part",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "Delete on the bottom one is refused",
+      "ok": true,
+      "detail": "Can't remove this yet: it's the only support for a Brick 2×2 above it. Remove that first."
+    },
+    {
+      "run": "keyboard-only",
+      "name": "Delete on the top one removes it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "D, ] and Enter remove with the delete tool",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "T and Home move the camera",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "letters typed in a text field aren't shortcuts",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "keyboard-only",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the dock folds to its top row",
+      "ok": true,
+      "detail": "201 → 58 px"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "tapping a tray part holds it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the first tap on the plot previews without placing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "a second tap on the preview places",
+      "ok": true,
+      "detail": "[{\"id\":\"735518da-38cb-44f9-81a9-b520c8d2baf1\",\"partId\":\"plate-2x2\",\"x\":4,\"y\":0,\"z\":2,\"rot\":0,\"colour\":\"pale-mint\"}]"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "a one-finger drag orbits and places nothing",
+      "ok": true,
+      "detail": "azimuth 0.20 → -0.84"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "a two-finger pinch zooms and places nothing",
+      "ok": true,
+      "detail": "distance 75.3 → 15.1"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "tapping a placed part selects it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "with the delete tool the first tap only names the target",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the second tap removes it",
+      "ok": true,
+      "detail": "Removed Plate 2×2; it's back in your kit. Saved."
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "a fresh visitor's homepage offers Start building",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "the homepage loads none of the editor's code",
+      "ok": true,
+      "detail": "[\"/assets/home-C8kT2WA4.js\",\"/assets/iso-G1zyzM5v.js\"]"
+    },
+    {
+      "run": "routes",
+      "name": "the homepage sets no cookie",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "a part placed in the editor is saved",
+      "ok": true,
+      "detail": "brick-2x2@4,0,3"
+    },
+    {
+      "run": "routes",
+      "name": "back on the homepage, it offers Continue my build",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "home → build → home → build keeps the same build and stock",
+      "ok": true,
+      "detail": "[\"brick-2x2@4,0,3\"]"
+    },
+    {
+      "run": "routes",
+      "name": "a reload of /build/ keeps it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "a direct link to /build reaches the editor",
+      "ok": true,
+      "detail": "https://comp4020-final-asuka121380.fly.dev/build/"
+    },
+    {
+      "run": "routes",
+      "name": "/readme/ still answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

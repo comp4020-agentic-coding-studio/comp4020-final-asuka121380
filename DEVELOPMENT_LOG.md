@@ -927,3 +927,31 @@ was changed because of them.
 
 **Limitations:** none of this revision is deployed. The live site remains
 `fde2560`, release v4.
+
+### 2026-10-06 21:45 AEDT — Deployment: [`c10dfcd`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c10dfcd) live as Fly release v5
+
+**What happened.** The author explicitly authorised pushing and deploying the
+revision `bbbcdbc`…`c10dfcd`.
+- `origin/main` was pushed from `fde2560` to `c10dfcd`, without force. The
+  repository stays private.
+- The CI deploy job is conditional on a public repo, so it didn't run.
+  `flyctl deploy --remote-only --ha=false` was run by hand: release v5, on
+  machine `84e1dea2790d38`.
+
+**Checks, against https://comp4020-final-asuka121380.fly.dev/:**
+- `/`, `/build/`, `/readme/`, the scene cover and `/api/summary` returned
+  200, and `/build` returned a 301 redirect.
+- Pages and the cover are served `no-cache`.
+- The live editor page names the same hashed bundle as the local build.
+- `APP_URL=… pnpm check`: 49/49.
+- `scripts/interaction.ts`: 81/81, with fresh test visitors.
+- `scripts/placement.ts` in Chrome: 31/31.
+- Details: [evidence 0006](doc/evidence/0006-live-deploy-c10dfcd.md).
+
+**Limitations:**
+- No database snapshot was taken this time. The read-only query used for
+  evidence 0004 was refused by the session's permission policy.
+- `src/server/db.ts` and `src/domain/scene.ts` are unchanged since `fde2560`
+  and there is no migration, but the existing builds were not observed.
+- Touch was emulated. Safari and physical devices were not tested. The
+  author's own build was not opened.
