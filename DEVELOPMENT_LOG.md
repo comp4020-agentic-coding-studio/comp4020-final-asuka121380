@@ -449,3 +449,42 @@ help list.
   390×844.
 
 **Limitations.** Touch was emulated, as before. Not deployed.
+
+### 2026-10-06 18:35 AEDT — [`7afcb78`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7afcb78) Evidence 0003 and ADR 0003 reconciled with the implementation
+
+**Changes:**
+- New `doc/evidence/0003-open-street-and-interaction.md`. It records:
+  - the setup, and the local `pnpm check` (42/42)
+  - the `scripts/interaction.ts` run (71/71), with observed values
+  - the camera distances measured through `window.__camera()`
+  - the screenshots
+  - what was emulated and what wasn't checked
+  - visible departures from the art-direction image
+- `doc/adr/0003-open-street-camera-and-contextual-interaction.md`, updated to
+  match what was built:
+  - FOV 40° (drafted as 35°)
+  - distance 14–95 (drafted as 14–75), because at 390×844 the fitted Reset
+    and Top views need 71.3 and 75.3
+  - the pan box, the opening view and the lens shift around the dock
+  - the two-tap touch confirmation, the focus policy and the read-only
+    `?debug` hooks
+- `CLAUDE.md`: one rule marked *(proposed)*, to run `scripts/interaction.ts`
+  after interaction, camera or dock changes and to add a check with each new
+  rule or shortcut.
+- Bundled with it: the log entry for `493a556`.
+
+**Why.** The ADR's drafted camera values no longer matched the code, and the
+author asked for the docs to be reconciled and the evidence recorded.
+
+**Who decided:**
+- **Agent:** the content.
+- **Author:** the CLAUDE.md rule is a proposal awaiting their review.
+
+**Tests.** Documentation only. `pnpm check:evidence` at 18:35 AEDT failed on
+items that are the author's to supply:
+- there is no `reflections/crit-8.md`
+- `PROCESS.md` still has its template comment
+- the template's example links (`a1b2c3d`, `e4f5a6b`) are not commits in
+  this repo
+
+Every commit cited in the log and in evidence 0003 exists.
