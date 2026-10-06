@@ -141,4 +141,7 @@ Each entry gives, in proportion to the change:
 - For anything visual or interactive, run it in a real browser (`scripts/`).
   Say which checks were browser-emulated and which were on a physical device
   (author).
+- After any change to interaction, the camera or the dock, run
+  `node scripts/interaction.ts <url> <out-dir>` against a running server, and
+  add a check when adding a rule or shortcut (proposed).
 - Use `mise exec --` for every tool, from the repo root (proposed).

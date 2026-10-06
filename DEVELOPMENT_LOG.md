@@ -418,3 +418,34 @@ output. At 18:27, `pnpm check` passed 42/42.
 - The script is not part of `pnpm check`, because it needs a desktop Chrome
   and writes files.
 - The touch run is Chrome emulation, not a physical device.
+
+### 2026-10-06 18:34 AEDT — [`493a556`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/493a556) Visible Previous/Next part buttons for the [ and ] shortcuts
+
+**Changes:**
+- `src/client/App.tsx`: a new `Step` component, with "Previous part ‹ `[`" and
+  "Next part `]` ›" buttons calling `cycle(-1)` and `cycle(1)`. They appear in
+  the selected-part row and in the delete-tool row; in the delete-tool row
+  they step the target.
+- `src/client/styles.css`: `.step`. On narrow screens the kbd hints are
+  hidden, as everywhere else, so the buttons show ‹ and ›.
+- `scripts/interaction.ts`: a check that the two buttons step the selection
+  away and back without a new revision.
+- `doc/evidence/shots/interaction/`: the results and screenshots from the run
+  below.
+
+**Why.** CLAUDE.md requires a visible button for every shortcut. While
+reconciling the docs, the agent found that `[` and `]` appeared only in the
+help list.
+
+**Who decided:**
+- **Author:** the rule.
+- **Agent:** the gap, and where the buttons go.
+
+**Tests.** At 18:34 AEDT, against the local server built from this tree:
+- `pnpm check` passed 42/42, with the typecheck clean.
+- `scripts/interaction.ts` passed 71/71: desktop mouse 48/48, keyboard only
+  13/13, emulated touch 10/10.
+- The new screenshots show the buttons fitting in the dock at 1920×1080 and
+  390×844.
+
+**Limitations.** Touch was emulated, as before. Not deployed.

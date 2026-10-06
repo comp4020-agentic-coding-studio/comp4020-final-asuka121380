@@ -33,17 +33,31 @@ restrained translucent bottom dock with model thumbnails.
 - the plot kept open
 
 **Camera** (author's requirements, agent's parameters):
-- **Perspective, FOV 35°** (agent). A free 360° orbit shows a horizon and sky,
+- **Perspective, FOV 40°** (agent). A free 360° orbit shows a horizon and sky,
   which an orthographic camera renders unnaturally, and perspective gives
-  depth to the street.
+  depth to the street. (First drafted as 35°; widened to 40°, with a lower
+  opening angle, so that the opening view takes in the middle distance and a
+  strip of horizon.)
 - **OrbitControls:**
   - unlimited azimuth
   - polar angle 0.02–1.36 rad, so near straight-down at one end and about 12°
     above the horizon at the other, never underground
-  - distance 14–75
-- **Pan.** The target is clamped to a box around the plot, so the build can't
-  be lost and the world's edges stay behind fog.
-- **Top view and Reset view** are buttons and keys.
+  - distance 14–95. Drafted as 14–75; at 390×844 the fitted Reset and Top
+    views need 71.3 and 75.3, measured with `window.__camera()`. At 1920×1080
+    they need 32.2 and 26.0.
+- **Pan.** The target is clamped to a box around the plot (the plot plus 6
+  studs on each side, up to 8 high), so the build can't be lost and the
+  world's edges stay behind fog.
+- **Top view and Reset view** are buttons and keys (`T`, `Home`).
+- **Opening view** (agent): azimuth 0.2, polar 1.32, orbit target at the plot's
+  centre, 4 up. The distance is computed to frame the plot's width, a
+  two-storey house above it and the plot's front edge below.
+- **Framing around the dock** (agent): the dock floats over the canvas, so the
+  canvas stays full-screen and the lens is shifted with `setViewOffset` to put
+  the target 60% of the way down the area the dock leaves clear. The camera
+  reserves only the dock's stable height (the tray rows and the tool buttons),
+  not the context row, whose height changes with the state; otherwise the
+  scene would shift between a first and second tap.
 
 **Gestures** (agent):
 - Mouse: left-drag orbits, right-drag or shift-drag pans, the wheel zooms.
@@ -51,6 +65,11 @@ restrained translucent bottom dock with model thumbnails.
 - Touch: one finger orbits, two fingers pinch-zoom and pan.
 - A press counts as a click only if it moved less than 6 px (10 px for
   touch), so a drag never edits.
+- Touch has no hover, so placing and deleting take two taps: the first tap
+  previews the part (or names the delete target) and says so in text; a second
+  tap on the previewed footprint places it (or on the named part removes it).
+  A mouse click places or removes at once, since hover already showed the
+  preview.
 
 **Interaction** (author):
 - Contextual states replace the modes: nothing held, holding a part, a part
@@ -64,6 +83,16 @@ restrained translucent bottom dock with model thumbnails.
   container (agent). That container was the cause of the unreliability: after
   clicking any tray or colour button, focus left the stage and no shortcut
   fired.
+- Focus policy (agent): a control clicked with a mouse or finger gives focus
+  back to the page at once, so a following Enter acts on the scene rather than
+  re-pressing that control; a control pressed from the keyboard keeps focus.
+  Controls that can't act during a save are `aria-disabled` rather than
+  `disabled`, so focus isn't lost. Shortcuts are ignored in editable fields
+  and action keys ignore auto-repeat (arrow and page keys may repeat).
+- Read-only `?debug` hooks (agent): with `?debug` in the URL the page exposes
+  `window.__state`, `window.__camera()` and `window.__project()`, which
+  `scripts/interaction.ts` uses to read state. They expose nothing the page
+  doesn't already hold and can't change anything.
 
 **Decorative parts and kit versioning:**
 - Three new catalogue parts (author asked for a bounded set; agent chose the
