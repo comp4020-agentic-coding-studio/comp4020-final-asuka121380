@@ -180,3 +180,55 @@ checkpoint prototype.
   the agent's choices.
 
 **Tests.** None (documentation only).
+
+### 2026-10-06 17:36 AEDT — [`a4ed156`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/a4ed156) Rotate command, three decorative parts, and a versioned kit with in-place upgrade
+
+**Changed** (12 files, +514/−58):
+- `src/domain/rules.ts`:
+  - `validatePlacement` now hands bounds, collision and support to a shared
+    `checkFit`.
+  - New `validateRotation` and `rotatedPlacement`. A turn is about the
+    footprint centre (floor rounding), is checked against the whole build
+    with `checkFit`, and is refused if a part resting on the turned one would
+    lose support.
+  - New `validateCommand` and `applyCommand` dispatchers, used by both the
+    server and the browser preview.
+- `src/domain/commands.ts`: a `rotate` command; `no_change` added to the
+  rejection codes.
+- `src/domain/catalog.ts`:
+  - new `window-1x2x2` (W22), `fence-1x4x1` (FN4) and `planter-1x2` (PL2)
+  - a tray `group` for every part type
+- `src/domain/scene.ts`: scene version 2. Its only change is stock for the
+  three new types (4, 4, 3).
+- `src/server/builds.ts`:
+  - `upgrade()` gives a version 1 build the new stock on load (`INSERT OR
+    IGNORE`). Nothing already saved changes.
+  - `runCommand` gains a branch for rotate.
+- `src/client/scene/geometry.ts`: geometry for the window, fence and planter.
+- `src/client/state/transport.ts`: the local preview transport uses the
+  shared dispatcher.
+- New tests:
+  - `spec/domain/rotation-and-decor.test.ts`
+  - `spec/server/upgrade.test.ts`, using in-memory SQLite
+  - rotate and decorative-part persistence over HTTP, in
+    `spec/persistence.test.ts`
+- `vitest.config.ts`: a `server` project.
+
+**Why.** Under the author's new interaction rules, a selected part can be
+rotated through the command path. The author asked for a bounded decorative
+catalogue, and for kit changes that never invalidate a saved build.
+
+**Who decided:**
+- **Author:** rotation must be validated and go through the command path; the
+  decorative parts must be real catalogue parts; kit changes must be additive
+  and versioned.
+- **Agent:** rotation about the footprint centre; the three parts' shapes,
+  stud layouts and quantities; the upgrade-on-load mechanism (ADR 0003).
+
+**Tests.** At this commit, `pnpm check` ran against a local server
+(`DATA_DIR=./data`, port 8080): 42/42 tests passed and the typecheck was clean.
+The browser client still had the checkpoint UI and was not exercised for
+these features.
+
+**Limitations.** No UI exposed rotate or the new parts until the client work
+that follows. Not deployed: the live app still runs `9202f3f`.
