@@ -6,6 +6,7 @@ import { pictures, type Pictures } from "./scene/thumbnails.ts";
 import {
   catalog,
   choosePart,
+  cycle,
   getState,
   lift,
   moveAnchor,
@@ -80,6 +81,20 @@ function Swatches({ value, onPick, label }: { value: string; onPick: (id: string
   );
 }
 
+/** Step through the placed parts, newest last: the buttons for [ and ]. */
+function Step() {
+  return (
+    <span className="step">
+      <button onClick={() => cycle(-1)} aria-label="Previous part" title="Previous part">
+        ‹ <kbd>[</kbd>
+      </button>
+      <button onClick={() => cycle(1)} aria-label="Next part" title="Next part">
+        <kbd>]</kbd> ›
+      </button>
+    </span>
+  );
+}
+
 /** The dock's top row: what a click does right now, and the controls for it. */
 function Context() {
   const held = useApp((s) => s.held);
@@ -106,6 +121,7 @@ function Context() {
               Remove it <kbd>Enter</kbd>
             </button>
           )}
+          <Step />
           <button onClick={() => toggleDelete(false)}>
             Done <kbd>Esc</kbd>
           </button>
@@ -182,6 +198,7 @@ function Context() {
           <button className="danger" onClick={() => !saving && void remove(selected.id)} aria-disabled={saving}>
             Delete <kbd>Del</kbd>
           </button>
+          <Step />
           <button onClick={() => select(null)}>
             Deselect <kbd>Esc</kbd>
           </button>

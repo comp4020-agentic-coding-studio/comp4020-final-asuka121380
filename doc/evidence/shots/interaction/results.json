@@ -1,6 +1,6 @@
 {
   "base": "http://localhost:8080",
-  "at": "2026-10-06T07:28:09.852Z",
+  "at": "2026-10-06T07:34:10.034Z",
   "results": [
     {
       "run": "desktop-mouse",
@@ -72,7 +72,7 @@
       "run": "desktop-mouse",
       "name": "clicking a placed part selects it",
       "ok": true,
-      "detail": "1e1246f9-06ed-4213-81c2-a91103258218"
+      "detail": "e4da8f6e-7a8e-4bc9-a7d0-a5c37db84f64"
     },
     {
       "run": "desktop-mouse",
@@ -96,7 +96,7 @@
       "run": "desktop-mouse",
       "name": "a valid rotation is a server command, turning about the centre",
       "ok": true,
-      "detail": "{\"id\":\"3a68099a-74e0-4e91-b491-bb48feb8d407\",\"partId\":\"brick-2x4\",\"x\":11,\"y\":0,\"z\":2,\"rot\":1,\"colour\":\"pale-mint\"}"
+      "detail": "{\"id\":\"61676801-2f1c-4f3a-967b-9d64b52c9964\",\"partId\":\"brick-2x4\",\"x\":11,\"y\":0,\"z\":2,\"rot\":1,\"colour\":\"pale-mint\"}"
     },
     {
       "run": "desktop-mouse",
@@ -118,9 +118,15 @@
     },
     {
       "run": "desktop-mouse",
+      "name": "the Next and Previous part buttons step the selection",
+      "ok": true,
+      "detail": "61676801 → 63ab83f1 → 61676801"
+    },
+    {
+      "run": "desktop-mouse",
       "name": "clicking a placed part while holding one stacks onto its studs",
       "ok": true,
-      "detail": "{\"id\":\"05857665-127d-4fc7-8bf3-66e396fe836b\",\"partId\":\"brick-2x4\",\"x\":0,\"y\":3,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+      "detail": "{\"id\":\"225d8013-31f7-4c1c-a9c6-9f5f4bf7e83e\",\"partId\":\"brick-2x4\",\"x\":0,\"y\":3,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
     },
     {
       "run": "desktop-mouse",
@@ -312,7 +318,7 @@
       "run": "keyboard-only",
       "name": "Enter on Place places it, once",
       "ok": true,
-      "detail": "[{\"id\":\"3727f433-a183-448c-b4e2-84f0b1f33861\",\"partId\":\"brick-2x2\",\"x\":6,\"y\":0,\"z\":3,\"rot\":0,\"colour\":\"pale-mint\"}]"
+      "detail": "[{\"id\":\"f8286f30-84c7-47e7-80bb-4201d300048c\",\"partId\":\"brick-2x2\",\"x\":6,\"y\":0,\"z\":3,\"rot\":0,\"colour\":\"pale-mint\"}]"
     },
     {
       "run": "keyboard-only",
@@ -384,7 +390,7 @@
       "run": "touch-emulated-390x844",
       "name": "a second tap on the preview places",
       "ok": true,
-      "detail": "[{\"id\":\"fcc89937-7c56-431b-b964-ea2ba804d098\",\"partId\":\"plate-2x2\",\"x\":4,\"y\":0,\"z\":2,\"rot\":0,\"colour\":\"pale-mint\"}]"
+      "detail": "[{\"id\":\"22fe66b6-a144-49dc-a4e0-9e56a57c9c5b\",\"partId\":\"plate-2x2\",\"x\":4,\"y\":0,\"z\":2,\"rot\":0,\"colour\":\"pale-mint\"}]"
     },
     {
       "run": "touch-emulated-390x844",

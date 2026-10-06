@@ -376,3 +376,45 @@ ADR 0003):
   phone.
 - Trackpad gestures were not tested.
 - Not deployed: the live app still runs `9202f3f`.
+
+### 2026-10-06 18:29 AEDT — [`d992b5f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/d992b5f) Browser interaction verification: desktop mouse, keyboard-only and emulated touch
+
+**Changes:**
+- New `scripts/interaction.ts`. It drives the real app in local Chrome through
+  `playwright-core`, in three runs, each with a fresh browser context (a new
+  visitor):
+  - `desktop-mouse` at 1920×1080, then resized to 1280×720 and 390 wide
+  - `keyboard-only`
+  - `touch-emulated-390x844`, with `isMobile`, `hasTouch` and CDP
+    `Input.dispatchTouchEvent` for taps, a one-finger drag and a two-finger
+    pinch
+- The script reads state through the `?debug` hooks. It writes
+  `results.json` and named screenshots.
+- `scripts/placement-experiment.ts` gained a header noting that it drives the
+  removed Build/Select UI. It is kept because evidence 0002 cites its runs.
+- New evidence files:
+  - `doc/evidence/shots/interaction/` (12 PNGs and `results.json`)
+  - `doc/evidence/shots/street/` (`street-desktop.png` and
+    `street-mobile.png`, from `scripts/shoot.ts`)
+- Bundled with it: the log entries for `7c59819` and `3875ab0`.
+
+**Why.** The author asked for verification:
+- emulated touch, labelled as emulation
+- resizing
+- keyboard-only use
+- reloading
+- regression checks of the interaction rules in CLAUDE.md
+
+**Who decided:**
+- **Author:** what had to be verified, and that emulation be labelled.
+- **Agent:** the script's design and its 70 checks.
+
+**Tests.** At 18:28 AEDT the script was run against the local server, built
+from `3875ab0`: 70/70 passed, with no console errors. The results are in
+`doc/evidence/shots/interaction/results.json`; this commit holds that run's
+output. At 18:27, `pnpm check` passed 42/42.
+
+**Limitations:**
+- The script is not part of `pnpm check`, because it needs a desktop Chrome
+  and writes files.
+- The touch run is Chrome emulation, not a physical device.

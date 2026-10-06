@@ -206,6 +206,19 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
     "the button keeps keyboard focus through the save",
     await page.evaluate(() => document.activeElement?.textContent?.startsWith("Rotate") ?? false),
   );
+  // [ and ] have visible buttons too: they step the selection and change nothing
+  rev = s.revision;
+  await page.getByRole("button", { name: "Next part" }).click();
+  await page.waitForTimeout(100);
+  const stepped = await state(page);
+  await page.getByRole("button", { name: "Previous part" }).click();
+  await page.waitForTimeout(100);
+  s = await state(page);
+  check(
+    "the Next and Previous part buttons step the selection",
+    stepped.selectedId !== third.id && !!stepped.selectedId && s.selectedId === third.id && s.revision === rev,
+    `${third.id.slice(0, 8)} → ${stepped.selectedId?.slice(0, 8)} → ${s.selectedId?.slice(0, 8)}`,
+  );
   await page.keyboard.press("Escape");
 
   // stack a brick on the first, then try to delete the bottom one
