@@ -879,3 +879,50 @@ rule.
 
 **Limitations:** the cover is a still picture taken at one moment. It has to
 be re-rendered by hand whenever the scenery changes.
+
+### 2026-10-06 21:31 AEDT — [`b184781`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b184781) Evidence 0005, visual-identity research note, ADR 0004 reconciled
+
+**Changes:**
+- New [doc/evidence/0005-coastal-scene-identity-and-placement.md](doc/evidence/0005-coastal-scene-identity-and-placement.md). It records:
+  - two local runs: run 1 on the code of `c1de11b`, run 2 at `b76a01f`
+  - what each placement and routes check shows
+  - the cache headers observed
+  - what was emulated and what was not tested
+  - the visual limitations
+  - where the assets came from
+- New `doc/evidence/shots/coastal-c1de11b/`: 15 screenshots (Chrome desktop
+  and emulated mobile, two from Playwright's WebKit build) and three result
+  files. The result files hold no cookies or identifiers.
+- New [doc/research/0001-visual-identity.md](doc/research/0001-visual-identity.md):
+  text-only notes, for the official LEGO.com design (as read by third
+  parties), the LEGO Builder app, LEGO Fortnite's build UI and react-legos.
+  It ends with a comparison table against this project's tokens.
+- [ADR 0004](doc/adr/0004-site-identity-homepage-and-coastal-scene.md) now
+  records what was built:
+  - the registry split into homepage-safe metadata and lazily loaded
+    environments
+  - the light kept as code in the scene's folder, not as registry parameters
+  - the sun at about 19°
+  - the near, middle and far tiers, with the far one a painted inland canvas
+  - the camera keep-out
+  - the fonts and the outline focus ring
+  - the cache rule
+  - the self-rendered cover
+
+**Why.** These are step 8 of the revision brief: verify, capture, and bring
+the ADR into line with the implementation.
+
+**Who decided:** the agent wrote these. The research note says that the web
+searches were run after the identity was built, as a check, and that nothing
+was changed because of them.
+
+**Tests:**
+- `pnpm check:evidence` failed with four items, all of them author
+  materials:
+  - no `reflections/crit-8.md`
+  - `PROCESS.md` still holds the template comment
+  - two example hashes, `a1b2c3d` and `e4f5a6b`, cited by the template text
+- No check was changed to make it pass.
+
+**Limitations:** none of this revision is deployed. The live site remains
+`fde2560`, release v4.
