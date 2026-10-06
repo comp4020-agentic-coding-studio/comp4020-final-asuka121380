@@ -232,3 +232,147 @@ these features.
 
 **Limitations.** No UI exposed rotate or the new parts until the client work
 that follows. Not deployed: the live app still runs `9202f3f`.
+
+### 2026-10-06 18:23 AEDT — [`7c59819`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7c59819) Open street environment: real-opening neighbours, sky, fog and surroundings
+
+**Changes:**
+- New `src/client/scene/scenery.ts`, the generated scenery in the brick idiom:
+  - Each house is built from one-stud-thick courses, with gaps left in them
+    for doors and windows. A door or window sits in a real opening, and every
+    face (front, back, left, right) can have openings.
+  - The houses have slope roofs up to a ridge, optional chimneys and
+    canopies, and flower boxes.
+  - Everything is merged into one geometry per colour, so a house costs a
+    handful of draw calls.
+  - It also holds small street furniture (`fenceRun`, `hedge`, `tree`, `lamp`),
+    `farHouse` (optionally with windows on each storey), and `spire`.
+- `src/client/scene/Street.tsx` was rewritten. The checkpoint's finite base
+  slab (x −24..42, z −3..12) is gone, and so are its single-face windows. In
+  their place:
+  - a shader sky dome, background colour and fog (`[HORIZON, 70, 300]`)
+  - a ground disc of radius 650, plus a hemisphere light
+  - pavements on both sides, kerbs, and a road with a centre line, all 300
+    long
+  - the plot as a studded plate with a low stone edge on three sides, and
+    nothing in front of it
+  - two neighbours with openings on every face: the left one has two storeys
+    at x −15; the right one has one storey, gable to the street, at x 21
+  - front gardens with paths, fences, planters and hedges, plus back-garden
+    fences and trees
+  - a low park across the road
+  - a back row behind the plot: 11 `farHouse`s at z −31 with windows, their
+    garden fences at z −24, and trees
+  - a seeded ring of distant houses (95–185 out) and trees, fading into the
+    fog
+  - instanced ground studs near the plot
+  - Only the plot's invisible top plane can be hit, and it only aims
+    placements. All scenery has `raycast={() => null}`.
+- Bundled with it: the `DEVELOPMENT_LOG.md` entry for `a4ed156`.
+
+**Why.** The author's scene rules (CLAUDE.md, ADR 0003) ask for:
+- a world that fills the viewport, with no platform ending in empty space
+- neighbours that stay coherent from all sides under 360° orbit
+- doors in real openings
+- an open plot that stays the clearest subject
+
+**Who decided:**
+- **Author:** those requirements.
+- **Agent:** the layout, distances, colours, fog range, the back row, and the
+  batching approach.
+
+**Tests:**
+- Typecheck: `tsc` was run on this commit's tree on its own (unstaged work
+  stashed) and was clean. The vitest suite was not run separately at this
+  commit; the scenery has no unit tests.
+- Visual checks: done with `scripts/shoot.ts` during development, at
+  1920×1080 and 390×844. The working tree at the time also held the client
+  changes committed next, in `3875ab0`. Later screenshots of HEAD are in
+  `doc/evidence/shots/street/`.
+
+**Limitations:**
+- Seen in Chrome only, with SwiftShader software rendering in headless runs.
+  Frame rate on low-end devices was not measured.
+- The distant ring is decorative. It is not navigable and has no detail up
+  close; camera bounds keep it at a distance.
+
+### 2026-10-06 18:24 AEDT — [`3875ab0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/3875ab0) Contextual interaction, window-level keyboard, 360° bounded camera, floating dock
+
+**Changes:**
+- `src/client/state/store.ts`: the Build/Select modes are replaced by
+  contextual state:
+  - `held` part, `selectedId`, `deleting`, `targetId` and a camera request
+  - actions: `confirm`, `escape`, `cycle`, `lift`, `moveAnchor`, `rotate`,
+    `remove`, `toggleDelete`, `requestCamera`
+- New `src/client/keyboard.ts`, with one `keydown` listener on the window:
+  - Shortcuts work wherever focus is.
+  - Editable fields are ignored. Enter and Space on a focused control are
+    left to the control.
+  - Action keys ignore auto-repeat.
+  - A click listener blurs a control clicked with a mouse or finger
+    (`e.detail !== 0`). A control pressed from the keyboard keeps its focus.
+- `src/client/scene/Workbench.tsx`, the camera:
+  - perspective with FOV 40, full 360° azimuth, polar angle 0.02–1.36 (the
+    camera never drops below the horizontal, let alone the ground)
+  - distance 14–95, with panning clamped to the plot plus 6 studs
+  - Top view and Reset view requests
+  - the lens shifted with `setViewOffset` so the plot frames in the area the
+    dock leaves clear
+  - A drag past 6 px (10 px on touch) never edits on release.
+- Workbench, touch input: the first tap previews; a second tap anywhere on the
+  previewed footprint places. With the delete tool, the first tap names the
+  target and the second removes it. `onPointerLeave` clears the target only
+  for mouse pointers.
+- Workbench, `?debug` only: read-only hooks `window.__camera()` and
+  `window.__project()`, plus `window.__state` from `src/client/main.tsx`.
+- `src/client/App.tsx`, the floating translucent dock:
+  - a context row: hint, held part, or selected part with colour swatches and
+    Rotate/Delete/Deselect; Delete tool; fold
+  - category tabs, and tray buttons with stock counts
+  - a collapsible Target house card
+  - a top bar with Saved state, help, Top view `T`, Reset view `Home` and
+    About
+  - Buttons that can't act while a save is in flight use `aria-disabled`, so
+    they keep focus.
+  - Touch-specific wording comes from `(pointer: coarse)`.
+  - A `ResizeObserver` gives the camera the dock's stable height.
+- New `src/client/scene/thumbnails.ts`: one offscreen renderer draws each tray
+  thumbnail from the real part geometry.
+- `src/client/scene/PartMesh.tsx`: a highlight tint and outline for the
+  selected or targeted part.
+- `src/client/styles.css`: the dock and top-bar styles, the mobile dock
+  layout (one scrolling swatch row; the nudge hidden on coarse pointers),
+  `.wide-only`/`.narrow-only` at 700 px, and visible focus rings.
+
+**Why.** These follow the author's interaction and camera rules (CLAUDE.md,
+ADR 0003):
+- contextual states instead of modes
+- shortcuts that survive clicking UI
+- a bounded 360° camera with Top and Reset views
+- drags that never edit
+- a floating dock with real thumbnails that collapses on mobile
+
+**Who decided:**
+- **Author:** the rules above.
+- **Agent:**
+  - the camera constants and the lens-shift framing
+  - the two-tap touch confirmation
+  - the click-blur focus policy
+  - the `?debug` hooks
+  - the dock layout and wording
+
+**Tests:**
+- Typecheck: `tsc` on this commit's tree on its own was clean.
+- At 18:27 AEDT, after rebuilding `dist/` from HEAD and restarting the local
+  server (`DATA_DIR=./data`, port 8080), `pnpm check` passed 42/42 and the
+  typecheck was clean.
+- At 18:28 AEDT, `scripts/interaction.ts` (committed next) passed 70/70 in
+  three runs in local Chrome: desktop mouse at 1920×1080, keyboard only, and
+  touch emulated by Chrome at 390×844.
+- The interaction results are in
+  `doc/evidence/shots/interaction/results.json`.
+
+**Limitations:**
+- Touch was emulated in Chrome (CDP touch events), not tried on a physical
+  phone.
+- Trackpad gestures were not tested.
+- Not deployed: the live app still runs `9202f3f`.

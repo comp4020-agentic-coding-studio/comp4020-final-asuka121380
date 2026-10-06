@@ -4,6 +4,11 @@
 // one part by mouse, and an out-of-stock attempt that must cost nothing.
 //   node scripts/placement-experiment.ts <base-url> <out-dir>
 // Against `?local` nothing is saved; against the server it really builds.
+//
+// Superseded: this drives the checkpoint's Build/Select UI (keys b and s),
+// which no longer exists. It is kept because doc/evidence/0002 cites its
+// runs; run it from commit a9b4c3d. scripts/interaction.ts tests the
+// current UI.
 import { mkdirSync } from "node:fs";
 import { chromium, type Page } from "playwright-core";
 
