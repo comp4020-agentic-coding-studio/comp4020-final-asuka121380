@@ -172,6 +172,97 @@ function flower(): PartGeometry {
   };
 }
 
+// A frame 1×2×2 with a four-pane glass light; frame and glazing bars take
+// the chosen colour, studs on top like a brick.
+function windowPart(def: PartDefinition): PartGeometry {
+  const H = def.h * PLATE - GAP;
+  const W = def.w - GAP;
+  const D = def.d - GAP;
+  const side = 0.2;
+  const head = 0.26;
+  const sill = 0.3;
+  const frame = [
+    box(side, H, D, -W / 2 + side / 2, 0, 0),
+    box(side, H, D, W / 2 - side / 2, 0, 0),
+    box(W, head, D, 0, H - head, 0),
+    box(W, sill, D, 0, 0, 0),
+    // a sill that projects a little at the front
+    box(W + 0.08, 0.1, 0.22, 0, sill - 0.1, D / 2 + 0.06, 0.02),
+    // glazing bars, set back a little from the face
+    box(0.08, H - head - sill, 0.12, 0, sill, 0.06, 0.01),
+    box(W - 2 * side, 0.08, 0.12, 0, sill + (H - head - sill) / 2 - 0.04, 0.06, 0.01),
+    ...studsOnTop(def, H),
+  ];
+  const glass = box(W - 2 * side, H - head - sill, 0.05, 0, sill, 0.02, 0.005);
+  return {
+    pieces: [
+      { role: "main", geometry: merge(frame) },
+      { role: GLASS, geometry: glass },
+    ],
+  };
+}
+
+// A low fence: two posts with studs on top, rails and balusters between.
+function fence(def: PartDefinition): PartGeometry {
+  const H = def.h * PLATE - GAP;
+  const W = def.w - GAP;
+  const post = 0.8;
+  const span = W - 2 * post;
+  const parts = [
+    box(post, H, 0.8, -W / 2 + post / 2, 0, 0),
+    box(post, H, 0.8, W / 2 - post / 2, 0, 0),
+    box(span, 0.16, 0.3, 0, 0.08, 0),
+    box(span, 0.14, 0.24, 0, H - 0.3, 0),
+  ];
+  for (let i = 0; i < 4; i++) parts.push(box(0.14, H - 0.42, 0.18, -span / 2 + (span / 4) * (i + 0.5), 0.2, 0, 0.02));
+  parts.push(...studsOnTop(def, H));
+  return { pieces: [{ role: "main", geometry: merge(parts) }] };
+}
+
+const SOIL = "#4b3427";
+const BLOSSOM = "#ef8fae";
+const BLOSSOM_LIGHT = "#fbf3f0";
+
+// A planter box with flowers: the box takes the colour, the planting is fixed.
+function planter(def: PartDefinition): PartGeometry {
+  const W = def.w - GAP;
+  const D = def.d - GAP;
+  const boxH = 3 * PLATE - GAP;
+  const wall = 0.12;
+  const shell = [
+    box(W, 0.12, D, 0, 0, 0),
+    box(W, boxH, wall, 0, 0, D / 2 - wall / 2),
+    box(W, boxH, wall, 0, 0, -D / 2 + wall / 2),
+    box(wall, boxH, D, -W / 2 + wall / 2, 0, 0),
+    box(wall, boxH, D, W / 2 - wall / 2, 0, 0),
+    // a rim
+    box(W + 0.06, 0.08, D + 0.06, 0, boxH - 0.08, 0, 0.02),
+  ];
+  const soil = box(W - 2 * wall, 0.1, D - 2 * wall, 0, boxH - 0.24, 0, 0.01);
+  const leaves: THREE.BufferGeometry[] = [];
+  const blossoms: THREE.BufferGeometry[] = [];
+  const blossomsLight: THREE.BufferGeometry[] = [];
+  const spots = [-0.62, -0.2, 0.22, 0.64];
+  spots.forEach((x, i) => {
+    const leaf = new THREE.SphereGeometry(0.22, 10, 8);
+    leaf.scale(1, 0.8, 1);
+    leaf.translate(x, boxH + 0.06, (i % 2 ? 0.08 : -0.08));
+    leaves.push(leaf);
+    const b = new THREE.CylinderGeometry(0.15, 0.15, 0.14, 12);
+    b.translate(x + 0.04, boxH + 0.32 + (i % 2) * 0.12, i % 2 ? -0.05 : 0.06);
+    (i % 2 ? blossomsLight : blossoms).push(b);
+  });
+  return {
+    pieces: [
+      { role: "main", geometry: merge(shell) },
+      { role: SOIL, geometry: soil },
+      { role: LEAVES, geometry: merge(leaves) },
+      { role: BLOSSOM, geometry: merge(blossoms) },
+      { role: BLOSSOM_LIGHT, geometry: merge(blossomsLight) },
+    ],
+  };
+}
+
 function build(def: PartDefinition): PartGeometry {
   const H = def.h * PLATE;
   switch (def.geometry) {
@@ -191,6 +282,12 @@ function build(def: PartDefinition): PartGeometry {
       return door(def);
     case "flower":
       return flower();
+    case "window":
+      return windowPart(def);
+    case "fence":
+      return fence(def);
+    case "planter":
+      return planter(def);
   }
 }
 

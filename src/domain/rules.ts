@@ -1,6 +1,7 @@
 import { partDef, type PartDefinition } from "./catalog.ts";
 import { isColour } from "./colours.ts";
 import { key, rotateCell, rotatedSize, type Cell, type Rotation } from "./grid.ts";
+import type { Command } from "./commands.ts";
 import type { SceneTemplate } from "./scene.ts";
 
 // The construction rules, shared by the server (which decides) and the
@@ -36,7 +37,8 @@ export type RejectionCode =
   | "unsupported"
   | "out_of_stock"
   | "not_found"
-  | "would_unsupport";
+  | "would_unsupport"
+  | "no_change";
 
 export interface Rejection {
   code: RejectionCode;
@@ -93,18 +95,21 @@ export function validatePlacement(scene: SceneTemplate, state: BuildState, p: Pl
   if (!def.rotations.includes(p.rot)) return { code: "bad_rotation", message: "That rotation isn't allowed for this part." };
   if (!isColour(p.colour)) return { code: "bad_colour", message: "That colour isn't in the palette." };
   if (![p.x, p.y, p.z].every(isInt)) return { code: "bad_position", message: "Positions are whole studs and plates." };
+  if ((state.inventory[p.partId] ?? 0) <= 0) {
+    return { code: "out_of_stock", message: `No ${def.name} (${def.code}) left in your kit.` };
+  }
+  return checkFit(scene, state.parts, p, def);
+}
 
+/** Bounds, collision and support for a part among `parts`; stock is the caller's business. */
+function checkFit(scene: SceneTemplate, parts: readonly PlacedPart[], p: Placement, def: PartDefinition): Rejection | null {
   const size = rotatedSize(def, p.rot);
   const b = scene.bounds;
   if (p.x < 0 || p.z < 0 || p.y < 0 || p.x + size.w > b.w || p.z + size.d > b.d || p.y + def.h > b.h) {
     return { code: "out_of_bounds", message: "That would stick out of the build plot." };
   }
 
-  if ((state.inventory[p.partId] ?? 0) <= 0) {
-    return { code: "out_of_stock", message: `No ${def.name} (${def.code}) left in your kit.` };
-  }
-
-  const occ = occupancy(state.parts);
+  const occ = occupancy(parts);
   for (const c of footprint(def, p)) {
     for (let y = p.y; y < p.y + def.h; y++) {
       const other = occ.get(key(c.x, y, c.z));
@@ -115,8 +120,57 @@ export function validatePlacement(scene: SceneTemplate, state: BuildState, p: Pl
     }
   }
 
-  if (p.y > 0 && supporters(def, p, state.parts).length === 0) {
+  if (p.y > 0 && supporters(def, p, parts).length === 0) {
     return { code: "unsupported", message: "Nothing to attach to there: it needs studs directly underneath." };
+  }
+  return null;
+}
+
+/**
+ * A placed part turned to `rot` about the centre of its footprint (rounding
+ * down when the footprint's width and depth differ by an odd number).
+ */
+export function rotatedPlacement(part: PlacedPart, rot: Rotation): PlacedPart {
+  const def = partDef(part.partId)!;
+  const from = rotatedSize(def, part.rot);
+  const to = rotatedSize(def, rot);
+  return {
+    ...part,
+    rot,
+    x: part.x + Math.floor((from.w - to.w) / 2),
+    z: part.z + Math.floor((from.d - to.d) / 2),
+  };
+}
+
+/** The next allowed rotation after the part's current one. */
+export function nextRotation(partId: string, rot: Rotation): Rotation {
+  const def = partDef(partId)!;
+  const i = def.rotations.indexOf(rot);
+  return def.rotations[(i + 1) % def.rotations.length];
+}
+
+/**
+ * Turning a placed part re-checks the whole build: the turned part must fit
+ * and be supported, and every part resting on it must still be supported.
+ * Identity and stock never change.
+ */
+export function validateRotation(scene: SceneTemplate, state: BuildState, placedId: string, rot: Rotation): Rejection | null {
+  const target = state.parts.find((p) => p.id === placedId);
+  if (!target) return { code: "not_found", message: "That part is no longer in the build." };
+  const def = partDef(target.partId)!;
+  if (!def.rotations.includes(rot)) return { code: "bad_rotation", message: "That rotation isn't allowed for this part." };
+  if (rot === target.rot) return { code: "no_change", message: "It's already facing that way." };
+
+  const turned = rotatedPlacement(target, rot);
+  const rest = state.parts.filter((p) => p.id !== placedId);
+  const fit = checkFit(scene, rest, turned, def);
+  if (fit) return { ...fit, message: `Can't turn it there: ${fit.message.charAt(0).toLowerCase()}${fit.message.slice(1)}` };
+
+  const after = [...rest, turned];
+  const resting = rest.filter((p) => supporters(partDef(p.partId)!, p, [target]).length > 0);
+  const stranded = resting.filter((p) => p.y > 0 && supporters(partDef(p.partId)!, p, after).length === 0);
+  if (stranded.length > 0) {
+    return { code: "would_unsupport", message: "Can't turn it: a part resting on it would lose its support." };
   }
   return null;
 }
@@ -168,6 +222,10 @@ export function applyRemoval(state: BuildState, placedId: string): BuildState {
   };
 }
 
+export function applyRotation(state: BuildState, placedId: string, rot: Rotation): BuildState {
+  return { ...state, parts: state.parts.map((p) => (p.id === placedId ? rotatedPlacement(p, rot) : p)) };
+}
+
 export function applyRecolour(state: BuildState, placedId: string, colour: string): BuildState {
   return { ...state, parts: state.parts.map((p) => (p.id === placedId ? { ...p, colour } : p)) };
 }
@@ -186,4 +244,33 @@ export function restingHeight(def: PartDefinition, p: Pick<Placement, "x" | "z" 
     if (footprint(qd, q).some((c) => cells.has(`${c.x},${c.z}`))) top = Math.max(top, q.y + qd.h);
   }
   return top;
+}
+
+// One dispatcher for every command, so the server and the local preview
+// can't disagree about which rule applies.
+
+export function validateCommand(scene: SceneTemplate, state: BuildState, command: Command): Rejection | null {
+  switch (command.type) {
+    case "place":
+      return validatePlacement(scene, state, command.placement);
+    case "remove":
+      return validateRemoval(state, command.placedId);
+    case "recolour":
+      return validateRecolour(state, command.placedId, command.colour);
+    case "rotate":
+      return validateRotation(scene, state, command.placedId, command.rot);
+  }
+}
+
+export function applyCommand(state: BuildState, command: Command, newId: string): BuildState {
+  switch (command.type) {
+    case "place":
+      return applyPlacement(state, command.placement, newId);
+    case "remove":
+      return applyRemoval(state, command.placedId);
+    case "recolour":
+      return applyRecolour(state, command.placedId, command.colour);
+    case "rotate":
+      return applyRotation(state, command.placedId, command.rot);
+  }
 }

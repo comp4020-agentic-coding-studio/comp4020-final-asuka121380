@@ -1,3 +1,4 @@
+import type { Rotation } from "./grid.ts";
 import type { PlacedPart, Placement, RejectionCode } from "./rules.ts";
 
 // The one path for durable changes: the client sends a command, the server
@@ -7,7 +8,8 @@ import type { PlacedPart, Placement, RejectionCode } from "./rules.ts";
 export type Command =
   | { type: "place"; placement: Placement }
   | { type: "remove"; placedId: string }
-  | { type: "recolour"; placedId: string; colour: string };
+  | { type: "recolour"; placedId: string; colour: string }
+  | { type: "rotate"; placedId: string; rot: Rotation };
 
 export interface CommandEnvelope {
   /** Client-generated and stable across retries, so a retry never runs twice. */

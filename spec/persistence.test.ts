@@ -125,6 +125,38 @@ describe("a visitor's build", () => {
     expect(after.inventory["brick-2x4"]).toBe(build.inventory["brick-2x4"] - 1);
   });
 
+  it("turns a placed part through the command path, keeping its id and stock", async () => {
+    const { cookie, build } = await newVisitor();
+    await send(cookie, place(0, { x: 4, z: 2 }));
+    let s = await load(cookie);
+    const id = s.parts[0].id;
+    const turned = await send(cookie, { commandId: randomUUID(), expectedRevision: s.revision, command: { type: "rotate", placedId: id, rot: 1 } });
+    expect(turned.json.ok).toBe(true);
+    s = await load(cookie);
+    expect(s.parts).toEqual([expect.objectContaining({ id, x: 5, z: 1, rot: 1 })]);
+    expect(s.inventory["brick-2x4"]).toBe(build.inventory["brick-2x4"] - 1);
+
+    // turning back out of the plot's edge is refused and changes nothing
+    await send(cookie, place(s.revision, { x: 12, z: 0, rot: 0 }));
+    s = await load(cookie);
+    const edge = s.parts[1];
+    const refused = await send(cookie, { commandId: randomUUID(), expectedRevision: s.revision, command: { type: "rotate", placedId: edge.id, rot: 1 } });
+    expect(refused.json).toMatchObject({ ok: false, code: "out_of_bounds" });
+    expect((await load(cookie)).parts[1]).toEqual(edge);
+  });
+
+  it("keeps decorative parts like any other", async () => {
+    const { cookie, build } = await newVisitor();
+    for (const [i, partId] of ["window-1x2x2", "fence-1x4x1", "planter-1x2"].entries()) {
+      const s = await load(cookie);
+      const r = await send(cookie, place(s.revision, { partId, x: i * 5, z: 6, colour: "white" }));
+      expect(r.json.ok, partId).toBe(true);
+    }
+    const after = await load(cookie);
+    expect(after.parts.map((p) => p.partId)).toEqual(["window-1x2x2", "fence-1x4x1", "planter-1x2"]);
+    for (const p of after.parts) expect(after.inventory[p.partId]).toBe(build.inventory[p.partId] - 1);
+  });
+
   it("refuses commands without a visitor", async () => {
     const res = await fetch(new URL("/api/command", baseUrl), {
       method: "POST",

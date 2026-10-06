@@ -147,3 +147,36 @@ results are in the evidence file.
 ---
 
 ## Entries
+
+### 2026-10-06 17:31 — [`cea2752`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cea2752) Harness: development log, new interaction and scene rules, ADR 0003
+
+**Changed** (4 files):
+- `DEVELOPMENT_LOG.md`: new, with retrospective entries for the three earlier
+  commits.
+- `CLAUDE.md`: rewritten.
+  - adds the commit and logging rules
+  - adds the scene and camera constraints
+  - adds the contextual interaction and keyboard rules
+  - adds the bans on physics, people and vehicles
+  - adds additive, versioned kit changes
+  - reference images stay out of public assets
+- `doc/adr/0003-open-street-camera-and-contextual-interaction.md`: new.
+- `doc/adr/0002-…`: gains a "partly superseded by 0003" note at the top.
+  Nothing else in it changed.
+
+**Why.** The author asked to separate the running diary from the assessed
+`PROCESS.md`, and gave a new interaction and visual direction after trying the
+checkpoint prototype.
+
+**Who decided:**
+- **Author:** the logging workflow and its ten rules; the full-viewport
+  environment; 360° orbit, top view and bounds; contextual states replacing
+  Build/Select; the persistent delete tool; the bottom dock with model
+  thumbnails; the bounded decorative parts; additive kit changes.
+- **Agent:** perspective FOV 35°; the polar and distance limits; the
+  drag-versus-click thresholds; global keyboard handling; rotation about the
+  footprint centre; the shapes and quantities of the three decorative parts;
+  the in-place upgrade of version 1 builds. All are recorded in ADR 0003 as
+  the agent's choices.
+
+**Tests.** None (documentation only).

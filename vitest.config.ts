@@ -5,6 +5,8 @@ import { defineConfig } from "vitest/config";
 //   spec/global-setup.ts finds (the two shipped invariants live here)
 // - `domain`: spec/domain/, the construction rules as plain functions, which
 //   need no server
+// - `server`: spec/server/, the server's storage code against a throwaway
+//   in-memory database
 export default defineConfig({
   test: {
     projects: [
@@ -19,6 +21,12 @@ export default defineConfig({
         test: {
           name: "domain",
           include: ["spec/domain/**/*.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "server",
+          include: ["spec/server/**/*.test.ts"],
         },
       },
     ],

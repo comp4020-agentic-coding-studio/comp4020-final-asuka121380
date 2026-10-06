@@ -12,8 +12,14 @@ export interface SceneTemplate {
   bounds: { w: number; d: number; h: number };
   /** The complete internal reference model, in the order it's built. */
   reference: readonly Placement[];
-  /** K[p]: the whole kit by part type. Colour is not a dimension of it. */
+  /** K[p]: the whole kit by part type, at this version. Colour is not a dimension of it. */
   kit: Readonly<Record<string, number>>;
+  /**
+   * What each version added to the one before. Versions only ever add part
+   * types: an existing type's quantity never changes, so a saved build is
+   * upgraded by adding the new types' stock (ADR 0003).
+   */
+  additions: Readonly<Record<number, Readonly<Record<string, number>>>>;
 }
 
 // Reference: the dark-blue-roofed house and its tree from LEGO Classic 11035,
@@ -113,12 +119,20 @@ function kitFrom(bom: Record<string, number>, extra: Record<string, number>): Re
   return kit;
 }
 
+// Version 2 (6 Oct 2026, ADR 0003): a bounded set of decorative parts.
+const v2: Record<string, number> = {
+  "window-1x2x2": 4,
+  "fence-1x4x1": 4,
+  "planter-1x2": 3,
+};
+
 export const STREET_SCENE: SceneTemplate = {
   id: "street-01",
-  version: 1,
+  version: 2,
   bounds: { w: 16, d: 8, h: 42 },
   reference,
-  kit: kitFrom(billOfMaterials(reference), surplus),
+  kit: kitFrom(kitFrom(billOfMaterials(reference), surplus), v2),
+  additions: { 2: v2 },
 };
 
 export const SCENES: Readonly<Record<string, SceneTemplate>> = { [STREET_SCENE.id]: STREET_SCENE };

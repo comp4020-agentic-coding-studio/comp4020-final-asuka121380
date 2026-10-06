@@ -1,13 +1,5 @@
 import type { CommandEnvelope, CommandResult, Snapshot } from "../../domain/commands.ts";
-import {
-  applyPlacement,
-  applyRecolour,
-  applyRemoval,
-  validatePlacement,
-  validateRecolour,
-  validateRemoval,
-  type BuildState,
-} from "../../domain/rules.ts";
+import { applyCommand, applyPlacement, validateCommand, type BuildState } from "../../domain/rules.ts";
 import { STREET_SCENE } from "../../domain/scene.ts";
 
 export interface Transport {
@@ -67,19 +59,9 @@ export function localTransport(): Transport {
       return snapshot();
     },
     async send({ command }) {
-      const rejection =
-        command.type === "place"
-          ? validatePlacement(scene, state, command.placement)
-          : command.type === "remove"
-            ? validateRemoval(state, command.placedId)
-            : validateRecolour(state, command.placedId, command.colour);
+      const rejection = validateCommand(scene, state, command);
       if (rejection) return { ok: false, ...rejection, snapshot: snapshot() };
-      state =
-        command.type === "place"
-          ? applyPlacement(state, command.placement, `local${n++}`)
-          : command.type === "remove"
-            ? applyRemoval(state, command.placedId)
-            : applyRecolour(state, command.placedId, command.colour);
+      state = applyCommand(state, command, `local${n++}`);
       revision++;
       return { ok: true, snapshot: snapshot() };
     },

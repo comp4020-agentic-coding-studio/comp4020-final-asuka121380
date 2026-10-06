@@ -1,12 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Command, CommandEnvelope, CommandResult, Snapshot } from "../domain/commands.ts";
-import {
-  validatePlacement,
-  validateRecolour,
-  validateRemoval,
-  type BuildState,
-  type PlacedPart,
-} from "../domain/rules.ts";
+import { rotatedPlacement, validateCommand, type BuildState, type PlacedPart } from "../domain/rules.ts";
 import { STREET_SCENE } from "../domain/scene.ts";
 import { transaction, type Db } from "./db.ts";
 
@@ -49,10 +43,28 @@ interface BuildRow {
   revision: number;
 }
 
+// Call inside a transaction: an older build is upgraded before anyone reads it.
 function currentBuild(db: Db, visitorId: string): BuildRow | undefined {
-  return db
+  const build = db
     .prepare("SELECT id, scene_id, template_version, revision FROM builds WHERE visitor_id = ? ORDER BY created_at DESC LIMIT 1")
     .get(visitorId) as BuildRow | undefined;
+  return build && upgrade(db, build);
+}
+
+/**
+ * Brings a build saved under an older scene version up to the current one.
+ * Versions only add part types (scene.additions), so this inserts the new
+ * types' stock at full quantity and touches nothing already saved: no part,
+ * no existing quantity, no revision. kit = held + placed still holds.
+ */
+export function upgrade(db: Db, build: BuildRow): BuildRow {
+  if (build.template_version >= scene.version) return build;
+  const add = db.prepare("INSERT OR IGNORE INTO inventory (build_id, part_id, quantity) VALUES (?, ?, ?)");
+  for (let v = build.template_version + 1; v <= scene.version; v++) {
+    for (const [partId, quantity] of Object.entries(scene.additions[v] ?? {})) add.run(build.id, partId, quantity);
+  }
+  db.prepare("UPDATE builds SET template_version = ? WHERE id = ?").run(scene.version, build.id);
+  return { ...build, template_version: scene.version };
 }
 
 function snapshotOf(db: Db, build: BuildRow): Snapshot {
@@ -114,6 +126,8 @@ export function parseEnvelope(body: unknown): CommandEnvelope | null {
     command = { type: "remove", placedId: c.placedId };
   } else if (c.type === "recolour" && isStr(c.placedId) && isStr(c.colour)) {
     command = { type: "recolour", placedId: c.placedId, colour: c.colour };
+  } else if (c.type === "rotate" && isStr(c.placedId) && typeof c.rot === "number") {
+    command = { type: "rotate", placedId: c.placedId, rot: c.rot as 0 };
   } else {
     return null;
   }
@@ -151,12 +165,7 @@ export function runCommand(db: Db, visitorId: string, envelope: CommandEnvelope)
     const snapshot = snapshotOf(db, build);
     const state: BuildState = snapshot;
     const { command } = envelope;
-    const rejection =
-      command.type === "place"
-        ? validatePlacement(scene, state, command.placement)
-        : command.type === "remove"
-          ? validateRemoval(state, command.placedId)
-          : validateRecolour(state, command.placedId, command.colour);
+    const rejection = validateCommand(scene, state, command);
     if (rejection) return { outcome: "rejected", buildId: build.id, result: { ok: false, ...rejection, snapshot } };
 
     const t = now();
@@ -170,8 +179,11 @@ export function runCommand(db: Db, visitorId: string, envelope: CommandEnvelope)
       const part = state.parts.find((p) => p.id === command.placedId)!;
       db.prepare("DELETE FROM parts WHERE id = ? AND build_id = ?").run(part.id, build.id);
       db.prepare("UPDATE inventory SET quantity = quantity + 1 WHERE build_id = ? AND part_id = ?").run(build.id, part.partId);
-    } else {
+    } else if (command.type === "recolour") {
       db.prepare("UPDATE parts SET colour = ? WHERE id = ? AND build_id = ?").run(command.colour, command.placedId, build.id);
+    } else {
+      const turned = rotatedPlacement(state.parts.find((p) => p.id === command.placedId)!, command.rot);
+      db.prepare("UPDATE parts SET x = ?, z = ?, rot = ? WHERE id = ? AND build_id = ?").run(turned.x, turned.z, turned.rot, turned.id, build.id);
     }
     const revision = build.revision + 1;
     db.prepare("UPDATE builds SET revision = ?, updated_at = ? WHERE id = ?").run(revision, t, build.id);
