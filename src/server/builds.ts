@@ -88,6 +88,19 @@ function snapshotOf(db: Db, build: BuildRow): Snapshot {
 }
 
 /** The visitor's build, started with the whole kit on their first visit. Never replaces an existing one. */
+/**
+ * For the homepage: does this browser already have a build, and how big is
+ * it? Read-only. Unlike `buildFor` it never creates a visitor or a build, so
+ * looking at the homepage writes nothing (ADR 0004).
+ */
+export function summaryFor(db: Db, token: string | undefined): { hasBuild: boolean; parts: number } {
+  const visitorId = findVisitor(db, token);
+  const build = visitorId ? currentBuild(db, visitorId) : undefined;
+  if (!build) return { hasBuild: false, parts: 0 };
+  const { n } = db.prepare("SELECT count(*) AS n FROM parts WHERE build_id = ?").get(build.id) as { n: number };
+  return { hasBuild: true, parts: n };
+}
+
 export function buildFor(db: Db, visitorId: string): Snapshot {
   return transaction(db, () => {
     let build = currentBuild(db, visitorId);

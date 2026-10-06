@@ -70,7 +70,7 @@ async function open(context: BrowserContext): Promise<{ page: Page; commands: ()
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("request", (r) => r.url().endsWith("/api/command") && n++);
-  await page.goto(`${base}/?debug`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__camera && (window as any).__project);
   await page.waitForTimeout(1200);
   return { page, commands: () => n, errors };

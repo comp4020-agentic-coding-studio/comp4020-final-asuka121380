@@ -1,11 +1,12 @@
 import express, { type Request, type Response } from "express";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { buildFor, findVisitor, parseEnvelope, runCommand, visitorFor } from "./builds.ts";
+import { buildFor, findVisitor, parseEnvelope, runCommand, summaryFor, visitorFor } from "./builds.ts";
 import { openDatabase } from "./db.ts";
 import { renderReadme } from "./readme.ts";
 
-// One same-origin service: the built client, the build API and /readme/.
+// One same-origin service: the built client (the homepage at / and the
+// editor at /build/), the build API and /readme/.
 // It listens on 0.0.0.0:$PORT, and its only durable state is the SQLite file
 // on the volume mounted at /data (fly.toml).
 
@@ -60,6 +61,11 @@ app.get("/api/build", (req, res) => {
   const visitor = visitorFor(db, readCookie(req));
   if (visitor.newToken) setCookie(req, res, visitor.newToken);
   res.json(buildFor(db, visitor.id));
+});
+
+// the homepage's "Continue my build": read-only, and sets no cookie
+app.get("/api/summary", (req, res) => {
+  res.json(summaryFor(db, readCookie(req)));
 });
 
 app.post("/api/command", (req, res) => {

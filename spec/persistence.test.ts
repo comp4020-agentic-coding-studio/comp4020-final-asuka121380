@@ -166,3 +166,33 @@ describe("a visitor's build", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("the homepage's summary", () => {
+  it("says there's no build, and creates no visitor, for a browser without a cookie", async () => {
+    const res = await fetch(new URL("/api/summary", baseUrl));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(await res.json()).toEqual({ hasBuild: false, parts: 0 });
+  });
+
+  it("counts the parts in this visitor's build, and is the same build the editor loads", async () => {
+    const { cookie, build } = await newVisitor();
+    await send(cookie, place(build.revision, { x: 4, z: 2 }));
+    const res = await fetch(new URL("/api/summary", baseUrl), { headers: { cookie } });
+    expect(await res.json()).toEqual({ hasBuild: true, parts: 1 });
+    expect((await load(cookie)).parts).toHaveLength(1);
+  });
+});
+
+describe("the two pages", () => {
+  it("serves the homepage at / and the editor at /build/, with /build redirecting", async () => {
+    const home = await fetch(new URL("/", baseUrl));
+    expect(home.status).toBe(200);
+    const editor = await fetch(new URL("/build/", baseUrl));
+    expect(editor.status).toBe(200);
+    expect(await editor.text()).toContain('id="root"');
+    const bare = await fetch(new URL("/build", baseUrl), { redirect: "manual" });
+    expect([301, 302, 308]).toContain(bare.status);
+    expect(bare.headers.get("location")).toMatch(/\/build\/$/);
+  });
+});
