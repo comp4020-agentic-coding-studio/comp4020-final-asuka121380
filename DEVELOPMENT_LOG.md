@@ -955,3 +955,20 @@ revision `bbbcdbc`…`c10dfcd`.
   and there is no migration, but the existing builds were not observed.
 - Touch was emulated. Safari and physical devices were not tested. The
   author's own build was not opened.
+
+### 2026-10-06 21:49 AEDT — [`6dcc2f4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/6dcc2f4) Evidence 0006: c10dfcd deployed as Fly release v5, verified live
+
+**Changes:**
+- New [doc/evidence/0006-live-deploy-c10dfcd.md](doc/evidence/0006-live-deploy-c10dfcd.md),
+  recording the push, the pre-push scan, the deploy, and the live checks
+  listed in the deployment entry above.
+- New `doc/evidence/shots/live-c10dfcd/`: four live screenshots and two
+  result files. The result files hold no cookies or identifiers.
+- The deployment entry for release v5, in this log.
+
+**Who decided:** the author authorised the deploy; the agent wrote the
+record.
+
+**Tests:** none beyond the live runs this commit records.
+
+**Limitations:** this commit is local only; it is not pushed.
