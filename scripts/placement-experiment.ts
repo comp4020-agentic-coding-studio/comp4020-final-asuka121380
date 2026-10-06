@@ -62,6 +62,23 @@ await page.mouse.click(at.x, at.y);
 await page.waitForTimeout(300);
 log.push(`mouse click: ${await notice(page)} | B12 ${await count(page, "B12")}`);
 
+// select the newest part, recolour it, remove it; then try to remove the
+// plate everything else stands on, which must be refused
+await page.locator("main.stage").focus();
+await key("s", "]");
+log.push(`select: ${await notice(page)}`);
+await page.getByRole("radio", { name: "Rose pink" }).click();
+await page.waitForTimeout(250);
+log.push(`recolour: ${await notice(page)} | ${await page.locator("#select-heading + p").innerText()}`);
+await page.locator("main.stage").focus();
+await key("Delete");
+log.push(`remove: ${await notice(page)} | B12 ${await count(page, "B12").catch(() => "(tray hidden in select mode)")}`);
+await key("[");
+log.push(`select first: ${await notice(page)}`);
+await key("Delete");
+log.push(`remove the plate under the brick: ${await notice(page)}`);
+await key("b");
+
 await page.mouse.move(10, 10);
 await page.screenshot({ path: `${out}/experiment-result.png` });
 
