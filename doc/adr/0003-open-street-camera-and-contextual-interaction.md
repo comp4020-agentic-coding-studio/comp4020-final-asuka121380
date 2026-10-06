@@ -5,6 +5,10 @@
     prototype: the direction and the requirements below.
   - The agent's implementation choices are marked "agent".
 - Date: 2026-10-06
+- Superseded in part:
+  - by ADR 0004: the suburban street setting and the interface palette
+  - by ADR 0005: preview height and the arrow-key mapping
+  The camera, the contextual states, rotation and kit versioning still hold.
 - Supersedes parts of ADR 0002: the finite display base, the orthographic
   camera limited to ±0.75 rad of azimuth, and the explicit Build/Select modes.
   ADR 0002's rationale for those (a shallow composition seen front-on, with

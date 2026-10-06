@@ -5,11 +5,14 @@
      proposals, awaiting the author's review. Edit freely: this file is the
      author's. -->
 
-A browser 3D brick-building game set in an inviting residential street. The
+A browser 3D brick-building and cooperative-creation site that will hold
+several scenes. The first scene is a row of colourful beach houses; it is not
+the identity of the whole site (author, 6 Oct 2026 evening; ADR 0004). The
 current milestone is C8: a working, server-saved solo build. Multiplayer,
-material requests, shared planning, similarity scoring, galleries, accounts
-and runtime LLM features are out of scope until the author says otherwise
-(author).
+material requests, shared planning, similarity scoring, galleries, accounts,
+multiple playable scenes and runtime LLM features are out of scope until the
+author says otherwise (author). Cooperation may be *described* on the
+homepage, clearly labelled as planned, but never faked (author).
 
 ## Development log and commits (author, 6 Oct 2026)
 
@@ -74,8 +77,10 @@ Each entry gives, in proportion to the change:
 - Add people, minifigures, traffic or moving vehicles (author).
 - Call a model, an LLM or any external service at runtime (author).
 - Commit or serve the 11035 PDF or its renders, the reference photograph, the
-  concept image, or LEGO branding (author: reference images stay out of
-  public assets).
+  concept image, LEGO branding, or third-party screenshots gathered for
+  design research (author: reference images stay out of public assets).
+- Reset or silently migrate saved builds or inventory. Explain any scene
+  version or content migration to the author before applying it (author).
 - Change `fly.toml`'s limits, the shipped `spec/invariants.test.ts`,
   `0.0.0.0:$PORT`, or `/readme/` (course).
 - Push, deploy, make the repo public or run /comp4020:ship without the
@@ -92,12 +97,48 @@ Each entry gives, in proportion to the change:
 - Server files run directly under Node, so use only TypeScript syntax that
   erases (`erasableSyntaxOnly`) and import with `.ts` extensions.
 
+## Site identity, routes and scenes (author, 6 Oct 2026 evening; ADR 0004)
+
+- `/` is a designed homepage, not the editor. The editor lives at `/build/`.
+  Both survive direct links and reloads, and moving between them keeps the
+  same visitor and build. The homepage must not load three.js or the scene.
+- Global identity: vivid red, clean white and bright yellow, with dark text
+  and restrained supporting colours. Original branding only: no LEGO logo,
+  no copied artwork or buttons, nothing implying an official LEGO product.
+- Shared UI (`src/client/ui/`) holds the tokens and components. It never
+  hard-codes a scene's colours, scenery or wording. Scene-specific content
+  (environment, lighting, decoration, cover, wording) lives in its scene's
+  folder and registry entry (`src/client/scenes/`), and the kit, bounds and
+  reference stay in `src/domain/scene.ts`.
+- No fake activity: no online counts, teammates, rooms, or invitation
+  controls that do nothing. No "coming soon" card collections.
+- The homepage is expressive; the editor is quieter, so the construction
+  stays the focus. Decoration never costs legibility or click-target size.
+
+## First scene: coastal houses (author, 6 Oct 2026 evening; ADR 0004; supersedes the suburban street of ADR 0003)
+
+- Houses face the beach: houses and small front gardens → promenade →
+  beach → sea. No wide road. The open beach is the unobstructed foreground.
+- A few carefully varied neighbours (silhouette, height, roof, windows,
+  entrances, purposeful bright colour), not many repeated boxes. Doors and
+  windows sit in real wall openings.
+- Golden hour shortly before sunset, with the sun above the horizon on the
+  sea side. Sky, sun and the actual light direction agree. No orange
+  filter; colours stay distinct; previews stay readable.
+- Terrain: gentle dunes, a slight fall to the water, small differences in
+  neighbours' foundations. The plot stays level, with its grid and rules.
+- True 3D near the plot. Simplified geometry in the middle distance, and
+  self-made panoramic imagery only far away. Nothing near may be a flat card
+  that breaks under rotation or in top view.
+- Assets: self-made, or a checked licence with the source recorded. Nothing
+  loaded from third-party services at runtime.
+
 ## Scene and camera (author, 6 Oct 2026; supersedes the finite base and restricted orbit in ADR 0002)
 
 - The 3D world fills the viewport behind floating UI. There is a sky, distant
-  surroundings, and ground and street extending past the working area. No
-  "platform ending in empty space".
-- One street of houses with the player's plot clearly marked. Neighbours have
+  surroundings, and ground extending past the working area. No "platform
+  ending in empty space".
+- One row of houses with the player's plot clearly marked. Neighbours have
   coherent sides and backs, because the camera goes round them.
 - Keep the plot open and the player's construction the clearest subject. No
   tall foreground objects near the plot. Check visibility from several angles.
@@ -116,6 +157,18 @@ Each entry gives, in proportion to the change:
 - **Holding a tray part:**
   - A snapped preview shows, and says in text (not colour alone) whether it
     fits.
+  - Placement height is surface-aware (ADR 0005). The pointer means the
+    surface it hits: the plot, or the top of a part. A higher part never
+    makes a valid lower position unreachable. Higher and Lower (PageUp and
+    PageDown, plus visible buttons) step through the heights that fit
+    there.
+  - A chosen height survives horizontal fine adjustment. Confirming commits
+    exactly the preview on screen; a click or tap never re-aims first.
+  - Arrow keys and the direction buttons move the preview relative to the
+    camera, snapped to the grid's axes with hysteresis. Height is a separate
+    control.
+  - Mouse, keyboard, visible buttons and touch give the same placement
+    results. Collision, bounds, stock and support rules are unchanged.
   - A click places the part, and the part stays held while stock lasts.
   - Esc, or choosing the same tray item again, puts it down.
   - Clicking existing parts while holding one goes through the placement
@@ -132,7 +185,8 @@ Each entry gives, in proportion to the change:
   - Every shortcut has a visible button.
 - **Layout:** both 1920×1080 and 390×844 must be fully usable. The dock is a
   floating bottom toolbar with real part thumbnails rendered from the part
-  geometry; on mobile it collapses.
+  geometry; on mobile it collapses. It is styled from the shared UI, not
+  grey glass (author, ADR 0004).
 
 ## Before saying something works
 
@@ -140,6 +194,10 @@ Each entry gives, in proportion to the change:
   with `APP_URL`. Also `pnpm check:evidence` (course).
 - For anything visual or interactive, run it in a real browser (`scripts/`).
   Say which checks were browser-emulated and which were on a physical device
+  (author).
+- Check Safari behaviour where available. If only Chrome or Playwright's
+  WebKit build was used, say exactly which (author).
+- For visual changes, look at real browser screenshots, not only test counts
   (author).
 - After any change to interaction, the camera or the dock, run
   `node scripts/interaction.ts <url> <out-dir>` against a running server, and
