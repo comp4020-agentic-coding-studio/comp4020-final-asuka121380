@@ -488,3 +488,26 @@ items that are the author's to supply:
   this repo
 
 Every commit cited in the log and in evidence 0003 exists.
+
+### 2026-10-06 20:01 AEDT — Deployment: [`fde2560`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/fde2560) live as Fly release v4
+
+**What happened.** The author explicitly authorised publishing the batch
+`cea2752`…`fde2560`.
+- `origin/main` was pushed from `a9b4c3d` to `fde2560`. The repository stays
+  private.
+- The CI deploy job is conditional on a public repo, so it didn't run.
+  `flyctl deploy --remote-only --ha=false` was run by hand: release v4, on
+  machine `84e1dea2790d38`.
+
+**Checks, against https://comp4020-final-asuka121380.fly.dev/:**
+- `/` and `/readme/` returned 200.
+- The served bundle hash matches the local build of `fde2560`.
+- `APP_URL=… pnpm check` passed 42/42.
+- `scripts/interaction.ts` passed 71/71, with fresh test visitors. One placed
+  and saved 8 parts, and they were the same after a reload.
+- Read-only database queries showed the existing 11 builds and their 25 parts
+  unchanged before and after the deploy and the tests (same hash).
+- Details: `doc/evidence/0004-live-deploy-fde2560.md`.
+
+**Limitations.** Touch was emulated in Chrome. Safari and physical devices
+were not tested. The author's own build was not opened.
