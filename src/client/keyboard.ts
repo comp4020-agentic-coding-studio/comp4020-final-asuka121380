@@ -3,11 +3,11 @@ import {
   cycle,
   escape,
   getState,
-  lift,
-  moveAnchor,
+  moveOnScreen,
   remove,
   requestCamera,
   rotate,
+  stepLevel,
   toggleDelete,
 } from "./state/store.ts";
 
@@ -43,18 +43,21 @@ function handle(e: KeyboardEvent): boolean {
     case "Escape":
       escape();
       return true;
+    // arrows move the preview as seen on screen; height is PageUp/PageDown (ADR 0005)
     case "ArrowLeft":
-      return !!s.held && (moveAnchor(-1, 0), true);
+      return !!s.held && (moveOnScreen(-1, 0), true);
     case "ArrowRight":
-      return !!s.held && (moveAnchor(1, 0), true);
+      return !!s.held && (moveOnScreen(1, 0), true);
     case "ArrowUp":
-      return !!s.held && (moveAnchor(0, -1), true);
+      return !!s.held && (moveOnScreen(0, 1), true);
     case "ArrowDown":
-      return !!s.held && (moveAnchor(0, 1), true);
+      return !!s.held && (moveOnScreen(0, -1), true);
     case "PageUp":
-      return !!s.held && (lift(1), true);
+      if (s.held && once) stepLevel(1);
+      return !!s.held;
     case "PageDown":
-      return !!s.held && (lift(-1), true);
+      if (s.held && once) stepLevel(-1);
+      return !!s.held;
     case "r":
     case "R":
       if (once) void rotate();

@@ -511,3 +511,82 @@ Every commit cited in the log and in evidence 0003 exists.
 
 **Limitations.** Touch was emulated in Chrome. Safari and physical devices
 were not tested. The author's own build was not opened.
+
+### 2026-10-06 20:05 AEDT — [`bbbcdbc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/bbbcdbc) Evidence 0004: fde2560 deployed as Fly release v4, verified live
+
+**Changes:**
+- New `doc/evidence/0004-live-deploy-fde2560.md`. It covers:
+  - the push, and the manual deploy (the CI deploy job is skipped while the
+    repo is private)
+  - the live `pnpm check` (42/42) and the live interaction run (71/71)
+  - the read-only database counts and hashes showing existing builds were
+    unchanged
+- `doc/evidence/shots/live-fde2560/`: `results.json` and three screenshots
+  from the live run.
+- The deployment entry above.
+
+**Who decided:**
+- **Author:** authorised the publication.
+- **Agent:** the verification and the record.
+
+**Tests.** None beyond those recorded in the evidence. This commit is local
+only; the live app runs `fde2560`.
+
+### 2026-10-06 20:11 AEDT — [`24a8853`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/24a8853) Harness: site identity, homepage route, coastal first scene, surface-aware placement
+
+**Changes:**
+- `CLAUDE.md`:
+  - The site is described as a multi-scene brick-building and
+    cooperative-creation project.
+  - New sections: "Site identity, routes and scenes" and "First scene:
+    coastal houses".
+  - The holding-a-part rules gain surface-aware height, Higher/Lower, height
+    surviving horizontal moves, commit-what's-shown, and camera-relative
+    arrows.
+  - New "Never" lines: committing design-research screenshots, and resetting
+    or silently migrating saved builds.
+  - Verification rules for Safari and for checking screenshots.
+- New `doc/adr/0004-site-identity-homepage-and-coastal-scene.md` and
+  `doc/adr/0005-surface-aware-height-and-camera-relative-moves.md`.
+- `doc/adr/0003-…` marked as superseded in part.
+
+**Why.** To record the author's revision brief of the evening of 6 Oct
+before implementing it.
+
+**Who decided:**
+- **Author:** the direction and its requirements.
+- **Agent:** the mechanisms written into ADR 0004 and ADR 0005, each marked
+  "agent", and the working title "Brick Commons", recorded as a placeholder
+  for the author to replace.
+
+**Tests.** Documentation only.
+
+### 2026-10-06 20:27 AEDT — [`cbe7d30`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cbe7d30) Routes: homepage at /, editor at /build/, read-only build summary
+
+**Changes:**
+- `vite.config.ts`: two inputs, `index.html` (home) and
+  `build/index.html` (editor).
+- `src/client/index.html` is now a placeholder homepage, and the editor's
+  HTML moved to `src/client/build/index.html`.
+- New `src/client/home/main.ts`, empty for now.
+- `src/server/builds.ts`: `summaryFor()`, which reads only and never creates
+  a visitor or a build.
+- `src/server/index.ts`: `GET /api/summary`.
+- `spec/persistence.test.ts`, three new tests:
+  - the summary sets no cookie and says there's no build
+  - the summary counts the same build the editor loads
+  - `/` and `/build/` serve, and `/build` redirects to `/build/`
+- `scripts/interaction.ts` opens `/build/?debug`.
+
+**Why.** ADR 0004: the homepage and the editor are separate pages, and the
+homepage loads no three.js.
+
+**Who decided:**
+- **Author:** the separate route.
+- **Agent:** two Vite pages, and the read-only summary endpoint.
+
+**Tests.** Run on the working tree before committing, where the placement
+work described next was also present:
+- `pnpm check` against the local server: 49/49, typecheck clean.
+- `scripts/interaction.ts` against `/build/`: 71/71.
+- On this commit's tree alone (the rest stashed), `tsc` was clean.

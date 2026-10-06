@@ -3,9 +3,11 @@ import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ComponentRef } from "react";
 import * as THREE from "three";
 import { partDef } from "../../domain/catalog.ts";
+import { footprint } from "../../domain/rules.ts";
 import {
   aimAt,
   getState,
+  onFootprint,
   placeHeld,
   preview,
   remove,
@@ -14,6 +16,7 @@ import {
   setTarget,
   useApp,
 } from "../state/store.ts";
+import { setViewAzimuth } from "../state/view.ts";
 import { PLATE } from "./geometry.ts";
 import { PartMesh } from "./PartMesh.tsx";
 import { Street } from "./Street.tsx";
@@ -93,11 +96,13 @@ function CameraRig({ dock }: { dock: number }) {
       c.target.copy(PLOT_CENTRE);
       cam.position.copy(PLOT_CENTRE).add(new THREE.Vector3().setFromSphericalCoords(dist, DEFAULT_POLAR, DEFAULT_AZIMUTH));
     } else {
-      // straight down over whatever the camera is looking at; the polar
-      // limit keeps it a hair off vertical so orbiting still works
-      cam.position.set(c.target.x, c.target.y + dist, c.target.z + 0.01);
+      // straight down over whatever the camera is looking at, keeping the
+      // heading, so "up" on screen means the same as before (ADR 0005); the
+      // polar limit keeps it a hair off vertical so orbiting still works
+      cam.position.copy(c.target).add(new THREE.Vector3().setFromSphericalCoords(dist, 0.02, c.getAzimuthalAngle()));
     }
     c.update();
+    setViewAzimuth(c.getAzimuthalAngle());
   }, [request.n, measured]);
 
   // `?debug` lets the browser tests read the camera; it changes nothing
@@ -116,6 +121,17 @@ function CameraRig({ dock }: { dock: number }) {
         size: [size.width, size.height],
       };
     };
+    // put the camera at an azimuth and polar angle round the plot, so the
+    // browser tests can check screen-relative moves from every side; it
+    // moves the view only, never the build
+    (window as unknown as { __orbit: (azimuth: number, polar: number) => void }).__orbit = (azimuth, polar) => {
+      const c = controls.current;
+      if (!c) return;
+      const dist = camera.position.distanceTo(c.target);
+      camera.position.copy(c.target).add(new THREE.Vector3().setFromSphericalCoords(dist, polar, azimuth));
+      c.update();
+      setViewAzimuth(c.getAzimuthalAngle());
+    };
     // a world point to page pixels, so the browser tests can click a stud
     (window as unknown as { __project: (x: number, y: number, z: number) => { x: number; y: number } }).__project = (x, y, z) => {
       const v = new THREE.Vector3(x, y, z).project(camera);
@@ -123,10 +139,12 @@ function CameraRig({ dock }: { dock: number }) {
     };
   }, [camera, dock, size.width, size.height]);
 
-  // pan stays near the plot: move target and camera together back inside
+  // pan stays near the plot: move target and camera together back inside;
+  // and the heading is reported for the screen-relative arrow keys
   const clampPan = () => {
     const c = controls.current;
     if (!c) return;
+    setViewAzimuth(c.getAzimuthalAngle());
     const clamped = c.target.clone().clamp(PAN_MIN, PAN_MAX);
     if (clamped.equals(c.target)) return;
     const d = clamped.sub(c.target);
@@ -151,21 +169,43 @@ function CameraRig({ dock }: { dock: number }) {
   );
 }
 
-/** The grid column a pointer is aiming at: on a top face, that column; on a side face, the one in front of it. */
-function aimedCell(e: ThreeEvent<PointerEvent | MouseEvent>): { x: number; z: number } | null {
+const placedIdOf = (e: ThreeEvent<PointerEvent | MouseEvent>): string | null =>
+  (e.object.userData.placedId as string | undefined) ?? null;
+
+interface Aim {
+  cell: { x: number; z: number };
+  /** The height, in plates, of the surface the pointer is on. */
+  level: number;
+  /** A side face's height is approximate: it may drop to a level that fits. */
+  snap: boolean;
+}
+
+/**
+ * What the pointer is aiming at, surface and all (ADR 0005): on the plot,
+ * that cell at height 0; on a part's top face, that cell at the part's top;
+ * on a side face, the cell in front of it at the plate level it was hit.
+ */
+function aimOf(e: ThreeEvent<PointerEvent | MouseEvent>): Aim | null {
   if (!e.face) return null;
   const normal = e.face.normal.clone().transformDirection(e.object.matrixWorld);
   const p = e.point.clone();
-  if (normal.y > 0.5) p.addScaledVector(normal, -0.01);
-  else p.addScaledVector(normal, 0.5);
+  let level: number;
+  const side = normal.y <= 0.5;
+  if (!side) {
+    p.addScaledVector(normal, -0.01);
+    const placed = getState().snapshot?.parts.find((q) => q.id === placedIdOf(e));
+    level = placed ? placed.y + partDef(placed.partId)!.h : 0;
+  } else {
+    p.addScaledVector(normal, 0.5);
+    level = Math.max(0, Math.floor(e.point.y / PLATE + 1e-6));
+  }
   const x = Math.floor(p.x);
   const z = Math.floor(p.z);
   if (x < 0 || z < 0 || x >= scene.bounds.w || z >= scene.bounds.d) return null;
-  return { x, z };
+  return { cell: { x, z }, level, snap: side };
 }
 
-const placedIdOf = (e: ThreeEvent<PointerEvent | MouseEvent>): string | null =>
-  (e.object.userData.placedId as string | undefined) ?? null;
+const aimKey = (a: Aim): string => `${a.cell.x},${a.cell.z},${a.level}`;
 
 function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const snapshot = useApp((s) => s.snapshot);
@@ -176,14 +216,44 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const targetId = useApp((s) => s.targetId);
   // preview() reads only these
   const pv = useMemo(() => preview(getState()), [held, colour, snapshot]);
+  // the last surface the mouse aimed at: the preview only re-aims when the
+  // pointer moves to another one, so jiggling the mouse never undoes a
+  // height chosen with Higher/Lower
+  const lastAim = useRef<string | null>(null);
+  const heldPart = held?.partId;
+  useEffect(() => {
+    lastAim.current = null;
+  }, [heldPart]);
+
+  // parts above a low preview are faded, and hover looks through them to the
+  // surfaces beneath; nothing about them changes (ADR 0005)
+  const faded = useMemo(() => {
+    const out = new Set<string>();
+    if (!pv || !snapshot) return out;
+    const def = partDef(pv.placement.partId)!;
+    const top = pv.placement.y + def.h;
+    const near = footprint(def, pv.placement);
+    for (const q of snapshot.parts) {
+      if (q.y < top) continue;
+      const qd = partDef(q.partId)!;
+      if (footprint(qd, q).some((c) => near.some((n) => Math.abs(n.x - c.x) <= 1 && Math.abs(n.z - c.z) <= 1))) out.add(q.id);
+    }
+    return out;
+  }, [pv, snapshot]);
 
   const onMove = (e: ThreeEvent<PointerEvent>) => {
     if (e.pointerType !== "mouse") return;
+    // hover looks through the preview itself and through faded parts: without
+    // stopPropagation, the next thing along the ray gets this event
+    if (e.object.userData.ghost || e.object.userData.faded) return;
     e.stopPropagation();
     const s = getState();
     if (s.held) {
-      const cell = aimedCell(e);
-      if (cell && (cell.x !== s.held.anchor?.x || cell.z !== s.held.anchor?.z)) aimAt(cell);
+      const aim = aimOf(e);
+      if (aim && aimKey(aim) !== lastAim.current) {
+        lastAim.current = aimKey(aim);
+        aimAt(aim.cell, aim.level, aim.snap);
+      }
     } else if (s.deleting) {
       setTarget(placedIdOf(e));
     }
@@ -195,20 +265,24 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
     const s = getState();
     const touch = (e.nativeEvent as PointerEvent).pointerType !== "mouse";
     if (s.held) {
-      // clicking placed parts while holding one aims through them, by the placement rules
-      const cell = aimedCell(e);
-      if (!cell) return;
-      // touch has no hover: the first tap previews, a second tap on the preview places
-      const shown = touch ? preview(s)?.placement : undefined;
-      const def = shown && partDef(shown.partId);
-      const onPreview =
-        !!shown && !!def && cell.x >= shown.x && cell.x < shown.x + (shown.rot % 2 ? def.d : def.w) && cell.z >= shown.z && cell.z < shown.z + (shown.rot % 2 ? def.w : def.d);
-      if (touch && onPreview) {
+      // A click or tap inside the preview's footprint commits exactly the
+      // preview on screen, never re-aimed (ADR 0005). Anywhere else it only
+      // aims. With a mouse, hover has already put the preview under the
+      // pointer, so one click places; a finger has no hover, so its first
+      // tap previews and a second tap on the preview places.
+      if (e.object.userData.ghost) {
         void placeHeld();
         return;
       }
-      aimAt(cell);
-      if (!touch) void placeHeld();
+      const aim = aimOf(e);
+      if (!aim) return;
+      const shown = preview(s)?.placement;
+      if (shown && onFootprint(shown, aim.cell)) {
+        void placeHeld();
+        return;
+      }
+      lastAim.current = aimKey(aim);
+      aimAt(aim.cell, aim.level, aim.snap);
       return;
     }
     const id = placedIdOf(e);
@@ -230,12 +304,13 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
           key={p.id}
           placement={p}
           highlight={deleting && p.id === targetId ? "delete" : !held && !deleting && p.id === selectedId ? "select" : undefined}
-          userData={{ placedId: p.id }}
+          faded={faded.has(p.id)}
+          userData={{ placedId: p.id, faded: faded.has(p.id) }}
         />
       ))}
       {pv && (
         <>
-          <PartMesh placement={pv.placement} ghost={pv.rejection ? "invalid" : "valid"} />
+          <PartMesh placement={pv.placement} ghost={pv.rejection ? "invalid" : "valid"} userData={{ ghost: true }} />
           <GhostLabel placement={pv.placement} ok={!pv.rejection} />
         </>
       )}

@@ -17,6 +17,17 @@ export function plastic(hex: string): THREE.MeshStandardMaterial {
   return m;
 }
 
+// Faded: a part above a low preview, drawn see-through (ADR 0005).
+const see = new Map<string, THREE.MeshStandardMaterial>();
+function seeThrough(hex: string): THREE.MeshStandardMaterial {
+  let m = see.get(hex);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.38, transparent: true, opacity: 0.22, depthWrite: false });
+    see.set(hex, m);
+  }
+  return m;
+}
+
 const glassMaterial = new THREE.MeshStandardMaterial({ color: "#cfe6f2", roughness: 0.1, metalness: 0, transparent: true, opacity: 0.7 });
 
 /** Where a part's centred geometry goes in the world. */
@@ -34,6 +45,8 @@ interface Props {
   castShadow?: boolean;
   /** Scenery: drawn, never picked. */
   inert?: boolean;
+  /** Drawn see-through; the pointer's hover looks through it (Workbench). */
+  faded?: boolean;
   userData?: Record<string, unknown>;
 }
 
@@ -42,7 +55,7 @@ const tint = {
   delete: new THREE.MeshBasicMaterial({ color: "#d0342c", transparent: true, opacity: 0.32, depthWrite: false }),
 };
 
-export function PartMesh({ placement, ghost, highlight, castShadow = true, inert, userData }: Props) {
+export function PartMesh({ placement, ghost, highlight, castShadow = true, inert, faded, userData }: Props) {
   const def = partDef(placement.partId)!;
   const { pieces } = partGeometry(def);
   const { position, rotationY } = partTransform(placement);
@@ -70,7 +83,9 @@ export function PartMesh({ placement, ghost, highlight, castShadow = true, inert
           material={
             ghostMaterial
               ? ghostMaterial
-              : piece.role === "main"
+              : faded
+                ? seeThrough(piece.role === "main" ? colourHex(placement.colour) : piece.role)
+                : piece.role === "main"
                 ? plastic(colourHex(placement.colour))
                 : piece.role === "#cfe6f2"
                   ? glassMaterial
@@ -79,7 +94,7 @@ export function PartMesh({ placement, ghost, highlight, castShadow = true, inert
           castShadow={!ghost && castShadow}
           receiveShadow={!ghost}
           userData={userData}
-          raycast={ghost || inert ? () => null : undefined}
+          raycast={inert ? () => null : undefined}
         />
       ))}
       {highlight && (

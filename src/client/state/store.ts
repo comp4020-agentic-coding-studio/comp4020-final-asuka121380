@@ -3,8 +3,9 @@ import { CATALOG, partDef } from "../../domain/catalog.ts";
 import type { Command, CommandEnvelope, Snapshot } from "../../domain/commands.ts";
 import type { Cell, Rotation } from "../../domain/grid.ts";
 import {
+  fitHeights,
+  footprint,
   nextRotation,
-  restingHeight,
   validateCommand,
   validatePlacement,
   type Placement,
@@ -12,6 +13,7 @@ import {
 } from "../../domain/rules.ts";
 import { STREET_SCENE } from "../../domain/scene.ts";
 import { NetworkError, type Transport } from "./transport.ts";
+import { screenToGrid } from "./view.ts";
 
 // Client state. The snapshot is the server's, replaced wholesale on every
 // answer. Everything else is local and never saved: which part is held, the
@@ -26,8 +28,20 @@ export interface Held {
   rot: Rotation;
   /** The footprint cell the preview is centred on, or null for no preview yet. */
   anchor: Cell | null;
-  /** Manual height aid, in plates above where the part would rest. */
-  lift: number;
+  /**
+   * The preview's height in plates, as the player chose it: by pointing at a
+   * surface, or with Higher/Lower (ADR 0005). Null until something chooses
+   * it, which means the lowest height that fits.
+   */
+  level: number | null;
+  /**
+   * True when the level came from pointing at the side of something, where
+   * the hit height is only approximate: a level that doesn't fit then drops
+   * to the nearest one below that does. A level from a top surface, or set
+   * with the keys or buttons, is kept exactly, and the preview says why the
+   * part can't go there.
+   */
+  snap: boolean;
 }
 
 export type SaveStatus = "loading" | "load-failed" | "saved" | "saving" | "failed";
@@ -113,7 +127,7 @@ export function choosePart(partId: string): void {
   }
   const rot = state.held && def.rotations.includes(state.held.rot) ? state.held.rot : def.rotations[0];
   set({
-    held: { partId, rot, anchor: state.held?.anchor ?? null, lift: 0 },
+    held: { partId, rot, anchor: state.held?.anchor ?? null, level: state.held?.level ?? null, snap: state.held?.snap ?? false },
     selectedId: null,
     deleting: false,
     targetId: null,
@@ -133,24 +147,61 @@ function setHeld(patch: Partial<Held>): void {
   if (state.held) set({ held: { ...state.held, ...patch } });
 }
 
-export function aimAt(anchor: Cell): void {
-  setHeld({ anchor, lift: 0 });
+/** Aim the preview where the pointer is: a cell, the level of the surface it hit, and whether that level is approximate. */
+export function aimAt(anchor: Cell, level: number, snap = false): void {
+  setHeld({ anchor, level, snap });
 }
 
+const centreCell = (): Cell => ({ x: Math.floor(scene.bounds.w / 2), z: Math.floor(scene.bounds.d / 2) });
+
+/** Show a preview if there isn't one: the middle of the plot, at the lowest height that fits. */
+export function ensureAnchor(): void {
+  if (state.held && !state.held.anchor) setHeld({ anchor: centreCell(), level: null, snap: false });
+}
+
+/** Move the preview one stud in world terms; its height stays as chosen. */
 export function moveAnchor(dx: number, dz: number): void {
   if (!state.held) return;
-  const a = state.held.anchor ?? { x: Math.floor(scene.bounds.w / 2), z: Math.floor(scene.bounds.d / 2) };
+  const a = state.held.anchor ?? centreCell();
   const x = Math.min(scene.bounds.w - 1, Math.max(0, a.x + dx));
   const z = Math.min(scene.bounds.d - 1, Math.max(0, a.z + dz));
-  setHeld({ anchor: { x, z }, lift: 0 });
+  // whatever height is showing becomes the chosen one, and stays put
+  const shown = preview()?.placement.y ?? state.held.level;
+  setHeld({ anchor: { x, z }, level: state.held.anchor ? shown : state.held.level, snap: false });
 }
 
-export function lift(by: number): void {
-  if (state.held?.anchor) setHeld({ lift: state.held.lift + by });
+/** Move the preview one stud as seen on screen (ADR 0005): right is +1 screen-right, up is +1 away. */
+export function moveOnScreen(right: number, up: number): void {
+  const { dx, dz } = screenToGrid(right, up);
+  moveAnchor(dx, dz);
+}
+
+/** Higher (+1) or Lower (−1): the next height above or below that fits here. */
+export function stepLevel(dir: 1 | -1): void {
+  const p = preview();
+  if (!state.held || !p) {
+    ensureAnchor();
+    return;
+  }
+  const y = p.placement.y;
+  const next = dir === 1 ? p.fits.find((f) => f > y) : [...p.fits].reverse().find((f) => f < y);
+  if (next === undefined) {
+    say(dir === 1 ? "Nothing fits any higher here." : "Nothing fits any lower here.", "error");
+    return;
+  }
+  setHeld({ level: next, snap: false });
+}
+
+/** The heights that fit, and where the preview sits among them. */
+export interface Preview {
+  placement: Placement;
+  rejection: Rejection | null;
+  /** Every height that fits at this footprint, lowest first. */
+  fits: number[];
 }
 
 /** The previewed placement and whether the rules would accept it. */
-export function preview(s: AppState = state): { placement: Placement; rejection: Rejection | null } | null {
+export function preview(s: AppState = state): Preview | null {
   const { held, snapshot } = s;
   if (!held?.anchor || !snapshot) return null;
   const def = partDef(held.partId);
@@ -160,10 +211,23 @@ export function preview(s: AppState = state): { placement: Placement; rejection:
   // centre the footprint on the anchor, then keep it inside the plot
   const x = Math.min(scene.bounds.w - w, Math.max(0, held.anchor.x - Math.floor((w - 1) / 2)));
   const z = Math.min(scene.bounds.d - d, Math.max(0, held.anchor.z - Math.floor((d - 1) / 2)));
-  const rest = restingHeight(def, { x, z, rot: held.rot }, snapshot.parts);
-  const y = Math.max(0, rest + held.lift);
+  const fits = fitHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
+  const y = chooseLevel(held, fits);
   const placement: Placement = { partId: def.id, x, y, z, rot: held.rot, colour: s.colour };
-  return { placement, rejection: validatePlacement(scene, snapshot, placement) };
+  return { placement, rejection: validatePlacement(scene, snapshot, placement), fits };
+}
+
+function chooseLevel(held: Held, fits: number[]): number {
+  if (held.level === null) return fits[0] ?? 0;
+  if (!held.snap || fits.includes(held.level)) return held.level;
+  // an approximate level from a side face: the nearest that fits at or below it
+  return [...fits].reverse().find((f) => f <= held.level!) ?? held.level;
+}
+
+/** Where a placement's footprint is, for "is this tap on the preview?". */
+export function onFootprint(p: Placement, cell: Cell): boolean {
+  const def = partDef(p.partId);
+  return !!def && footprint(def, p).some((c) => c.x === cell.x && c.z === cell.z);
 }
 
 // ---- selection and the delete tool -----------------------------------------
@@ -270,7 +334,8 @@ export async function placeHeld(): Promise<void> {
   }
   const def = partDef(p.placement.partId)!;
   const ok = await submit({ type: "place", placement: p.placement }, `Placed ${def.name}.`);
-  if (ok) setHeld({ lift: 0 });
+  // the next one goes on top of this one, as if pointing at its top face
+  if (ok) setHeld({ level: p.placement.y + def.h, snap: false });
 }
 
 /** R: turn the held preview, or turn the selected part through the server. */

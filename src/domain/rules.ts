@@ -231,19 +231,18 @@ export function applyRecolour(state: BuildState, placedId: string, colour: strin
 }
 
 /**
- * Where a part would come to rest over (x, z): on top of the tallest thing
- * under its footprint. The client snaps previews with this; the server never
- * uses it, because the server only checks the placement it's sent.
+ * Every height, lowest first, at which a part fits over (x, z): in bounds,
+ * clear of other parts, and on the plot or on studs (ADR 0005). Stock is
+ * left out because it is the same at every height. The client offers these
+ * as the preview's heights; the server never uses this, because it only
+ * checks the placement it's sent.
  */
-export function restingHeight(def: PartDefinition, p: Pick<Placement, "x" | "z" | "rot">, parts: readonly PlacedPart[]): number {
-  const cells = new Set(footprint(def, p).map((c) => `${c.x},${c.z}`));
-  let top = 0;
-  for (const q of parts) {
-    const qd = partDef(q.partId);
-    if (!qd) continue;
-    if (footprint(qd, q).some((c) => cells.has(`${c.x},${c.z}`))) top = Math.max(top, q.y + qd.h);
+export function fitHeights(scene: SceneTemplate, def: PartDefinition, p: Pick<Placement, "x" | "z" | "rot">, parts: readonly PlacedPart[]): number[] {
+  const out: number[] = [];
+  for (let y = 0; y + def.h <= scene.bounds.h; y++) {
+    if (!checkFit(scene, parts, { ...p, y, partId: def.id, colour: def.defaultColour }, def)) out.push(y);
   }
-  return top;
+  return out;
 }
 
 // One dispatcher for every command, so the server and the local preview

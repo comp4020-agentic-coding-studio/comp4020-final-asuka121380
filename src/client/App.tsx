@@ -7,9 +7,9 @@ import {
   catalog,
   choosePart,
   cycle,
+  ensureAnchor,
   getState,
-  lift,
-  moveAnchor,
+  moveOnScreen,
   placeHeld,
   preview,
   putDown,
@@ -21,6 +21,7 @@ import {
   scene,
   select,
   setColour,
+  stepLevel,
   toggleDelete,
   useApp,
 } from "./state/store.ts";
@@ -77,6 +78,29 @@ function Swatches({ value, onPick, label }: { value: string; onPick: (id: string
           onClick={() => onPick(c.id)}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * The preview's height, and the buttons that step it through the heights
+ * that fit here: how a lower spot under an overhang is reached (ADR 0005).
+ */
+function Height({ y, fits }: { y: number; fits: number[] }) {
+  const i = fits.indexOf(y);
+  const where = y === 0 ? "on the plot" : `${y} plate${y === 1 ? "" : "s"} up`;
+  return (
+    <div className="height" role="group" aria-label="Height">
+      <button onClick={() => stepLevel(-1)} aria-label="Lower: the next height down that fits" disabled={!fits.some((f) => f < y)}>
+        ▼ Lower <kbd>PgDn</kbd>
+      </button>
+      <span className="height-readout" aria-live="polite">
+        {where}
+        {fits.length > 1 && i >= 0 && <span className="height-of"> · height {i + 1} of {fits.length}</span>}
+      </span>
+      <button onClick={() => stepLevel(1)} aria-label="Higher: the next height up that fits" disabled={!fits.some((f) => f > y)}>
+        ▲ Higher <kbd>PgUp</kbd>
+      </button>
     </div>
   );
 }
@@ -166,15 +190,15 @@ function Context() {
             Cancel <kbd>Esc</kbd>
           </button>
         </div>
+        {pv && <Height y={pv.placement.y} fits={pv.fits} />}
         <details className="nudge">
-          <summary>Fine-tune</summary>
+          <summary>Move</summary>
+          {/* the same screen-relative steps as the arrow keys (ADR 0005) */}
           <div className="nudge-pad">
-            <button onClick={() => moveAnchor(-1, 0)} aria-label="Move preview left">←</button>
-            <button onClick={() => moveAnchor(0, -1)} aria-label="Move preview back">↑</button>
-            <button onClick={() => moveAnchor(0, 1)} aria-label="Move preview forward">↓</button>
-            <button onClick={() => moveAnchor(1, 0)} aria-label="Move preview right">→</button>
-            <button onClick={() => lift(1)} aria-label="Raise preview one plate">Raise</button>
-            <button onClick={() => lift(-1)} aria-label="Lower preview one plate">Lower</button>
+            <button onClick={() => moveOnScreen(-1, 0)} aria-label="Move preview left on screen" title="Left">←</button>
+            <button onClick={() => moveOnScreen(0, 1)} aria-label="Move preview away from you" title="Away">↑</button>
+            <button onClick={() => moveOnScreen(0, -1)} aria-label="Move preview towards you" title="Towards you">↓</button>
+            <button onClick={() => moveOnScreen(1, 0)} aria-label="Move preview right on screen" title="Right">→</button>
           </div>
         </details>
       </div>
@@ -246,7 +270,7 @@ function Tray({ pics }: { pics: Pictures | null }) {
                   // chosen from the keyboard: start the preview mid-plot and hand focus
                   // to Place, so Enter places rather than choosing the part again
                   if (e.detail === 0 && getState().held) {
-                    if (!getState().held!.anchor) moveAnchor(0, 0);
+                    ensureAnchor();
                     requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(".place-button")?.focus());
                   }
                 }}

@@ -48,12 +48,15 @@ the screen.
   `src/domain/rules.ts`). Stock is not considered, because it applies
   equally at every height.
 - **The preview's height** is an explicit level, chosen by the pointer or by
-  Higher/Lower. If the explicit level fits there, it is used as it is.
-  - When the pointer aims at a level that doesn't fit, the preview snaps to
-    the nearest level that does, preferring the one below (agent).
-  - When the player moved the preview with the keyboard or the buttons, the
-    level is kept even if it doesn't fit, and the preview says why. A chosen
-    height is never silently replaced.
+  Higher/Lower.
+  - From a top face (the plot or a part's top) the level is exact. If the
+    part doesn't fit there, the preview shows it there as refused, with the
+    rules' reason. It never jumps to some other height on its own: that jump
+    was the reported bug.
+  - From a side face the hit height is only approximate. The preview drops
+    to the nearest level that fits at or below it (agent).
+  - A level set with the keys or buttons is kept as chosen. If the part
+    doesn't fit there, the preview says why.
 - **Higher and Lower** (PageUp/PageDown, plus visible buttons on every
   device) step to the next fitting level above or below. If there is none,
   they say so.
@@ -63,7 +66,8 @@ the screen.
 - **The first preview made from the keyboard** uses the lowest fitting level
   (agent).
 - **After a placement,** the preview moves onto the part just placed (its
-  top), so repeated Enter or clicks stack (agent). To continue a course
+  top), as if pointing at its top face, so repeated Enter or clicks stack
+  (agent). To continue a course
   sideways, the player moves and then presses Lower.
 - **Confirming commits the preview on screen.**
   - A click or tap inside the shown footprint places exactly that preview,
