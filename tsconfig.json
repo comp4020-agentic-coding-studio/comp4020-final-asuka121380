@@ -14,7 +14,11 @@
     "noEmit": true,
     "skipLibCheck": true,
     "moduleDetection": "force",
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    // the server runs its .ts files directly under node, which strips types
+    // and can only strip syntax that erases cleanly
+    "erasableSyntaxOnly": true,
+    "jsx": "react-jsx"
   },
-  "include": ["*.ts", "spec", "scripts"]
+  "include": ["*.ts", "spec", "scripts", "src"]
 }
