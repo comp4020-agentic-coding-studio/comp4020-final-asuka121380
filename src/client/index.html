@@ -2,11 +2,130 @@
 <html lang="en-AU">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Brick Commons</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Make something with bricks, on your own or together: pick a scene, take its kit, colour every part as you like, and find your build saved when you come back." />
+    <meta name="theme-color" content="#e3241b" />
+    <title>Brick Commons: make something with bricks</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect y='5' width='16' height='11' rx='2' fill='%23e3241b'/%3E%3Crect x='2' y='2' width='4' height='4' rx='1' fill='%23e3241b'/%3E%3Crect x='10' y='2' width='4' height='4' rx='1' fill='%23e3241b'/%3E%3C/svg%3E" />
   </head>
-  <body>
-    <main><h1>Brick Commons</h1><p><a href="/build/">Start building</a></p></main>
+  <body class="home">
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="masthead studs">
+      <a class="brand" href="/" aria-label="Brick Commons, working title: home">
+        <span class="mark" data-mark></span>
+        <span>Brick Commons <span class="wt">working title</span></span>
+      </a>
+      <nav aria-label="Site">
+        <a href="#how">How it works</a>
+        <a href="#scenes">Scenes</a>
+        <a href="/readme/">About</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="hero-text">
+          <h1>Make something with bricks. <span class="hl">On your own, or together.</span></h1>
+          <p class="lede">
+            Choose a scene, take its kit of parts and build on the empty plot. Any part can be any colour, and your build is
+            saved as you go, so it's there when you come back.
+          </p>
+          <div class="cta">
+            <a class="btn btn-yellow btn-big" id="start" href="/build/">Start building</a>
+            <a class="btn btn-big" href="#how">How it works</a>
+          </div>
+          <p class="cta-note" id="cta-note" hidden></p>
+        </div>
+        <div class="hero-art" id="hero-art"></div>
+      </section>
+
+      <section id="how" class="how" aria-labelledby="how-h">
+        <h2 id="how-h">How it works</h2>
+        <ol class="steps">
+          <li class="card step">
+            <div class="step-art" data-art="kit"></div>
+            <h3>A finite kit, enough to finish</h3>
+            <p>
+              Each scene comes with a fixed, counted set of parts: enough to build something you're pleased with on your own.
+              When a part runs out, it's out, so where you put it matters.
+            </p>
+          </li>
+          <li class="card step">
+            <div class="step-art" data-art="colour"></div>
+            <h3>Any colour, any change</h3>
+            <p>
+              Colour is never rationed: every part comes in every colour. Recolour, turn or take parts off whenever you like;
+              a part you remove goes back into your kit.
+            </p>
+          </li>
+          <li class="card step">
+            <div class="step-art" data-art="kept"></div>
+            <h3>Kept, then shown</h3>
+            <p>Every change is saved on the server as you make it. Close the page, come back later, and your build is waiting.</p>
+            <p class="planned-line">
+              <span class="tag tag-planned">Planned</span> An exhibition of finished builds, each with a see-through view of how
+              it was put together.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="together" aria-labelledby="together-h">
+        <div class="together-text">
+          <p><span class="tag tag-planned">In development: not in this version yet</span></p>
+          <h2 id="together-h">Built together, from different kits</h2>
+          <p>
+            The plan is for a few people to work on one construction at the same time. The scene's kit is shared out between
+            them, so each person holds different parts and the build needs everyone's.
+          </p>
+          <ul class="coop">
+            <li><strong>Ask the group.</strong> Missing a part? Post a request, and anyone who has it can send some or all of what you need.</li>
+            <li><strong>Leave a plan.</strong> Put a see-through part where something should go, labelled with its code, so whoever holds it knows exactly where it belongs.</li>
+            <li><strong>Still complete alone.</strong> On your own you get the whole kit, and never have to wait for anyone.</li>
+          </ul>
+        </div>
+        <figure class="coop-figure">
+          <div class="coop-diagram" aria-hidden="true">
+            <div class="kit-card kit-a">
+              <span class="who">Kit A</span>
+              <span class="pieces"><b>B24</b> ×6 <b>P22</b> ×2 <b>S22</b> ×1</span>
+            </div>
+            <div class="kit-card kit-b">
+              <span class="who">Kit B</span>
+              <span class="pieces"><b>B24</b> ×1 <b>S22</b> ×9 <b>D46</b> ×1</span>
+            </div>
+            <div class="coop-build" data-art="together"></div>
+            <div class="note-card request"><span class="tag">Request</span> S22 ×2 · 1 of 2 sent</div>
+            <div class="note-card plan"><span class="tag tag-plan">Plan</span> B24 goes here</div>
+          </div>
+          <figcaption>An illustration of the planned cooperation. There are no rooms or other players in this version.</figcaption>
+        </figure>
+      </section>
+
+      <section id="scenes" class="scenes" aria-labelledby="scenes-h">
+        <h2 id="scenes-h">Scenes</h2>
+        <p class="sub">Each scene has its own setting, plot and kit. This is the first.</p>
+        <div id="scene-list" class="scene-list">
+          <noscript><p><a href="/build/">Open the first scene</a> (it needs JavaScript and WebGL).</p></noscript>
+        </div>
+      </section>
+
+      <section class="about" aria-labelledby="about-h">
+        <h2 id="about-h">About this project</h2>
+        <p>
+          Brick Commons is the working title of an independent student project for COMP4020 at the Australian National
+          University. The project's README sets out what it means for this site to be good, and the references behind it.
+        </p>
+        <p><a class="btn btn-red" href="/readme/">Read the project README</a></p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>
+        An independent student project. Not made, sponsored or endorsed by the LEGO Group. LEGO is a trademark of the LEGO
+        Group.
+      </p>
+    </footer>
     <script type="module" src="./home/main.ts"></script>
   </body>
 </html>

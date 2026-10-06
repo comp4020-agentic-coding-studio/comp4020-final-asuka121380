@@ -590,3 +590,76 @@ work described next was also present:
 - `pnpm check` against the local server: 49/49, typecheck clean.
 - `scripts/interaction.ts` against `/build/`: 71/71.
 - On this commit's tree alone (the rest stashed), `tsc` was clean.
+
+### 2026-10-06 20:41 AEDT — [`40e2eb4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/40e2eb4) Surface-aware placement height, Higher/Lower, camera-relative moves
+
+**Changes:**
+- `src/domain/rules.ts`: `restingHeight()` (always the tallest part under
+  the footprint) is replaced by `fitHeights()`. It lists every height where
+  `checkFit` accepts the part: in bounds, no collision, and on the plot or
+  on studs.
+- `src/client/state/store.ts`:
+  - `Held` swaps `lift` for an explicit `level` and a `snap` flag.
+  - `preview()` returns `fits`.
+  - New `stepLevel()` (Higher/Lower), `ensureAnchor()`, `moveOnScreen()` and
+    `onFootprint()`.
+  - `moveAnchor()` keeps the height on screen.
+  - After a placement, the preview moves to the top of the part just placed.
+- New `src/client/state/view.ts`: maps the camera azimuth to one of four
+  grid quadrants, with 10° of hysteresis past each diagonal.
+  `screenToGrid()` turns a screen direction into a grid step.
+- `src/client/scene/Workbench.tsx`:
+  - `aimOf()` reads the surface: on the plot or a part's top the level is
+    exact; on a side face it is approximate and may drop to a level that
+    fits.
+  - Hover re-aims only when the aim changes.
+  - A click or tap on the ghost, or inside the shown footprint, places
+    exactly what's shown. Anywhere else it only aims.
+  - Parts above a low preview are faded, and hover looks through them.
+  - Top view keeps the azimuth, and the azimuth is reported to `view.ts`.
+  - New `?debug` hook `__orbit`, which moves only the camera.
+- `src/client/scene/PartMesh.tsx`: a `faded` see-through material.
+- `src/client/keyboard.ts`: the arrows call `moveOnScreen()`, and
+  PageUp/PageDown call `stepLevel()`.
+- `src/client/App.tsx`: a Height row (▼ Lower, the height in words with "n of
+  m", ▲ Higher), visible on every device. The direction pad uses the
+  screen-relative moves.
+- `src/client/main.tsx`: `?debug` hooks `__preview` and `__quadrant`.
+- New `scripts/placement.ts`: 31 browser checks. New
+  `spec/domain/fit-heights.test.ts`: 4 tests.
+- ADR 0005 updated to the snap rule as built: exact on top faces, down-only
+  on side faces.
+
+**Why.** These are the author's two confirmed bugs from testing in Safari:
+lower positions were unreachable, and the arrows used world axes. ADR 0005
+traces the first to four combined causes.
+
+**Who decided:**
+- **Author:** the required behaviour.
+- **Agent:** the mechanism. That covers snapping only on side faces,
+  downwards; the stacking default after a placement; fading with hover
+  looking through; the 10° hysteresis; and the ghost being clickable.
+
+**Tests:**
+- `pnpm check` against the local server: 49/49.
+- `scripts/placement.ts` in Chrome: 31/31. It checks:
+  - lower placement under an overhang, with heights [0, 6] offered
+  - Higher/Lower buttons and PageUp/PageDown
+  - a click committing the shown low preview while the pointer is on the
+    overhang's top
+  - the height surviving horizontal moves, and being kept and explained
+    where it doesn't fit
+  - an invalid lower spot refused with no request sent
+  - arrows from front, back, both sides, two oblique views and two top views
+    all moving within 60° of the screen direction meant
+  - the button and the key making the same step
+  - the hysteresis sequence
+  - emulated touch reaching the lower spot with the Lower button and
+    committing it
+- `scripts/interaction.ts`: 71/71.
+
+**Limitations:**
+- WebKit/Safari was not run yet at this commit.
+- Touch is emulated.
+- With the keyboard, continuing a course sideways after a placement needs
+  Lower.

@@ -21,6 +21,14 @@ export const COLOURS: readonly Colour[] = [
   { id: "rose", name: "Rose pink", hex: "#e3a3b6" },
   { id: "stone", name: "Stone grey", hex: "#a6a9ab" },
   { id: "charcoal", name: "Charcoal", hex: "#4d5156" },
+  // 6 Oct 2026 (ADR 0004): brighter colours, added only. Existing ids and
+  // their meaning never change, so every saved build stays valid.
+  { id: "bright-red", name: "Bright red", hex: "#e3241b" },
+  { id: "coral", name: "Coral", hex: "#ff7059" },
+  { id: "orange", name: "Orange", hex: "#f6871f" },
+  { id: "bright-yellow", name: "Bright yellow", hex: "#ffcd00" },
+  { id: "turquoise", name: "Turquoise", hex: "#1fb4ab" },
+  { id: "lavender", name: "Lavender", hex: "#a68fdb" },
 ];
 
 const byId = new Map(COLOURS.map((c) => [c.id, c]));

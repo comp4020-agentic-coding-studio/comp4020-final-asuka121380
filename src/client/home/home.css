@@ -1,0 +1,418 @@
+/* The homepage's own composition, built from the shared tokens and components (ui/theme.css). */
+
+html {
+  scroll-behavior: smooth;
+}
+body.home {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.55 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+.home h1,
+.home h2,
+.home h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+.home a:not(.btn) {
+  color: inherit;
+}
+
+.skip {
+  position: absolute;
+  left: -999px;
+}
+.skip:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 10;
+  background: var(--white);
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+}
+
+/* ---- the red band ------------------------------------------------------ */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem max(1.25rem, calc((100vw - 1200px) / 2));
+  background-color: var(--red);
+  color: var(--white);
+}
+.masthead nav {
+  display: flex;
+  gap: 0.25rem;
+}
+.masthead nav a {
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.masthead nav a:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+.brand .mark {
+  display: inline-flex;
+}
+.brand .mark svg {
+  width: 38px;
+  height: 38px;
+}
+
+/* ---- hero ------------------------------------------------------------ */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 6vw, 5.5rem) 1.25rem clamp(2rem, 5vw, 4.5rem);
+}
+.hero h1 {
+  font-size: clamp(2.5rem, 5.4vw, 4.6rem);
+  line-height: 1.02;
+}
+.hero .hl {
+  display: block;
+  color: var(--red);
+}
+.lede {
+  max-width: 34rem;
+  margin: 1.25rem 0 1.75rem;
+  font-size: 1.2rem;
+  color: var(--ink-soft);
+}
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+.cta-note {
+  margin: 0.9rem 0 0;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.hero-art svg {
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  overflow: visible;
+  filter: drop-shadow(0 18px 18px rgb(27 27 31 / 0.12));
+}
+.hero-art .brick {
+  animation: drop 620ms cubic-bezier(0.22, 1.25, 0.36, 1) both;
+  animation-delay: calc(var(--z) * 55ms + var(--i) * 28ms + 150ms);
+}
+.hero-art .brick.float {
+  animation:
+    drop 620ms cubic-bezier(0.22, 1.25, 0.36, 1) 1.5s both,
+    hover 2.6s ease-in-out 2.1s infinite;
+}
+@keyframes drop {
+  from {
+    transform: translateY(-70px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes hover {
+  0%,
+  100% {
+    transform: translateY(-10px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* ---- how it works -------------------------------------------------------- */
+
+.how,
+.scenes,
+.about {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 5vw, 4rem) 1.25rem;
+}
+.home h2 {
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  padding: 0 1.4rem 1.4rem;
+}
+.step h3 {
+  font-size: 1.3rem;
+  margin: 1.1rem 0 0.4rem;
+}
+.step p {
+  margin: 0.4rem 0 0;
+  color: var(--ink-soft);
+}
+.step-art {
+  display: grid;
+  place-items: center;
+  height: 150px;
+  margin: 0 -1.4rem;
+  background: var(--yellow-soft);
+  border-bottom: 2px solid var(--line);
+}
+.step:nth-child(2) .step-art {
+  background: var(--red-soft);
+}
+.step:nth-child(3) .step-art {
+  background: #e8f1fb;
+}
+.step-art svg {
+  height: 120px;
+  width: auto;
+}
+.planned-line {
+  font-size: 0.95rem;
+}
+
+/* ---- together (planned) -------------------------------------------------- */
+
+.together {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: center;
+  max-width: 1200px;
+  margin: clamp(1rem, 3vw, 2rem) auto;
+  padding: clamp(1.75rem, 4vw, 3rem);
+  background: var(--white);
+  border: 3px dashed var(--yellow-edge);
+  border-radius: 26px;
+}
+.together h2 {
+  margin: 0.6rem 0 0.75rem;
+}
+.together-text > p {
+  color: var(--ink-soft);
+  margin: 0;
+}
+.coop {
+  margin: 1.1rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.65rem;
+}
+.coop li {
+  padding-left: 1.6rem;
+  position: relative;
+}
+.coop li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.42em;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: inset 0 -2px 0 var(--yellow-edge);
+}
+.coop-figure {
+  margin: 0;
+}
+.coop-diagram {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "a b"
+    "build build"
+    "req plan";
+  gap: 0.75rem;
+  padding: 1.1rem;
+  background: var(--paper);
+  border-radius: 18px;
+}
+.kit-card,
+.note-card {
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: var(--white);
+  border: 2px solid var(--line);
+  font-size: 0.9rem;
+}
+.kit-card .who {
+  display: block;
+  font: 700 1rem var(--font-display);
+}
+.kit-card .pieces b {
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+.kit-a {
+  grid-area: a;
+  border-left: 6px solid var(--red);
+}
+.kit-b {
+  grid-area: b;
+  border-left: 6px solid var(--blue);
+}
+.coop-build {
+  grid-area: build;
+  display: grid;
+  place-items: center;
+}
+.coop-build svg {
+  height: 170px;
+  width: auto;
+}
+.request {
+  grid-area: req;
+}
+.plan {
+  grid-area: plan;
+  border-style: dashed;
+}
+.tag-plan {
+  background: #dce8f8;
+  color: var(--blue);
+}
+.coop-figure figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+/* ---- scenes -------------------------------------------------------------- */
+
+.scenes .sub {
+  margin: 0.4rem 0 1.5rem;
+  color: var(--ink-soft);
+}
+.scene-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+.scene-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  object-fit: cover;
+  background: linear-gradient(#f6c6a8, #8fc9d9);
+}
+.scene-body {
+  padding: 1.6rem 1.6rem 1.8rem;
+}
+.scene-body h3 {
+  font-size: 1.9rem;
+  margin: 0.5rem 0 0.1rem;
+}
+.scene-body .setting {
+  margin: 0 0 0.8rem;
+  font-weight: 700;
+  color: var(--red-edge);
+}
+.scene-body p {
+  margin: 0 0 0.9rem;
+}
+.scene-body .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+.scene-body .meta span {
+  padding: 0.15rem 0.55rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+}
+
+/* ---- about and footer ---------------------------------------------------- */
+
+.about {
+  border-top: 2px solid var(--line);
+}
+.about p {
+  max-width: 44rem;
+  color: var(--ink-soft);
+}
+.foot {
+  padding: 1.5rem 1.25rem 2.25rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  border-top: 6px solid var(--red);
+  background: var(--white);
+}
+
+/* ---- phones -------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .hero,
+  .together,
+  .scene-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero-art {
+    order: -1;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .together {
+    margin: 1rem;
+  }
+}
+@media (max-width: 520px) {
+  .masthead {
+    flex-wrap: wrap;
+    padding: 0.7rem 1rem;
+  }
+  .masthead nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .masthead nav a {
+    padding: 0.35rem 0.5rem;
+  }
+  .lede {
+    font-size: 1.08rem;
+  }
+  .cta .btn {
+    flex: 1 1 auto;
+  }
+  .coop-diagram {
+    grid-template-columns: 1fr;
+    grid-template-areas: "a" "b" "build" "req" "plan";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .hero-art .brick,
+  .hero-art .brick.float {
+    animation: none;
+  }
+}

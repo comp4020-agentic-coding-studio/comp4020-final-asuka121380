@@ -1,0 +1,262 @@
+/*
+ * The site's shared look (ADR 0004): tokens and a few components used by
+ * both the homepage and the editor. Red, white and yellow as a system: red
+ * for the brand band and primary actions, yellow for the main call to
+ * action and highlights, white surfaces and dark text. Nothing here knows
+ * about any scene: scene colours and wording live with the scene.
+ *
+ * The tactile bottom edge on buttons and tiles is this project's own; the
+ * research notes are in doc/research/0001-visual-identity.md.
+ */
+
+:root {
+  --red: #e3241b;
+  --red-edge: #a3140e;
+  --red-soft: #fde8e6;
+  --yellow: #ffcd00;
+  --yellow-edge: #c99a00;
+  --yellow-soft: #fff5c7;
+  --white: #ffffff;
+  --paper: #fffaf1;
+  --ink: #1b1b1f;
+  --ink-soft: #4d4d58;
+  --line: #ebe4d6;
+  --line-strong: #cfc5b1;
+  --blue: #1a5bb0;
+  --ok: #1d7f45;
+  --danger: #c4241c;
+
+  --radius: 12px;
+  --radius-lg: 18px;
+  --font-display: "Fredoka Variable", "Nunito Variable", ui-rounded, system-ui, sans-serif;
+  --font-body: "Nunito Variable", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --lift: 0 12px 32px rgb(27 27 31 / 0.14);
+  --focus: 0 0 0 3px var(--white), 0 0 0 6px var(--blue);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+/* ---- buttons: a raised bottom edge that presses down ---------------------- */
+
+.btn {
+  --face: var(--white);
+  --edge: var(--line-strong);
+  --text: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.5rem 1.05rem;
+  border: 2px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--face);
+  color: var(--text);
+  font: 700 1rem/1.1 var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--edge);
+  transform: translateY(0);
+  transition:
+    transform 80ms ease-out,
+    box-shadow 80ms ease-out,
+    background-color 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover {
+  filter: brightness(1.04);
+}
+.btn:active:not(:disabled, [aria-disabled="true"]) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--edge);
+}
+.btn:focus-visible {
+  box-shadow:
+    0 4px 0 var(--edge),
+    var(--focus);
+}
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+.btn-red {
+  --face: var(--red);
+  --edge: var(--red-edge);
+  --text: var(--white);
+}
+.btn-yellow {
+  --face: var(--yellow);
+  --edge: var(--yellow-edge);
+  --text: var(--ink);
+}
+.btn-ink {
+  --face: var(--ink);
+  --edge: #000;
+  --text: var(--white);
+}
+.btn-small {
+  min-height: 36px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.9rem;
+  box-shadow: 0 3px 0 var(--edge);
+}
+.btn-big {
+  min-height: 54px;
+  padding: 0.7rem 1.5rem;
+  font-size: 1.15rem;
+  border-radius: 14px;
+  box-shadow: 0 5px 0 var(--edge);
+}
+
+/* ---- surfaces ----------------------------------------------------------- */
+
+.card {
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 6px;
+  background: var(--yellow);
+  color: var(--ink);
+  font: 800 0.72rem/1.3 var(--font-body);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+/* a feature that isn't built yet: never mistakable for something that works */
+.tag-planned {
+  background: var(--white);
+  color: var(--red-edge);
+  border: 2px dashed var(--red);
+}
+
+/* a row of studs, for bands and dividers */
+.studs {
+  background-image: radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0.2) 0 30%, rgb(0 0 0 / 0.08) 31% 36%, transparent 37%);
+  background-size: 26px 26px;
+}
+
+/* ---- colour pickers that look like studs ------------------------------- */
+
+.stud-swatch {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--c, #ccc);
+  box-shadow:
+    inset 0 -4px 0 rgb(0 0 0 / 0.2),
+    inset 0 3px 0 rgb(255 255 255 / 0.35),
+    0 0 0 2px var(--white),
+    0 0 0 3px var(--line-strong);
+  cursor: pointer;
+  transition: transform 80ms;
+}
+.stud-swatch:hover {
+  transform: translateY(-1px);
+}
+.stud-swatch[aria-checked="true"] {
+  box-shadow:
+    inset 0 -4px 0 rgb(0 0 0 / 0.2),
+    inset 0 3px 0 rgb(255 255 255 / 0.35),
+    0 0 0 3px var(--white),
+    0 0 0 6px var(--ink);
+}
+.stud-swatch:focus-visible {
+  box-shadow:
+    inset 0 -4px 0 rgb(0 0 0 / 0.2),
+    0 0 0 3px var(--white),
+    0 0 0 6px var(--blue);
+}
+
+/* ---- tiles: parts in a storage tray -------------------------------------- */
+
+.tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.3rem 0.4rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--ink);
+  font: 700 0.74rem/1.15 var(--font-body);
+  box-shadow: 0 3px 0 var(--line-strong);
+  cursor: pointer;
+  transition: transform 80ms, box-shadow 80ms;
+}
+.tile:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line-strong);
+}
+.tile[aria-pressed="true"] {
+  border-color: var(--red);
+  box-shadow: 0 3px 0 var(--red-edge);
+  background: var(--red-soft);
+}
+.tile .count {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  padding: 0 0.3rem;
+  border-radius: 5px;
+  background: var(--yellow);
+  font: 800 0.72rem/1.35 var(--font-body);
+}
+.tile.empty {
+  opacity: 0.45;
+}
+.tile.empty .count {
+  background: var(--line);
+}
+
+/* ---- the brand -------------------------------------------------------- */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: inherit;
+  text-decoration: none;
+  font: 700 1.25rem/1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+.brand svg {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.brand .wt {
+  font: 700 0.62rem/1 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .tile,
+  .stud-swatch {
+    transition: none;
+  }
+}
