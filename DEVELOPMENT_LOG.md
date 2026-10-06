@@ -880,7 +880,7 @@ rule.
 **Limitations:** the cover is a still picture taken at one moment. It has to
 be re-rendered by hand whenever the scenery changes.
 
-### 2026-10-06 21:31 AEDT — [`b184781`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b184781) Evidence 0005, visual-identity research note, ADR 0004 reconciled
+### 2026-10-06 21:28 AEDT — [`b184781`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b184781) Evidence 0005, visual-identity research note, ADR 0004 reconciled
 
 **Changes:**
 - New [doc/evidence/0005-coastal-scene-identity-and-placement.md](doc/evidence/0005-coastal-scene-identity-and-placement.md). It records:
@@ -921,7 +921,8 @@ was changed because of them.
   materials:
   - no `reflections/crit-8.md`
   - `PROCESS.md` still holds the template comment
-  - two example hashes, `a1b2c3d` and `e4f5a6b`, cited by the template text
+  - two example hashes, `a1b2c3d` and `e4f5a6b`, cited by the template
+    text in `PROCESS.md`
 - No check was changed to make it pass.
 
 **Limitations:** none of this revision is deployed. The live site remains
