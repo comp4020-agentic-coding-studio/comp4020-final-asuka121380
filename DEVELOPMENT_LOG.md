@@ -840,3 +840,42 @@ the same visitor and build.
 - On mobile, while a part is held, the dock stacks its title, swatches,
   height and actions, hint, tabs and tray, so it takes a large share of the
   screen. The plot stays visible above it.
+
+### 2026-10-06 21:22 AEDT — [`b76a01f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b76a01f) Beach Houses cover rendered from the scene; only hashed assets cached for good
+
+**Changes:**
+- New `src/client/public/scenes/beach-houses.webp`, 1200×750 and 41 KB. It
+  shows the empty plot between the lavender and pink houses, seen from the
+  lane behind, with the beach, sea and evening sky. It was rendered in
+  Chrome from this project's scene, with the UI hidden.
+- Until now the homepage's scene card named this path, but no file existed,
+  so the card showed only its placeholder.
+- `src/client/scenes/beach/info.ts`: the alt text describes the new cover.
+- `src/client/home/main.ts`: the cover's `height` attribute is corrected from
+  675 to 750.
+- `src/server/index.ts`: only paths under `/assets/` (Vite's hashed files)
+  get `public, max-age=31536000, immutable`. Everything else is now
+  `no-cache`. Previously every non-HTML static file was immutable, which
+  would have kept a replaced, unhashed cover stale in browsers.
+- Log entry for `c1de11b`.
+
+**Why.** The homepage's scene card needs a real picture of the scene (ADR
+0004), drawn from the project's own work so that no third-party imagery is
+served.
+
+**Who decided:** the agent, on the camera angle for the cover and the cache
+rule.
+
+**Tests:**
+- `curl -I` against the local server: `/` and the cover return `no-cache`,
+  and `/assets/*.js` returns `immutable`.
+- Homepage screenshots at 1920×1080 and 390×844 show the cover in the card.
+- At this commit:
+  - `pnpm check`: 49/49
+  - `scripts/interaction.ts` in Chrome: 81/81
+  - `scripts/placement.ts`: 31/31 in Chrome and 31/31 in Playwright's
+    WebKit build
+- Details are in [evidence 0005](doc/evidence/0005-coastal-scene-identity-and-placement.md).
+
+**Limitations:** the cover is a still picture taken at one moment. It has to
+be re-rendered by hand whenever the scenery changes.

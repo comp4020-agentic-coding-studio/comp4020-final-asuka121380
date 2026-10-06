@@ -1,0 +1,193 @@
+{
+  "base": "http://localhost:8080",
+  "engine": "chrome",
+  "at": "2026-10-06T10:05:33.142Z",
+  "results": [
+    {
+      "run": "chrome-desktop-heights",
+      "name": "an overhang is built by pointing at the pillar's top",
+      "ok": true,
+      "detail": "[\"brick-2x2@0,0,0\",\"brick-2x4@0,3,0\"]"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "pointing at the plot under a higher part previews the lower spot",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":2,\"y\":0,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "both heights that fit are offered",
+      "ok": true,
+      "detail": "[0,6]"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "the height is said in words",
+      "ok": true,
+      "detail": "on the plot · height 1 of 2"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "Higher and Lower buttons step between the heights that fit",
+      "ok": true,
+      "detail": "6 → 0"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "PageUp and PageDown do the same",
+      "ok": true,
+      "detail": "6 → 0"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "pointing at the top previews on top",
+      "ok": true,
+      "detail": "6"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "a click commits the preview on screen (the lower one), not where the pointer is",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":2,\"y\":0,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "after placing, the preview moves onto the new part and says why it can't go there",
+      "ok": true,
+      "detail": "That space is taken by a Brick 2×4."
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "a chosen height survives a horizontal move",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":3,\"y\":6,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "…even where it doesn't fit: kept and explained, not replaced",
+      "ok": true,
+      "detail": "Nothing to attach to there: it needs studs directly underneath."
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "Lower then finds the plot",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":4,\"y\":0,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "a low overhang is built on a stack of plates",
+      "ok": true,
+      "detail": "[\"brick-2x2@0,0,0\",\"brick-2x4@0,3,0\",\"brick-2x2@2,0,0\",\"plate-2x2@12,0,0\",\"plate-2x2@12,1,0\",\"brick-2x4@12,2,0\"]"
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "pointing under a gap too low previews it there, refused, in words",
+      "ok": true,
+      "detail": "✕ That space is taken by a Brick 2×4."
+    },
+    {
+      "run": "chrome-desktop-heights",
+      "name": "clicking it sends nothing and places nothing",
+      "ok": true,
+      "detail": "Can't place there: That space is taken by a Brick 2×4."
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "front: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (45, 5) px, 6° off; ↑ (7, -22) px, 17° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "right side: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (56, 0) px, 0° off; ↑ (0, -29) px, 0° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "back: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (52, 0) px, 0° off; ↑ (-0, -25) px, 0° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "left side: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (114, 0) px, 0° off; ↑ (-15, -63) px, 13° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "oblique 34°: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (87, 44) px, 27° off; ↑ (51, -64) px, 39° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "oblique 214°: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (73, 33) px, 24° off; ↑ (47, -47) px, 45° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "top, front-up: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (84, 17) px, 11° off; ↑ (17, -84) px, 11° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "top, back-up: → moves right on screen, ↑ moves up on screen, and they undo",
+      "ok": true,
+      "detail": "→ (83, 17) px, 11° off; ↑ (17, -83) px, 11° off"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "from the back, the → button and the → key make the same step",
+      "ok": true,
+      "detail": "key -1,0; button -1,0"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "near 45° the mapping doesn't flip: it switches past 55° and back only below 35°",
+      "ok": true,
+      "detail": "quadrants at 11°, 43°, 52°, 57°, 50°, 40°, 30°: 0,0,0,1,1,1,0"
+    },
+    {
+      "run": "chrome-desktop-directions",
+      "name": "no console errors",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "run": "chrome-touch-emulated-390x844",
+      "name": "taps build the same overhang",
+      "ok": true,
+      "detail": "[\"brick-2x2@0,0,0\",\"brick-2x4@0,3,0\"]"
+    },
+    {
+      "run": "chrome-touch-emulated-390x844",
+      "name": "a tap on the overhang's top previews on top",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":2,\"y\":6,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-touch-emulated-390x844",
+      "name": "the Lower button is there on a phone and reaches the plot",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":2,\"y\":0,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-touch-emulated-390x844",
+      "name": "a tap on the preview's footprint commits the shown (lower) preview",
+      "ok": true,
+      "detail": "{\"partId\":\"brick-2x2\",\"x\":2,\"y\":0,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+    },
+    {
+      "run": "chrome-touch-emulated-390x844",
+      "name": "no console errors",
+      "ok": true,
+      "detail": "[]"
+    }
+  ]
+}

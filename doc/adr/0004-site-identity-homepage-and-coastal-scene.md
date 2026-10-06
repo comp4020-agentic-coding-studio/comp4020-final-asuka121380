@@ -54,7 +54,12 @@ asked for four changes:
   scene wording or colours.
 - **Fonts.** Self-hosted from npm `@fontsource` packages under the SIL Open
   Font License, so no font service is called at runtime (agent; faces are
-  recorded in `doc/research/0001-visual-identity.md`).
+  recorded in `doc/research/0001-visual-identity.md`). As built: Fredoka for
+  display and Nunito for text, from `@fontsource-variable` 5.3.0.
+- **Focus.** The shared focus ring is an outline, `3px solid var(--blue)`.
+  It began as a box-shadow, which a tile's own raised-edge shadow replaced,
+  so focused tray tiles showed no ring; the keyboard check in
+  `scripts/interaction.ts` caught it (agent).
 - **Name.** The site's name is a working title the agent proposed,
   "Brick Commons", and the page marks it as a working title. It is a
   placeholder for the author to replace, not an author decision.
@@ -68,6 +73,16 @@ asked for four changes:
   - title, blurb, cover image and recommended colours
   - the environment component (code-split, so only the editor loads it)
   - lighting and sky parameters
+- As built (agent), these are three places, so that the homepage can import
+  the metadata without pulling in three.js:
+  - `registry.ts` and the scene's `info.ts` hold the metadata only: title,
+    setting, blurb, cover, alt text and suggested colours.
+  - `environments.tsx` maps the scene id to a lazily imported environment
+    component.
+  - The light and sky are not registry parameters. They are code in the
+    scene's own folder (`scenes/beach/sky.ts`), next to its environment.
+- The cover (`public/scenes/beach-houses.webp`, 1200×750) is rendered from
+  the scene itself, so it carries no third-party imagery (agent).
 - The domain template (kit, bounds, reference, version) stays in
   `src/domain/scene.ts`.
 - The homepage renders its scene card from the registry's metadata. A second
@@ -102,10 +117,32 @@ asked for four changes:
 - **Sea:** a single shader plane with light animated detail. There is no
   fluid simulation.
 
+As built (agent):
+- **Sun:** one direction, `SUN_DIR` in `scenes/beach/sky.ts`, about 19°
+  above the sea horizon. It drives the sky shader, the environment map, the
+  shadow-casting light and the sea's glitter.
+- **Distance tiers:**
+  - near: the four neighbours, gardens, promenade, palms and benches
+  - middle: shore houses, a pier, and a hillside town of simple houses with
+    roofs, terraces and hedges, rising inland
+  - far: the "panoramic backdrop" is three hill ridges painted once into a
+    canvas texture (`backdropTexture` in `terrain.ts`), inland only, so the
+    sea side keeps a true horizon
+- **Camera keep-out.** Once the camera could orbit fully, a far orbit could
+  put it inside a neighbour's house or a palm crown. The environment now
+  registers those objects' bounding boxes (`src/client/scene/obstacles.ts`).
+  If the camera ends up inside one, it is moved towards the target until it
+  is just outside. A house standing between the camera and the plot is left
+  alone: that is an ordinary view, and orbiting clears it. The boxes affect
+  only the camera; they are not part of the build or the rules.
+
 ## Consequences
 
 - The client now builds as two Vite pages. The server serves `/build/` from
   the same static directory.
+- Caching (agent): only Vite's hashed files under `/assets/` are cached as
+  immutable. Pages and unhashed files, such as scene covers, are served
+  `no-cache`, so a replaced cover is never stale.
 - Shared components make later restyling cheaper.
 - The homepage's text is crawlable and works without WebGL.
 - The scene registry is the first place another scene would go. Multiple
