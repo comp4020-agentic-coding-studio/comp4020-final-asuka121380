@@ -710,3 +710,65 @@ first scene, and a homepage at `/` that loads no editor code.
 - The scene card's cover image (`/scenes/beach-houses.webp`) does not exist
   yet; the card shows a gradient placeholder.
 - The editor is not restyled yet.
+
+### 2026-10-06 21:00 AEDT — [`57549ea`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/57549ea) Coastal first scene: beachfront, golden-hour light, sea, dunes, hillside town
+
+**Changes:**
+- `src/client/scene/Street.tsx` is removed. `src/client/scenes/environments.tsx`
+  maps a scene id to a lazily loaded environment, and the workbench renders
+  whichever one it gets, so shared code holds no scenery.
+- New `src/client/scene/Plot.tsx` holds the plot plate and the invisible aim
+  plane that were in `Street.tsx`.
+- New `src/client/scene/Batched.tsx` draws one mesh per colour, with glass
+  and lantern materials.
+- `src/client/scenes/beach/`:
+  - `Environment.tsx`: four neighbours on plinths 0–1.2 high (pink with a
+    flat roof and a balcony; three-storey turquoise; turned lavender; yellow
+    with wide glass). Also gardens, a promenade with a low sea wall, benches,
+    lamps, palms clear of the plot, lifeguard huts, beach houses along the
+    shore, a pier, and a hillside town of terraced streets facing the sea.
+  - `sky.ts`: one `SUN_DIR`, about 19° up over the sea. It drives the sky
+    shader (gradient, glow, low clouds, sun disc), the environment map
+    rendered from that same sky, the shadow-casting sun light, and the sea's
+    glitter.
+  - `water.ts`: a shader sea with ripples, fresnel sky reflection, sun
+    glitter, a foam line and see-through shallows.
+  - `terrain.ts`: the beach falls about 1.5 to the water, with low dunes away
+    from the plot. The land rises inland, and painted ridges sit only on the
+    inland side.
+- `src/client/scene/scenery.ts`:
+  - house specs gain three storeys, flat roofs, plinths with steps and
+    balconies
+  - wide windows
+  - `Batch.bounds()`
+- New `src/client/scene/obstacles.ts`. The environment registers its houses'
+  and near palms' boxes. If an orbit or zoom would put the camera inside one,
+  the camera is moved out towards the plot. A house between the camera and
+  the plot is left alone.
+- The canvas uses soft shadows and `NeutralToneMapping`, and the part
+  thumbnails use the same tone mapping.
+
+**Why.** This is the author's coastal direction (ADR 0004): houses facing the
+beach, golden hour with the sun over the sea, and consistent light. An orbit
+at full zoom-out could previously put the camera inside a neighbour.
+
+**Who decided:**
+- **Author:** the layout order, the light, the terrain and the hybrid
+  scenery approach.
+- **Agent:** the specific houses, colours, sun angle, shader treatments,
+  hillside town and camera keep-out.
+
+**Tests:**
+- `pnpm check` (local): 49/49.
+- `scripts/placement.ts` in Chrome: 31/31.
+- `scripts/interaction.ts`: 71/71.
+- Screenshots were inspected by eye in Chrome at 1920×1080 and 390×844:
+  default, back-oblique (sea, beach and plot together), top, side views, and
+  full zoom-out from inland and from the side.
+
+**Limitations:**
+- All textures are procedural or canvas-drawn, so there are no image assets
+  or licences to track.
+- In top view the pale parts take a slight blue cast from the sky fill.
+- Seen from the side at full zoom-out, the plot can be hidden behind a
+  neighbour; that is an ordinary occlusion and orbiting past it clears it.

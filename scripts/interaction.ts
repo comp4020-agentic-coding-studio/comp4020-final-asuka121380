@@ -561,6 +561,68 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   await context.close();
 }
 
+// ---- routes: home ↔ build keeps the same visitor and build ----------------
+{
+  run = "routes";
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  const scripts: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("request", (r) => r.resourceType() === "script" && scripts.push(new URL(r.url()).pathname));
+
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  check("a fresh visitor's homepage offers Start building", (await page.locator("#start").innerText()) === "Start building");
+  check(
+    "the homepage loads none of the editor's code",
+    scripts.length > 0 && !scripts.some((s) => /\/build-|Environment|three/i.test(s)),
+    scripts,
+  );
+  check("the homepage sets no cookie", (await context.cookies()).length === 0);
+
+  await page.locator("#start").click();
+  await page.waitForURL(/\/build\/$/);
+  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
+  await page.waitForTimeout(1200);
+  await tray(page, "Brick 2×2").click();
+  await aimAndClick(page, 4, 3);
+  let s = await state(page);
+  const built = s.parts.map((q) => `${q.partId}@${q.x},${q.y},${q.z}`).join(" ");
+  const left = s.inventory["brick-2x2"];
+  check("a part placed in the editor is saved", s.parts.length === 1 && s.save === "saved", built);
+
+  await page.locator(".home-link").click();
+  await page.waitForURL(`${base}/`);
+  await page.waitForFunction(() => document.getElementById("start")?.textContent === "Continue my build", null, { timeout: 5000 }).catch(() => {});
+  check("back on the homepage, it offers Continue my build", (await page.locator("#start").innerText()) === "Continue my build");
+
+  await page.locator("#start").click();
+  await page.waitForURL(/\/build\/$/);
+  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => (window as any).__state?.().snapshot);
+  s = await state(page);
+  check(
+    "home → build → home → build keeps the same build and stock",
+    s.parts.map((q) => `${q.partId}@${q.x},${q.y},${q.z}`).join(" ") === built && s.inventory["brick-2x2"] === left,
+    s.parts.map((q) => `${q.partId}@${q.x},${q.y},${q.z}`),
+  );
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => (window as any).__state?.().snapshot);
+  s = await state(page);
+  check("a reload of /build/ keeps it", s.parts.length === 1);
+
+  const direct = await context.newPage();
+  const res = await direct.goto(`${base}/build`, { waitUntil: "domcontentloaded" });
+  check("a direct link to /build reaches the editor", res?.ok() === true && /\/build\/$/.test(direct.url()), direct.url());
+  const readme = await direct.goto(`${base}/readme/`);
+  check("/readme/ still answers", readme?.ok() === true);
+  check("no console errors", errors.length === 0, errors.join(" | "));
+  await context.close();
+}
+
 await browser.close();
 const failed = results.filter((r) => !r.ok);
 writeFileSync(`${out}/results.json`, `${JSON.stringify({ base, at: new Date().toISOString(), results }, null, 2)}\n`);

@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { partDef, type PartDefinition } from "../domain/catalog.ts";
 import { COLOURS, colourName } from "../domain/colours.ts";
+import { sceneInfo } from "./scenes/registry.ts";
+import { brandMark } from "./ui/iso.ts";
 import { Workbench } from "./scene/Workbench.tsx";
 import { pictures, type Pictures } from "./scene/thumbnails.ts";
 import {
@@ -28,6 +30,11 @@ import {
 
 // a touch screen gets "tap" wording, and the two-tap confirmations spelled out
 const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
+// the scene's suggested colours come first; every colour stays available
+const info = sceneInfo(scene.id);
+const SUGGESTED = (info?.suggestedColours ?? []).map((id) => COLOURS.find((c) => c.id === id)!).filter(Boolean);
+const OTHERS = COLOURS.filter((c) => !SUGGESTED.includes(c));
 
 const GROUPS: { id: "all" | PartDefinition["group"]; label: string }[] = [
   { id: "all", label: "All" },
@@ -66,17 +73,21 @@ function SaveStatus() {
 function Swatches({ value, onPick, label }: { value: string; onPick: (id: string) => void; label: string }) {
   return (
     <div className="swatches" role="radiogroup" aria-label={label}>
-      {COLOURS.map((c) => (
-        <button
-          key={c.id}
-          role="radio"
-          aria-checked={value === c.id}
-          aria-label={c.name}
-          title={c.name}
-          className="swatch"
-          style={{ background: c.hex }}
-          onClick={() => onPick(c.id)}
-        />
+      {[SUGGESTED, OTHERS].map((list, i) => (
+        <span key={i} className="swatch-run">
+          {list.map((c) => (
+            <button
+              key={c.id}
+              role="radio"
+              aria-checked={value === c.id}
+              aria-label={c.name}
+              title={c.name}
+              className="stud-swatch swatch"
+              style={{ "--c": c.hex } as CSSProperties}
+              onClick={() => onPick(c.id)}
+            />
+          ))}
+        </span>
       ))}
     </div>
   );
@@ -91,14 +102,14 @@ function Height({ y, fits }: { y: number; fits: number[] }) {
   const where = y === 0 ? "on the plot" : `${y} plate${y === 1 ? "" : "s"} up`;
   return (
     <div className="height" role="group" aria-label="Height">
-      <button onClick={() => stepLevel(-1)} aria-label="Lower: the next height down that fits" disabled={!fits.some((f) => f < y)}>
+      <button className="btn btn-small" onClick={() => stepLevel(-1)} aria-label="Lower: the next height down that fits" disabled={!fits.some((f) => f < y)}>
         ▼ Lower <kbd>PgDn</kbd>
       </button>
       <span className="height-readout" aria-live="polite">
         {where}
         {fits.length > 1 && i >= 0 && <span className="height-of"> · height {i + 1} of {fits.length}</span>}
       </span>
-      <button onClick={() => stepLevel(1)} aria-label="Higher: the next height up that fits" disabled={!fits.some((f) => f > y)}>
+      <button className="btn btn-small" onClick={() => stepLevel(1)} aria-label="Higher: the next height up that fits" disabled={!fits.some((f) => f > y)}>
         ▲ Higher <kbd>PgUp</kbd>
       </button>
     </div>
@@ -109,10 +120,10 @@ function Height({ y, fits }: { y: number; fits: number[] }) {
 function Step() {
   return (
     <span className="step">
-      <button onClick={() => cycle(-1)} aria-label="Previous part" title="Previous part">
+      <button className="btn btn-small" onClick={() => cycle(-1)} aria-label="Previous part" title="Previous part">
         ‹ <kbd>[</kbd>
       </button>
-      <button onClick={() => cycle(1)} aria-label="Next part" title="Next part">
+      <button className="btn btn-small" onClick={() => cycle(1)} aria-label="Next part" title="Next part">
         <kbd>]</kbd> ›
       </button>
     </span>
@@ -141,12 +152,12 @@ function Context() {
         </span>
         <div className="context-actions">
           {target && (
-            <button className="danger" onClick={() => !saving && void remove(target.id)} aria-disabled={saving}>
+            <button className="btn btn-small btn-danger danger" onClick={() => !saving && void remove(target.id)} aria-disabled={saving}>
               Remove it <kbd>Enter</kbd>
             </button>
           )}
           <Step />
-          <button onClick={() => toggleDelete(false)}>
+          <button className="btn btn-small" onClick={() => toggleDelete(false)}>
             Done <kbd>Esc</kbd>
           </button>
         </div>
@@ -177,16 +188,16 @@ function Context() {
         <div className="context-actions">
           {/* aria-disabled, not disabled: it keeps keyboard focus, and pressing it says why it can't place */}
           <button
-            className="primary place-button"
+            className="btn btn-small btn-red primary place-button"
             aria-disabled={!pv || !!pv.rejection || saving}
             onClick={() => !saving && void placeHeld()}
           >
             Place <kbd>Enter</kbd>
           </button>
-          <button onClick={() => void rotate()} disabled={def.rotations.length < 2}>
+          <button className="btn btn-small" onClick={() => void rotate()} disabled={def.rotations.length < 2}>
             Rotate <kbd>R</kbd>
           </button>
-          <button onClick={putDown}>
+          <button className="btn btn-small" onClick={putDown}>
             Cancel <kbd>Esc</kbd>
           </button>
         </div>
@@ -195,10 +206,10 @@ function Context() {
           <summary>Move</summary>
           {/* the same screen-relative steps as the arrow keys (ADR 0005) */}
           <div className="nudge-pad">
-            <button onClick={() => moveOnScreen(-1, 0)} aria-label="Move preview left on screen" title="Left">←</button>
-            <button onClick={() => moveOnScreen(0, 1)} aria-label="Move preview away from you" title="Away">↑</button>
-            <button onClick={() => moveOnScreen(0, -1)} aria-label="Move preview towards you" title="Towards you">↓</button>
-            <button onClick={() => moveOnScreen(1, 0)} aria-label="Move preview right on screen" title="Right">→</button>
+            <button className="btn btn-small" onClick={() => moveOnScreen(-1, 0)} aria-label="Move preview left on screen" title="Left">←</button>
+            <button className="btn btn-small" onClick={() => moveOnScreen(0, 1)} aria-label="Move preview away from you" title="Away">↑</button>
+            <button className="btn btn-small" onClick={() => moveOnScreen(0, -1)} aria-label="Move preview towards you" title="Towards you">↓</button>
+            <button className="btn btn-small" onClick={() => moveOnScreen(1, 0)} aria-label="Move preview right on screen" title="Right">→</button>
           </div>
         </details>
       </div>
@@ -216,14 +227,14 @@ function Context() {
         <Swatches value={selected.colour} onPick={(c) => void recolourSelected(c)} label={`Recolour the ${def.colourRegion ?? "part"}`} />
         <div className="context-actions">
           {/* aria-disabled while saving, not disabled: a disabled button drops keyboard focus */}
-          <button onClick={() => !saving && void rotate()} disabled={def.rotations.length < 2} aria-disabled={saving}>
+          <button className="btn btn-small" onClick={() => !saving && void rotate()} disabled={def.rotations.length < 2} aria-disabled={saving}>
             Rotate <kbd>R</kbd>
           </button>
-          <button className="danger" onClick={() => !saving && void remove(selected.id)} aria-disabled={saving}>
+          <button className="btn btn-small btn-danger danger" onClick={() => !saving && void remove(selected.id)} aria-disabled={saving}>
             Delete <kbd>Del</kbd>
           </button>
           <Step />
-          <button onClick={() => select(null)}>
+          <button className="btn btn-small" onClick={() => select(null)}>
             Deselect <kbd>Esc</kbd>
           </button>
         </div>
@@ -261,7 +272,7 @@ function Tray({ pics }: { pics: Pictures | null }) {
           return (
             <li key={def.id}>
               <button
-                className={`part${held === def.id ? " held" : ""}${left === 0 ? " empty" : ""}`}
+                className={`tile part${held === def.id ? " held" : ""}${left === 0 ? " empty" : ""}`}
                 aria-pressed={held === def.id}
                 aria-label={`${def.name}, ${left} left`}
                 title={`${def.name} (${def.code})`}
@@ -304,6 +315,12 @@ function Target({ pics, open, onToggle }: { pics: Pictures | null; open: boolean
       </button>
       {open && (
         <figure className="target-card">
+          <div className="target-head">
+            <span className="target-step" aria-hidden="true">
+              1
+            </span>
+            <span>The target</span>
+          </div>
           {pics ? (
             <img src={pics.target} alt="The target: a small house with a pointed roof, a door between two walls, and a tree beside it." width={360} height={300} />
           ) : (
@@ -366,6 +383,8 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   );
 }
 
+const MARK = brandMark();
+
 export function App() {
   const deleting = useApp((s) => s.deleting);
   const placed = useApp((s) => s.snapshot?.parts.length ?? 0);
@@ -401,14 +420,18 @@ export function App() {
 
   return (
     <div className="app" style={{ "--dock-h": `${dockHeight}px` } as CSSProperties}>
-      <div className="stage" role="img" aria-label={`The street, with your plot of ${scene.bounds.w} by ${scene.bounds.d} studs; ${placed} parts placed.`}>
+      <div className="stage" role="img" aria-label={`${info?.title ?? "The scene"}, with your plot of ${scene.bounds.w} by ${scene.bounds.d} studs; ${placed} parts placed.`}>
         <Workbench dock={reserve} />
       </div>
 
       <header className="overlay overlay-left">
-        <h1 className="chip chip-title">
-          Street 01 <span className="sub">working title</span>
-        </h1>
+        <div className="chip title-chip">
+          <a className="brand home-link" href="/" title="Home" aria-label="Brick Commons (working title): home">
+            <span className="mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: MARK }} />
+            <span className="brand-name">Brick Commons</span>
+          </a>
+          <h1 className="chip-title">{info?.title ?? scene.id}</h1>
+        </div>
         <Target pics={pics} open={targetOpen} onToggle={() => setTargetOpen((o) => !o)} />
       </header>
 
@@ -432,11 +455,11 @@ export function App() {
         <div className="dock-top">
           <Context />
           <div className="dock-tools">
-            <button className={`delete-tool${deleting ? " on" : ""}`} aria-pressed={deleting} aria-label="Delete tool" onClick={() => toggleDelete()}>
+            <button className={`btn btn-small delete-tool${deleting ? " on" : ""}`} aria-pressed={deleting} aria-label="Delete tool" onClick={() => toggleDelete()}>
               <span aria-hidden="true">⌫</span> <span className="label">Delete tool</span> <kbd>D</kbd>
             </button>
             <button
-              className="fold"
+              className="btn btn-small fold"
               aria-expanded={trayOpen}
               aria-label={trayOpen ? "Hide the parts tray" : "Show the parts tray"}
               onClick={() => setTrayOpen((o) => !o)}

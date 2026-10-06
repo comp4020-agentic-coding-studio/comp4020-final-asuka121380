@@ -5,6 +5,9 @@ import { installKeyboard } from "./keyboard.ts";
 import { getState, preview, start } from "./state/store.ts";
 import { viewQuadrant } from "./state/view.ts";
 import { httpTransport, localTransport } from "./state/transport.ts";
+import "@fontsource-variable/fredoka";
+import "@fontsource-variable/nunito";
+import "./ui/theme.css";
 import "./styles.css";
 
 // `?local` runs the rules in the browser with nothing saved: the visual

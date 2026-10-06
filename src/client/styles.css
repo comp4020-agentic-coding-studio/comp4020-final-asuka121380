@@ -1,26 +1,9 @@
-/* Theme tokens: change the look here, not in components. */
-:root {
-  --ink: #f6f3ee;
-  --ink-soft: #d9d3c9;
-  --ink-dark: #23262b;
-  --glass: rgba(52, 49, 46, 0.72);
-  --glass-strong: rgba(44, 41, 38, 0.86);
-  --glass-line: rgba(255, 255, 255, 0.14);
-  --chip: rgba(58, 55, 52, 0.66);
-  --accent: #7fd1b5;
-  --accent-ink: #13231d;
-  --ok: #9be0b0;
-  --error: #ffb4a8;
-  --danger: #e2675c;
-  --focus: #ffcf70;
-  --radius: 12px;
-  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: var(--ink);
-}
-
-* {
-  box-sizing: border-box;
-}
+/*
+ * The editor's layout, built from the shared tokens and components in
+ * ui/theme.css (ADR 0004). Quieter than the homepage: white surfaces, dark
+ * text, red only for the primary action and the active tool, yellow for
+ * counts and highlights, so the construction stays the brightest thing.
+ */
 
 html,
 body,
@@ -28,54 +11,34 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #f3e5cb;
+  background: var(--paper);
+}
+body {
+  color: var(--ink);
+  font: 400 1rem/1.35 var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
-button,
-.chip-button {
+/* unclassed buttons (tabs, swatches, small inline ones) start from nothing */
+button {
   font: inherit;
   color: inherit;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--glass-line);
-  border-radius: 9px;
-  padding: 0.4rem 0.7rem;
-  min-height: 2.5rem;
   cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-button:hover:not(:disabled),
-.chip-button:hover {
-  background: rgba(255, 255, 255, 0.16);
+  -webkit-tap-highlight-color: transparent;
 }
 button:disabled,
 button[aria-disabled="true"] {
-  opacity: 0.4;
   cursor: not-allowed;
 }
-button.primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-  font-weight: 650;
-}
-button.danger {
-  border-color: rgba(226, 103, 92, 0.7);
-  color: #ffd2cc;
-}
-/* keyboard focus stays visible everywhere, but it's a ring on the control, not a frame round the scene */
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
 kbd {
-  font: 0.68rem ui-monospace, monospace;
-  padding: 0.05em 0.35em;
+  font: 600 0.66rem/1 ui-monospace, monospace;
+  padding: 0.12em 0.32em;
   border: 1px solid currentColor;
   border-radius: 4px;
-  opacity: 0.65;
+  opacity: 0.55;
+}
+.btn-red kbd {
+  opacity: 0.8;
 }
 
 .app {
@@ -83,12 +46,14 @@ kbd {
   height: 100%;
 }
 
-/* the 3D street fills the window; everything else floats over it */
+/* the 3D scene fills the window; everything else floats over it */
 .stage {
   position: absolute;
   inset: 0;
   touch-action: none;
 }
+
+/* ---- the floating chips along the top ----------------------------------- */
 
 .overlay {
   position: absolute;
@@ -110,84 +75,138 @@ kbd {
 }
 .chip,
 .chip-button {
-  background: var(--chip);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-line);
-  border-radius: 10px;
-  padding: 0.45rem 0.8rem;
-  font-size: 0.9rem;
-  min-height: 2.4rem;
-  margin: 0;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-height: 40px;
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  background: rgb(255 255 255 / 0.94);
+  color: var(--ink);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 3px 0 var(--line-strong);
+  font: 700 0.9rem/1.1 var(--font-body);
+  text-decoration: none;
 }
-.chip-title {
-  font-size: 1rem;
-  font-weight: 650;
+.chip-button {
+  cursor: pointer;
 }
-.chip-title .sub {
-  font-weight: 400;
-  font-size: 0.75rem;
-  color: var(--ink-soft);
+.chip-button:hover {
+  background: var(--white);
+}
+.chip-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line-strong);
+}
+.chip-button[aria-expanded="true"] {
+  border-color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
 }
 .chip-ok {
   color: var(--ok);
 }
 .chip-warn,
 .chip-error {
-  color: var(--error);
+  color: var(--danger);
 }
 .chip button {
-  min-height: 0;
   padding: 0.1rem 0.45rem;
+  border: 2px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--white);
+  font-weight: 700;
 }
+
+/* the site's mark and name, home; then the scene being built */
+.title-chip {
+  gap: 0.6rem;
+  padding-left: 0.45rem;
+}
+.home-link {
+  gap: 0.35rem;
+  padding: 0.1rem 0.5rem 0.1rem 0.15rem;
+  border-right: 2px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--red-edge);
+}
+.home-link .mark {
+  display: inline-flex;
+}
+.home-link svg {
+  width: 26px;
+  height: 26px;
+}
+.chip-title {
+  margin: 0;
+  font: 700 1.05rem/1 var(--font-display);
+}
+
+/* ---- the target, as a page from an instruction booklet ------------------- */
 
 .target-card {
   margin: 0;
   width: 15rem;
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-line);
-  border-radius: var(--radius);
-  padding: 0.5rem;
-  backdrop-filter: blur(10px);
+  overflow: hidden;
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lift);
+}
+.target-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--yellow);
+  font: 700 0.95rem/1 var(--font-display);
+}
+.target-step {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  font-size: 0.85rem;
 }
 .target-card img {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #e8f1fb;
 }
 .target-card figcaption {
+  padding: 0.45rem 0.65rem 0.6rem;
   font-size: 0.78rem;
   color: var(--ink-soft);
-  margin-top: 0.35rem;
 }
+
+/* ---- help -------------------------------------------------------------- */
 
 .help {
   position: absolute;
-  top: 3.2rem;
+  top: 3.3rem;
   right: 0;
   width: min(24rem, calc(100vw - 1.5rem));
   max-height: 70vh;
   overflow-y: auto;
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-line);
-  border-radius: var(--radius);
   padding: 0.8rem 1rem;
-  backdrop-filter: blur(12px);
+  background: var(--white);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lift);
   font-size: 0.88rem;
   z-index: 3;
 }
 .help h2 {
-  font-size: 1rem;
   margin: 0 0 0.4rem;
+  font: 700 1.1rem var(--font-display);
 }
 .help h3 {
-  font-size: 0.9rem;
   margin: 0.8rem 0 0.2rem;
+  font: 700 0.95rem var(--font-display);
 }
 .help p {
   margin: 0.3rem 0;
@@ -213,17 +232,18 @@ kbd {
   font-size: 0.78rem;
 }
 
+/* ---- labels in the 3D view, and the notice above the dock --------------- */
+
 .ghost-label {
-  font: 600 0.78rem ui-rounded, system-ui, sans-serif;
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
-  background: rgba(30, 60, 45, 0.82);
-  color: #dff7e9;
+  background: var(--ok);
+  color: var(--white);
+  font: 800 0.78rem var(--font-body);
   white-space: nowrap;
 }
 .ghost-label.bad {
-  background: rgba(110, 28, 22, 0.86);
-  color: #ffe1dc;
+  background: var(--danger);
 }
 
 .notice {
@@ -235,9 +255,10 @@ kbd {
   max-width: min(92vw, 40rem);
   padding: 0.45rem 0.9rem;
   border-radius: 10px;
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-line);
+  background: var(--ink);
+  color: var(--white);
   font-size: 0.9rem;
+  font-weight: 700;
   text-align: center;
   z-index: 2;
   pointer-events: none;
@@ -246,23 +267,23 @@ kbd {
   display: none;
 }
 .notice-error {
-  color: var(--error);
+  background: var(--danger);
 }
 
-/* the dock: a restrained smoky bar along the bottom */
+/* ---- the dock: a parts tray along the bottom ---------------------------- */
+
 .dock {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   bottom: 0.75rem;
   width: min(1100px, calc(100vw - 1.5rem));
-  background: var(--glass);
-  backdrop-filter: blur(14px) saturate(1.1);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1);
-  border: 1px solid var(--glass-line);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(40, 30, 20, 0.25);
-  padding: 0.55rem 0.7rem 0.6rem;
+  padding: 0.5rem 0.65rem 0.6rem;
+  background: rgb(255 250 241 / 0.97);
+  border: 2px solid var(--line);
+  border-top: 4px solid var(--red);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lift);
   z-index: 2;
 }
 .dock-top {
@@ -276,29 +297,29 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem 0.8rem;
-  min-height: 2.6rem;
+  gap: 0.45rem 0.75rem;
+  min-height: 2.5rem;
 }
 .context-title {
-  font-size: 0.98rem;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  font: 700 1rem var(--font-display);
 }
 .context-title.danger {
-  color: #ffc1b9;
+  color: var(--danger);
 }
 .context-sub {
-  font-weight: 400;
+  font: 600 0.85rem var(--font-body);
   color: var(--ink-soft);
-  font-size: 0.85rem;
 }
 .context-hint {
   font-size: 0.88rem;
+  font-weight: 600;
   color: var(--ink-soft);
 }
 .context-hint.bad {
-  color: var(--error);
+  color: var(--danger);
 }
 .context-actions {
   display: flex;
@@ -307,54 +328,72 @@ kbd {
 }
 .step {
   display: flex;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 .code {
-  font: 600 0.72rem ui-monospace, monospace;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
   padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: var(--yellow);
+  font: 700 0.7rem ui-monospace, monospace;
 }
 .dock-tools {
   display: flex;
   gap: 0.35rem;
 }
 .delete-tool.on {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-  font-weight: 650;
+  --face: var(--danger);
+  --edge: var(--red-edge);
+  --text: var(--white);
 }
 .fold {
   width: 2.5rem;
-  justify-content: center;
+  padding: 0;
+}
+
+.height {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.height-readout {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.height-of {
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .swatches {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.28rem;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+}
+.swatch-run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 3px;
+}
+/* the scene's suggestions, then the rest after a divider */
+.swatch-run + .swatch-run {
+  padding-left: 0.65rem;
+  border-left: 2px solid var(--line);
 }
 .swatch {
-  width: 1.75rem;
-  height: 1.75rem;
-  min-height: 0;
-  padding: 0;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-}
-.swatch[aria-checked="true"] {
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  width: 26px;
+  height: 26px;
 }
 
 .nudge summary {
-  cursor: pointer;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-  list-style: none;
   padding: 0.3rem 0.4rem;
   border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  list-style: none;
+  cursor: pointer;
 }
 .nudge summary::-webkit-details-marker {
   display: none;
@@ -366,46 +405,56 @@ kbd {
 }
 .nudge-pad button {
   min-width: 2.5rem;
-  justify-content: center;
 }
 
 .tabs {
   display: flex;
-  gap: 0.2rem;
-  margin: 0.45rem 0 0.35rem;
-  border-bottom: 1px solid var(--glass-line);
+  gap: 0.15rem;
+  margin: 0.45rem 0 0.4rem;
   overflow-x: auto;
+  scrollbar-width: none;
 }
 .tabs button {
-  background: none;
+  padding: 0.3rem 0.65rem;
   border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-radius: 999px;
+  background: none;
   font-size: 0.86rem;
+  font-weight: 700;
   color: var(--ink-soft);
   white-space: nowrap;
 }
+.tabs button:hover {
+  background: var(--line);
+}
 .tabs [aria-selected="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
+  background: var(--ink);
+  color: var(--white);
+}
+.tabs [aria-selected="true"]:hover {
+  background: var(--ink);
 }
 
+/* the parts sit in a recessed storage tray */
 .tray {
-  list-style: none;
-  margin: 0;
-  padding: 0.1rem 0 0.2rem;
   display: flex;
   gap: 0.45rem;
+  margin: 0;
+  padding: 0.45rem;
+  list-style: none;
   overflow-x: auto;
   scrollbar-width: thin;
+  background: #f1e8d7;
+  border-radius: var(--radius);
+  box-shadow: inset 0 2px 5px rgb(27 27 31 / 0.12);
+}
+/* every tile as tall as the tallest, so the tray reads as one row of compartments */
+.tray li {
+  display: flex;
 }
 .part {
-  position: relative;
-  width: 6.3rem;
-  flex-direction: column;
-  padding: 0.35rem 0.3rem 0.3rem;
-  background: rgba(255, 255, 255, 0.07);
-  gap: 0.15rem;
+  width: 6.2rem;
+  align-content: start;
 }
 .part img,
 .thumb-wait {
@@ -413,29 +462,9 @@ kbd {
   height: 64px;
   display: block;
 }
-.part .count {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.4rem;
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
 .part .name {
-  font-size: 0.72rem;
-  color: var(--ink-soft);
   text-align: center;
-  line-height: 1.15;
-}
-.part.held {
-  border: 2px solid var(--accent);
-  background: rgba(127, 209, 181, 0.16);
-}
-.part.empty {
-  opacity: 0.45;
-}
-.part.empty .count {
-  color: var(--error);
+  font-weight: 700;
 }
 
 /* Phones: a compact dock that folds to just its top row. */
@@ -452,14 +481,17 @@ kbd {
   }
   .chip,
   .chip-button {
+    min-height: 36px;
+    padding: 0.3rem 0.55rem;
     font-size: 0.8rem;
-    padding: 0.35rem 0.55rem;
-    min-height: 2.25rem;
   }
-  .chip-title .sub,
+  .home-link .brand-name,
   .wide-only,
   kbd {
     display: none;
+  }
+  .home-link {
+    padding-right: 0.35rem;
   }
   .narrow-only {
     display: inline;
@@ -470,8 +502,9 @@ kbd {
   .dock {
     bottom: 0;
     width: 100vw;
+    border-width: 4px 0 0;
     border-radius: 16px 16px 0 0;
-    padding: 0.45rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom));
+    padding: 0.4rem 0.5rem calc(0.45rem + env(safe-area-inset-bottom));
   }
   .context {
     gap: 0.35rem 0.5rem;
@@ -492,7 +525,7 @@ kbd {
   }
   .context > :first-child {
     padding-right: 5.9rem;
-    min-height: 2.5rem;
+    min-height: 2.4rem;
     display: flex;
     align-items: center;
   }
@@ -500,17 +533,15 @@ kbd {
     flex-basis: 100%;
     flex-wrap: wrap;
   }
+  .swatches,
+  .swatch-run {
+    flex-wrap: nowrap;
+  }
   .swatches {
     flex-basis: 100%;
-    flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     padding: 2px 0;
-  }
-  .swatch {
-    flex: none;
-    width: 1.7rem;
-    height: 1.7rem;
   }
   .context-actions {
     order: 3;
@@ -519,13 +550,31 @@ kbd {
     order: 4;
     font-size: 0.8rem;
   }
+  .tabs {
+    margin: 0.35rem 0 0.3rem;
+  }
+  /* swiped sideways, so no scrollbar gutter under the tiles */
+  .tray {
+    padding: 0.35rem;
+    scrollbar-width: none;
+  }
+  .tray::-webkit-scrollbar {
+    display: none;
+  }
   .part {
-    width: 4.9rem;
+    width: 4.7rem;
+  }
+  .part .name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
   .part img,
   .thumb-wait {
-    width: 52px;
-    height: 52px;
+    width: 48px;
+    height: 48px;
   }
 }
 

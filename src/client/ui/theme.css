@@ -31,7 +31,6 @@
   --font-display: "Fredoka Variable", "Nunito Variable", ui-rounded, system-ui, sans-serif;
   --font-body: "Nunito Variable", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
   --lift: 0 12px 32px rgb(27 27 31 / 0.14);
-  --focus: 0 0 0 3px var(--white), 0 0 0 6px var(--blue);
 }
 
 *,
@@ -40,9 +39,10 @@
   box-sizing: border-box;
 }
 
+/* an outline, not a shadow, so no component's raised edge can hide it */
 :focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
 }
 
 /* ---- buttons: a raised bottom edge that presses down ---------------------- */
@@ -79,11 +79,6 @@
   transform: translateY(3px);
   box-shadow: 0 1px 0 var(--edge);
 }
-.btn:focus-visible {
-  box-shadow:
-    0 4px 0 var(--edge),
-    var(--focus);
-}
 .btn:disabled,
 .btn[aria-disabled="true"] {
   opacity: 0.45;
@@ -104,6 +99,11 @@
   --face: var(--ink);
   --edge: #000;
   --text: var(--white);
+}
+/* destructive, but not shouting until it's the active tool */
+.btn-danger {
+  --edge: #e9a8a3;
+  --text: var(--danger);
 }
 .btn-small {
   min-height: 36px;
@@ -182,10 +182,7 @@
     0 0 0 6px var(--ink);
 }
 .stud-swatch:focus-visible {
-  box-shadow:
-    inset 0 -4px 0 rgb(0 0 0 / 0.2),
-    0 0 0 3px var(--white),
-    0 0 0 6px var(--blue);
+  outline-offset: 4px;
 }
 
 /* ---- tiles: parts in a storage tray -------------------------------------- */
