@@ -117,8 +117,11 @@ if (existsSync(CLIENT)) {
   app.use(
     express.static(CLIENT, {
       index: "index.html",
-      // hashed assets can be cached; the page that names them must not be
-      setHeaders: (res, path) => res.setHeader("Cache-Control", path.endsWith(".html") ? "no-cache" : "public, max-age=31536000, immutable"),
+      // Vite's hashed assets can be cached for good; everything else (the
+      // pages that name them, and unhashed files such as scene covers) is
+      // revalidated, so a replaced file is never stale
+      setHeaders: (res, path) =>
+        res.setHeader("Cache-Control", /[\\/]assets[\\/]/.test(path) ? "public, max-age=31536000, immutable" : "no-cache"),
     }),
   );
 } else {

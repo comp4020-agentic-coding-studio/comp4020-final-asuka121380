@@ -772,3 +772,71 @@ at full zoom-out could previously put the camera inside a neighbour.
 - In top view the pale parts take a slight blue cast from the sky fill.
 - Seen from the side at full zoom-out, the plot can be hidden behind a
   neighbour; that is an ordinary occlusion and orbiting past it clears it.
+
+### 2026-10-06 21:12 AEDT — [`c1de11b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c1de11b) Editor restyled from the shared identity; home ↔ build route checks
+
+**Changes:**
+- `src/client/styles.css` is rewritten on the tokens in `src/client/ui/theme.css`.
+  It replaces the grey glass with:
+  - white chips with a raised edge
+  - a paper-coloured dock with a red top border
+  - a recessed tray of part tiles
+  - ink pill tabs and an ink notice
+  - green and red preview labels
+- On mobile:
+  - the tray hides its scrollbar
+  - tiles are 4.7rem wide with 48px thumbnails
+  - part names are clamped to two lines, so the tiles stay level
+  - the brand name is hidden, leaving the mark
+- `src/client/App.tsx`:
+  - buttons use the shared `.btn` classes (Place is `.btn-red`; Delete is
+    `.btn-danger`)
+  - tray parts are `.tile`s
+  - colours are `.stud-swatch`es, with the scene's suggested colours first
+    and the rest after a divider; the radio role and labels are unchanged
+  - the title chip holds the brand mark as a Home link (`.home-link`) and the
+    scene's title from the registry
+  - the target card has an instruction-step header
+- `src/client/ui/theme.css`:
+  - the focus ring is now `outline: 3px solid var(--blue)`, not a box-shadow
+  - `.btn-danger` is added
+- `src/client/main.tsx` loads the Fredoka and Nunito fonts (self-hosted
+  through fontsource) and `theme.css` before `styles.css`.
+- `src/client/build/index.html` gets the title "Beach Houses · Brick
+  Commons", a description and the red favicon.
+- `scripts/interaction.ts` gains a `routes` run of 10 checks:
+  - a fresh homepage offers "Start building"
+  - the homepage loads no editor, environment or three.js chunk
+  - the homepage sets no cookie
+  - after one placement, the Home link leads to "Continue my build"
+  - home → build → home → build keeps the same build and stock
+  - a reload keeps the build
+  - `/build` redirects to `/build/`
+  - `/readme/` answers
+  - no console errors
+- Log entry for `57549ea`.
+
+**Why.** ADR 0004 says the editor is styled from the shared UI, quieter than
+the homepage, and not grey glass. Moving between `/` and `/build/` must keep
+the same visitor and build.
+
+**Who decided:**
+- **Author:** that the editor shares the homepage's identity at lower volume,
+  and the route behaviour.
+- **Agent:** the component choices, the suggested-colours split, the outline
+  focus ring and the route checks.
+
+**Tests:**
+- `scripts/interaction.ts` (Chrome, against the local server): 81/81 (71
+  before, plus 10 routes). Before the focus-ring change, "the focused control
+  shows a focus ring" failed: the tile's own box-shadow replaced the ring.
+- `scripts/placement.ts`: 31/31 in Chrome and 31/31 in Playwright's WebKit
+  build.
+- `pnpm check` (local): 49/49.
+- Screenshots were inspected at 1920×1080 and 390×844:
+  [doc/evidence/shots/coastal-c1de11b/](doc/evidence/shots/coastal-c1de11b/).
+
+**Limitations:**
+- On mobile, while a part is held, the dock stacks its title, swatches,
+  height and actions, hint, tabs and tray, so it takes a large share of the
+  screen. The plot stays visible above it.

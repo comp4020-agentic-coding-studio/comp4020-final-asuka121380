@@ -9,6 +9,6 @@ export const beach: SceneInfo = {
   blurb:
     "Build on the empty plot between colourful neighbours, with the promenade and the beach in front. The kit holds everything for a small house with a pointed roof and its tree, and a few extras to make it your own.",
   cover: "/scenes/beach-houses.webp",
-  coverAlt: "The empty plot between a pink and a turquoise beach house, with the sand and the evening sky beyond.",
+  coverAlt: "The empty plot between a lavender and a pink beach house, seen from the lane behind, with the beach, the sea and the evening sky beyond.",
   suggestedColours: ["coral", "turquoise", "bright-yellow", "white", "lavender", "bright-red"],
 };

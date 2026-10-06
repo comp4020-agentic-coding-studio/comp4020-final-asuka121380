@@ -80,7 +80,7 @@ for (const info of SCENE_LIST) {
   const card = document.createElement("article");
   card.className = "card scene-card";
   card.innerHTML = `
-    <img src="${info.cover}" alt="${info.coverAlt}" width="1200" height="675" loading="lazy" />
+    <img src="${info.cover}" alt="${info.coverAlt}" width="1200" height="750" loading="lazy" />
     <div class="scene-body">
       <p class="scene-kicker"><span class="tag">Scene 1</span></p>
       <h3>${info.title}</h3>
