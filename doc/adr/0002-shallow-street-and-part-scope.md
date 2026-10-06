@@ -6,6 +6,11 @@
     metadata, and the C8 removal rule.
   - Agent recommendations awaiting the author: everything else below.
 - Date: 2026-10-06
+- Partly superseded by [ADR 0003](0003-open-street-camera-and-contextual-interaction.md),
+  6 Oct 2026, the author's decision. The finite base, the orthographic camera
+  with restricted orbit, and the street-presentation choices below are
+  replaced. The part scope, connections, collision and removal rule still
+  stand. The text below is left as it was decided.
 
 ## Context
 
