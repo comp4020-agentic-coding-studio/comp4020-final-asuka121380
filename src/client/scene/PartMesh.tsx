@@ -29,14 +29,20 @@ export function partTransform(p: Placement): { position: [number, number, number
 interface Props {
   placement: Placement;
   ghost?: "valid" | "invalid";
-  highlighted?: boolean;
+  /** Selected (amber) or the delete tool's target (red): an outline plus a tint over the part. */
+  highlight?: "select" | "delete";
   castShadow?: boolean;
   /** Scenery: drawn, never picked. */
   inert?: boolean;
   userData?: Record<string, unknown>;
 }
 
-export function PartMesh({ placement, ghost, highlighted, castShadow = true, inert, userData }: Props) {
+const tint = {
+  select: new THREE.MeshBasicMaterial({ color: "#f5a623", transparent: true, opacity: 0.22, depthWrite: false }),
+  delete: new THREE.MeshBasicMaterial({ color: "#d0342c", transparent: true, opacity: 0.32, depthWrite: false }),
+};
+
+export function PartMesh({ placement, ghost, highlight, castShadow = true, inert, userData }: Props) {
   const def = partDef(placement.partId)!;
   const { pieces } = partGeometry(def);
   const { position, rotationY } = partTransform(placement);
@@ -76,10 +82,15 @@ export function PartMesh({ placement, ghost, highlighted, castShadow = true, ine
           raycast={ghost || inert ? () => null : undefined}
         />
       ))}
-      {(ghost || highlighted) && (
-        <lineSegments geometry={outline} raycast={() => null}>
+      {highlight && (
+        <mesh material={tint[highlight]} raycast={() => null} position-y={(def.h * PLATE) / 2} renderOrder={2}>
+          <boxGeometry args={[def.w + 0.06, def.h * PLATE + 0.06, def.d + 0.06]} />
+        </mesh>
+      )}
+      {(ghost || highlight) && (
+        <lineSegments geometry={outline} raycast={() => null} renderOrder={3}>
           <lineBasicMaterial
-            color={ghost === "invalid" ? "#c0392b" : highlighted ? "#f39c12" : "#1b1b1b"}
+            color={ghost === "invalid" || highlight === "delete" ? "#c0392b" : highlight === "select" ? "#e08a00" : "#1b1b1b"}
             linewidth={1}
             transparent
             opacity={0.9}
