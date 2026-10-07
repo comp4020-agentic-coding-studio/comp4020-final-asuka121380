@@ -1,20 +1,41 @@
-# Process overview
+# Process overview — C8
 
-<!-- TEMPLATE: replace everything in this file with your own account, this
-     comment included --- `pnpm check:evidence` fails while it's still here. -->
+*7 October 2026 · A working solo foundation, not the finished multiplayer project.*
 
-How you got from the brief to the harness, agentic workflow and stack behind
-this app, told however suits the work. The
-[final project brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/#what-you-submit)
-says what it covers and how long it runs.
+## From the brief to a manageable experience
 
-Markers follow the links you give them; they don't trawl the repo for evidence
-you didn't point at. A link to the record is one whose text is the commit hash,
-and it can sit anywhere in a sentence:
-[`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d) for one
-commit, or
-[`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-for a range.
+I wanted a project that rewards one visitor immediately, with multiplayer adding something meaningful rather than rescuing an empty community. Earlier ideas depended too heavily on contributions from other visitors. Brick-building offered a direct action and visible result. I set the scope around a small kit, free colour choice and a reference model, rather than a general modelling tool. The first implementation established the catalogue, placement rules and a 46-part reference house and tree adapted from LEGO 11035 ([`4b40546`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/4b40546)).
 
-`pnpm check:evidence` checks that this comment is gone and that every commit you
-link exists in this repo. Whether the account is any good is the marker's call.
+For C8, I deliberately postponed shared inventories, material requests, transparent plans and exhibitions. Those explain the eventual cooperative purpose, but the immediate question was whether building alone was already worthwhile. The harness records that boundary instead of letting planned features appear as working controls ([`cea2752`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cea2752), [`24a8853`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/24a8853)).
+
+## Choosing the stack and its trade-offs
+
+I selected React, React Three Fiber and Vite because later cooperation, planning and exhibition controls will need composed interface state alongside the 3D scene. Plain Three.js with HTML controls was the simpler alternative proposed by the agent. Express keeps the frontend and API on one origin; SQLite fits the course's single-machine, persistent-volume deployment. Node's built-in driver avoided the native compilation and build-script approval required by better-sqlite3. The decision and alternatives are preserved in [ADR 0001](doc/adr/0001-stack-and-persistence.md), committed in [`a9b4c3d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/a9b4c3d).
+
+This was a trade-off, not a claim that the stack is universally best. Three.js brings a substantial browser bundle, synchronous SQLite suits modest workloads rather than proving scalability, and the driver was recorded as experimental when chosen. Database access is isolated. Plain TypeScript rules are shared by client previews and server validation, while appearance stays separate from collision and connection metadata. The server commits parts, inventory and revision together, deduplicates retries, and rejects stale commands ([`9202f3f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/9202f3f)). This provides a foundation for cooperation, not evidence that concurrency between players is already solved.
+
+## The breakthrough: building within an environment
+
+The first version worked, but its finite platform, empty background and right-hand controls made it feel like a model viewer. After trying it, I asked for a continuous environment, full horizontal orbit, a top view, real door openings and a bottom tray with model thumbnails. These became explicit harness rules before implementation ([`cea2752`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cea2752)); the open street and contextual interface followed in [`7c59819`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7c59819) and [`3875ab0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/3875ab0).
+
+The next environment still felt sparse and conventional. I specified colourful coastal houses, an open beach in front, low warm sunlight from the sea and gentle terrain. The resulting scene uses detailed nearby geometry, simpler distant buildings and painted inland hills; lighting and sea reflections share a sun direction ([`57549ea`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/57549ea)). This reframed the goal: adding a home to a believable setting, not merely completing an isolated object. Visibility remains more important than decoration; some side views still fail that ideal.
+
+## Correcting interaction rather than adding features
+
+I rejected separate Build and Select modes: holding a part should imply placement, while clicking an existing part with nothing held should select it. The revision also added working keyboard handling and a persistent delete tool ([`3875ab0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/3875ab0)).
+
+My subsequent testing exposed lower positions becoming unreachable beneath higher pieces, and arrow keys moving on world axes after camera rotation. The first problem was not simply collision: preview logic chose the tallest overlapping surface and reset manual height. I specified that confirmation must commit the preview shown, horizontal adjustment must preserve height, and movement must follow the camera. The agent recorded these requirements in the harness and [ADR 0005](doc/adr/0005-surface-aware-height-and-camera-relative-moves.md) before implementing fitting-height selection, screen-relative movement and regression checks ([`24a8853`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/24a8853), [`40e2eb4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/40e2eb4)). The correction changed the model of interaction, not just the symptom.
+
+## Identity, references and an incomplete research step
+
+I separated the site's identity from its first scene. A red, white and yellow homepage introduces the project; the editor lives at `/build/`, and the homepage avoids loading the 3D engine ([`cbe7d30`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cbe7d30), [`d6746df`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/d6746df)). Shared styling then reached the editor ([`c1de11b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c1de11b)). Beach Houses is one setting, not the permanent subject of the website.
+
+The reference model was grounded in official instructions before implementation. Visual-interface research was weaker: despite my request, Claude searched LEGO references only after building the identity and changed nothing because of them. The [research note](doc/research/0001-visual-identity.md) explicitly records this ([`b184781`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b184781)). LEGO Builder's shared instructions and Fortnite's snapping now provide comparisons for the README, not retrospective proof that they drove the design. My position is to offer guidance without prescribing the result. Next time, reference review should be a checkpoint before visual implementation.
+
+## Evidence, limits and how I used agents
+
+I used design discussion to formulate constraints, Claude to implement them, and my own playthroughs to challenge the result. I requested a separate factual development log linked to real commits, leaving PROCESS as an argument rather than a diary ([`cea2752`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cea2752)). The log labels its earliest entries retrospective. It also records an early push without permission; the revised harness requires explicit approval for subsequent pushes and deployments.
+
+The latest deployment evidence reports 49 application checks, 81 interaction checks and 31 placement checks passing against the live coastal version ([`6dcc2f4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/6dcc2f4)). These are recorded agent runs, not tests I personally executed. Touch was emulated; the revised app lacks verification on physical phones and actual Safari. Existing builds were not directly inspected during that deployment, although earlier restart and redeploy persistence was tested. Green checks do not establish that newcomers enjoy the experience.
+
+For this C8 account, I explicitly asked Codex to draft the three written documents from my design discussion and repository evidence, supplying the reflection's central breakthrough myself. The next milestone must test cooperation with actual simultaneous participants while preserving the solo experience.
