@@ -972,3 +972,40 @@ record.
 **Tests:** none beyond the live runs this commit records.
 
 **Limitations:** this commit is local only; it is not pushed.
+
+### 2026-10-07 12:22 AEDT — [`7e06dec`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7e06dec) C8 argument, process and reflection
+
+**Changes:**
+- Replaced the `README.md` template with the definition of good: collective
+  creative decisions, complementary contributions and a building that can
+  carry shared memories. Distinguishes planned cooperation from the implemented
+  solo foundation, cites references, and states tested promises and limitations.
+- Replaced the `PROCESS.md` template with the C8 account, linking 14 existing
+  commits to stack choices, environment and interaction revisions, verification
+  and the limits of the visual research. Retains explicit AI-writing provenance.
+- Added `reflections/crit-8.md`, answering both standing prompts around the
+  author's breakthrough: moving from an isolated model to building in a place.
+- No application code, infrastructure, saved data or test expectations changed.
+
+**Why and who decided:** the author explicitly asked Codex to draft these
+documents from their design discussions and the repository history, specified
+the reflection's breakthrough, requested the stronger collective-creation
+argument, then authorised committing and pushing. This is a task-specific
+authorisation to draft the normally author-written documents, not a change to
+the standing harness rule. Codex wrote and checked the documents. The committed
+diff and its file statistics were inspected before this log entry was written.
+
+**Checks run by Codex before this commit:**
+- `pnpm check:evidence`: passed; the C8 reflection exists and all 14 cited
+  PROCESS commits resolve.
+- `APP_URL=http://localhost:8080 pnpm check`: typecheck passed, 49/49 tests
+  passed against the local app, using fresh local test visitors.
+- `git diff --check`: clean.
+- The course secret scanner fetched remote refs and scanned the publishable
+  worktree and Git history: clean. Pattern scanning is not a guarantee.
+- GitHub reports the repository is already public. The latest earlier CI run
+  was skipped; this entry does not claim a successful deployment of this commit.
+
+**Limitations:** visual and physical-device checks were not repeated for this
+documentation-only change. Online README verification, CI and the C8 tag still
+need checking after the push; no result is asserted in advance here.
