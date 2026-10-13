@@ -16,6 +16,8 @@ export interface SnapshotSummary {
   savedBy: string;
   savedAt: string;
   allowPublish: boolean;
+  /** The snapshot the room this was saved from was itself continued from, if any — the chain's previous link. */
+  sourceSnapshotId: string | null;
 }
 
 /**
@@ -54,8 +56,8 @@ export function saveSnapshot(db: Db, roomId: string, savedBy: string): SnapshotS
     const allowPublish = effectiveAllowPublish(db, roomId, !!room.allow_publish);
 
     db.prepare(
-      "INSERT INTO snapshots (id, room_id, scene_id, template_version, revision, saved_by, saved_at, allow_publish) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(id, room.id, room.scene_id, room.template_version, room.revision, savedBy, t, allowPublish ? 1 : 0);
+      "INSERT INTO snapshots (id, room_id, scene_id, template_version, revision, saved_by, saved_at, allow_publish, source_snapshot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(id, room.id, room.scene_id, room.template_version, room.revision, savedBy, t, allowPublish ? 1 : 0, room.source_snapshot_id);
 
     const parts = db.prepare("SELECT * FROM parts WHERE build_id = ?").all(room.id) as {
       id: string;
@@ -78,12 +80,24 @@ export function saveSnapshot(db: Db, roomId: string, savedBy: string): SnapshotS
     const insertStock = db.prepare("INSERT INTO snapshot_inventory (snapshot_id, part_id, quantity) VALUES (?, ?, ?)");
     for (const s of stock) insertStock.run(id, s.part_id, s.quantity);
 
-    const contributors = db.prepare("SELECT visitor_id, first_contribution_at FROM room_contributors WHERE room_id = ?").all(room.id) as {
+    // Kept as two distinct lists, mirroring rooms' own split (ADR 0007/0009,
+    // and the brief's "distinguish contributors to the saved version [...]
+    // from creators of source versions"): who actually built in the room
+    // this snapshot captures, and who was already credited into that room
+    // from an earlier snapshot further back in the chain.
+    const builders = db.prepare("SELECT visitor_id, first_contribution_at FROM room_contributors WHERE room_id = ?").all(room.id) as {
       visitor_id: string;
       first_contribution_at: string;
     }[];
     const insertContributor = db.prepare("INSERT INTO snapshot_contributors (snapshot_id, visitor_id, first_contribution_at) VALUES (?, ?, ?)");
-    for (const c of contributors) insertContributor.run(id, c.visitor_id, c.first_contribution_at);
+    for (const c of builders) insertContributor.run(id, c.visitor_id, c.first_contribution_at);
+
+    const inherited = db.prepare("SELECT visitor_id, first_contribution_at FROM room_inherited_credits WHERE room_id = ?").all(room.id) as {
+      visitor_id: string;
+      first_contribution_at: string;
+    }[];
+    const insertInherited = db.prepare("INSERT INTO snapshot_inherited_credits (snapshot_id, visitor_id, first_contribution_at) VALUES (?, ?, ?)");
+    for (const c of inherited) insertInherited.run(id, c.visitor_id, c.first_contribution_at);
 
     // plans: captured, but excluded from the default read-only view and
     // restored only when continued (author's explicit decision, ADR 0009)
@@ -102,21 +116,33 @@ export function saveSnapshot(db: Db, roomId: string, savedBy: string): SnapshotS
     );
     for (const p of plans) insertPlan.run(id, p.id, p.part_id, p.x, p.y, p.z, p.rot, p.colour, p.proposed_by);
 
-    return { id, roomId: room.id, sceneId: room.scene_id, revision: room.revision, savedBy, savedAt: t, allowPublish };
+    return { id, roomId: room.id, sceneId: room.scene_id, revision: room.revision, savedBy, savedAt: t, allowPublish, sourceSnapshotId: room.source_snapshot_id };
   });
 }
 
 export interface SnapshotDetail extends SnapshotSummary {
   parts: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string; placedBy: string; proposedBy?: string; editedBy?: string }[];
   inventory: Record<string, number>;
+  /** Who actually built in the room this snapshot captures. */
   contributors: { visitorId: string; firstContributionAt: string }[];
+  /** Credited from an earlier snapshot in the chain, never conflated with the room's own builders. */
+  inheritedCredits: { visitorId: string; firstContributionAt: string }[];
   /** Omitted from the default read-only presentation by the caller; included only when explicitly asked (author: hidden by default). */
   plans: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string; proposedBy: string }[];
 }
 
 export function getSnapshot(db: Db, id: string): SnapshotDetail | undefined {
   const row = db.prepare("SELECT * FROM snapshots WHERE id = ?").get(id) as
-    | { id: string; room_id: string; scene_id: string; revision: number; saved_by: string; saved_at: string; allow_publish: number }
+    | {
+        id: string;
+        room_id: string;
+        scene_id: string;
+        revision: number;
+        saved_by: string;
+        saved_at: string;
+        allow_publish: number;
+        source_snapshot_id: string | null;
+      }
     | undefined;
   if (!row) return undefined;
   const parts = db.prepare("SELECT * FROM snapshot_parts WHERE snapshot_id = ?").all(id) as {
@@ -133,6 +159,10 @@ export function getSnapshot(db: Db, id: string): SnapshotDetail | undefined {
   }[];
   const stock = db.prepare("SELECT part_id, quantity FROM snapshot_inventory WHERE snapshot_id = ?").all(id) as { part_id: string; quantity: number }[];
   const contributors = db.prepare("SELECT visitor_id, first_contribution_at FROM snapshot_contributors WHERE snapshot_id = ?").all(id) as {
+    visitor_id: string;
+    first_contribution_at: string;
+  }[];
+  const inheritedCredits = db.prepare("SELECT visitor_id, first_contribution_at FROM snapshot_inherited_credits WHERE snapshot_id = ?").all(id) as {
     visitor_id: string;
     first_contribution_at: string;
   }[];
@@ -154,6 +184,7 @@ export function getSnapshot(db: Db, id: string): SnapshotDetail | undefined {
     savedBy: row.saved_by,
     savedAt: row.saved_at,
     allowPublish: !!row.allow_publish,
+    sourceSnapshotId: row.source_snapshot_id,
     parts: parts.map((p) => ({
       id: p.part_id,
       partId: p.type_id,
@@ -168,15 +199,36 @@ export function getSnapshot(db: Db, id: string): SnapshotDetail | undefined {
     })),
     inventory: Object.fromEntries(stock.map((s) => [s.part_id, s.quantity])),
     contributors: contributors.map((c) => ({ visitorId: c.visitor_id, firstContributionAt: c.first_contribution_at })),
+    inheritedCredits: inheritedCredits.map((c) => ({ visitorId: c.visitor_id, firstContributionAt: c.first_contribution_at })),
     plans: plans.map((p) => ({ id: p.plan_id, partId: p.part_id, x: p.x, y: p.y, z: p.z, rot: p.rot, colour: p.colour, proposedBy: p.proposed_by })),
   };
 }
 
 export function snapshotsSavedBy(db: Db, visitorId: string): SnapshotSummary[] {
   const rows = db
-    .prepare("SELECT id, room_id, scene_id, revision, saved_by, saved_at, allow_publish FROM snapshots WHERE saved_by = ? ORDER BY saved_at DESC")
-    .all(visitorId) as { id: string; room_id: string; scene_id: string; revision: number; saved_by: string; saved_at: string; allow_publish: number }[];
-  return rows.map((r) => ({ id: r.id, roomId: r.room_id, sceneId: r.scene_id, revision: r.revision, savedBy: r.saved_by, savedAt: r.saved_at, allowPublish: !!r.allow_publish }));
+    .prepare(
+      "SELECT id, room_id, scene_id, revision, saved_by, saved_at, allow_publish, source_snapshot_id FROM snapshots WHERE saved_by = ? ORDER BY saved_at DESC",
+    )
+    .all(visitorId) as {
+    id: string;
+    room_id: string;
+    scene_id: string;
+    revision: number;
+    saved_by: string;
+    saved_at: string;
+    allow_publish: number;
+    source_snapshot_id: string | null;
+  }[];
+  return rows.map((r) => ({
+    id: r.id,
+    roomId: r.room_id,
+    sceneId: r.scene_id,
+    revision: r.revision,
+    savedBy: r.saved_by,
+    savedAt: r.saved_at,
+    allowPublish: !!r.allow_publish,
+    sourceSnapshotId: r.source_snapshot_id,
+  }));
 }
 
 // ---- publication (author's policy, ADR 0009) -------------------------------

@@ -80,6 +80,7 @@ export function localTransport(): Transport {
     inventory: { ...state.inventory },
     plans: [...(state.plans ?? [])],
     contributors: [],
+    inheritedCredits: [],
     members: [{ visitorId: "local", active: true, isHost: true }],
     maxPlayers: scene.maxPlayers,
     visibility: "invite_only",

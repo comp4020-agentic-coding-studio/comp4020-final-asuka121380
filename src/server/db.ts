@@ -245,6 +245,25 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX room_activity_by_room ON room_activity(room_id, id);
   `,
+  // 3: a continued room's inherited credits are their own table, separate
+  // from room_contributors (who has actually built in *this* room). The
+  // first cut merged them into room_contributors directly, which made an
+  // inherited creator indistinguishable from someone who joined and built
+  // here — the brief is explicit that these must stay distinct.
+  `
+  CREATE TABLE room_inherited_credits (
+    room_id TEXT NOT NULL REFERENCES rooms(id),
+    visitor_id TEXT NOT NULL REFERENCES visitors(id),
+    first_contribution_at TEXT NOT NULL,
+    PRIMARY KEY (room_id, visitor_id)
+  );
+  CREATE TABLE snapshot_inherited_credits (
+    snapshot_id TEXT NOT NULL REFERENCES snapshots(id),
+    visitor_id TEXT NOT NULL REFERENCES visitors(id),
+    first_contribution_at TEXT NOT NULL,
+    PRIMARY KEY (snapshot_id, visitor_id)
+  );
+  `,
 ];
 
 export function openDatabase(path: string): Db {

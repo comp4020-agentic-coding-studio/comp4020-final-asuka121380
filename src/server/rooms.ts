@@ -24,12 +24,13 @@ export interface RoomRow {
   allow_publish: number;
   is_default: number;
   label: string | null;
+  source_snapshot_id: string | null;
 }
 
 function roomRow(db: Db, roomId: string): RoomRow | undefined {
   return db
     .prepare(
-      `SELECT r.id, r.host_id, r.scene_id, b.template_version, b.revision, r.visibility, r.allow_publish, r.is_default, r.label
+      `SELECT r.id, r.host_id, r.scene_id, b.template_version, b.revision, r.visibility, r.allow_publish, r.is_default, r.label, r.source_snapshot_id
        FROM rooms r JOIN builds b ON b.id = r.id WHERE r.id = ?`,
     )
     .get(roomId) as RoomRow | undefined;
@@ -88,11 +89,31 @@ export interface CreateRoomOptions {
   fromSnapshotId?: string;
 }
 
-/** A brand-new, player-created room (not the migrated solo default). */
+/**
+ * A brand-new, player-created room (not the migrated solo default).
+ *
+ * Continuing a snapshot whose own `allow_publish` is false forces the new
+ * room invite-only, regardless of what was requested: a public room is
+ * listed in the open lobby and joinable by any visitor while capacity
+ * allows (ADR 0007), which is itself a disclosure path independent of the
+ * showcase. Letting a restricted snapshot be continued into a public room
+ * would hand its construction to any stranger who joins, bypassing the
+ * publication policy entirely rather than merely skipping the showcase
+ * (ADR 0009: "must not expose the work through a public room or preview").
+ */
 export function createRoom(db: Db, hostId: string, opts: CreateRoomOptions): RoomRow {
   return transaction(db, () => {
     const id = randomUUID();
     const t = now();
+    let visibility = opts.visibility;
+    let allowPublish = opts.allowPublish;
+    if (opts.fromSnapshotId) {
+      const src = db.prepare("SELECT allow_publish FROM snapshots WHERE id = ?").get(opts.fromSnapshotId) as { allow_publish: number } | undefined;
+      if (!src?.allow_publish) {
+        visibility = "invite_only";
+        allowPublish = false;
+      }
+    }
     db.prepare("INSERT INTO builds (id, visitor_id, scene_id, template_version, revision, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)").run(
       id,
       hostId,
@@ -103,7 +124,7 @@ export function createRoom(db: Db, hostId: string, opts: CreateRoomOptions): Roo
     );
     db.prepare(
       "INSERT INTO rooms (id, host_id, scene_id, visibility, allow_publish, is_default, label, source_snapshot_id, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
-    ).run(id, hostId, scene.id, opts.visibility, opts.allowPublish ? 1 : 0, opts.label ?? null, opts.fromSnapshotId ?? null, t);
+    ).run(id, hostId, scene.id, visibility, allowPublish ? 1 : 0, opts.label ?? null, opts.fromSnapshotId ?? null, t);
     db.prepare("INSERT INTO room_members (room_id, visitor_id, joined_at, last_seen_at, active) VALUES (?, ?, ?, ?, 1)").run(id, hostId, t, t);
 
     if (opts.fromSnapshotId) {
@@ -142,15 +163,22 @@ function seedFromSnapshot(db: Db, roomId: string, snapshotId: string): void {
   const insertStock = db.prepare("INSERT INTO inventory (build_id, part_id, quantity) VALUES (?, ?, ?)");
   for (const s of stock) insertStock.run(roomId, s.part_id, s.quantity);
 
-  // ADR 0009: a continued room inherits prior contributors on its credits
-  // list (seeded here into room_contributors) but they are never members of
-  // the new room unless they also join it — that's `room_members`, untouched.
-  const contributors = db.prepare("SELECT visitor_id, first_contribution_at FROM snapshot_contributors WHERE snapshot_id = ?").all(snapshotId) as {
+  // ADR 0009: a continued room inherits prior contributors AND whatever was
+  // already inherited credit on the snapshot's own room, flattened one level
+  // into this room's room_inherited_credits — never merged into
+  // room_contributors (who has actually built in *this* room). They are
+  // never members of the new room unless they also join it (room_members,
+  // untouched), and never described as having built here unless they do.
+  const builders = db.prepare("SELECT visitor_id, first_contribution_at FROM snapshot_contributors WHERE snapshot_id = ?").all(snapshotId) as {
     visitor_id: string;
     first_contribution_at: string;
   }[];
-  const insertContributor = db.prepare("INSERT OR IGNORE INTO room_contributors (room_id, visitor_id, first_contribution_at) VALUES (?, ?, ?)");
-  for (const c of contributors) insertContributor.run(roomId, c.visitor_id, c.first_contribution_at);
+  const priorInherited = db.prepare("SELECT visitor_id, first_contribution_at FROM snapshot_inherited_credits WHERE snapshot_id = ?").all(snapshotId) as {
+    visitor_id: string;
+    first_contribution_at: string;
+  }[];
+  const insertCredit = db.prepare("INSERT OR IGNORE INTO room_inherited_credits (room_id, visitor_id, first_contribution_at) VALUES (?, ?, ?)");
+  for (const c of [...builders, ...priorInherited]) insertCredit.run(roomId, c.visitor_id, c.first_contribution_at);
 
   // Restore unfinished plans too (author's explicit decision, ADR 0009).
   const plans = db.prepare("SELECT * FROM snapshot_plans WHERE snapshot_id = ?").all(snapshotId) as {
@@ -413,6 +441,9 @@ export function snapshotOf(db: Db, room: RoomRow): Snapshot {
   const contributors = db
     .prepare("SELECT visitor_id, first_contribution_at FROM room_contributors WHERE room_id = ?")
     .all(room.id) as { visitor_id: string; first_contribution_at: string }[];
+  const inheritedCredits = db
+    .prepare("SELECT visitor_id, first_contribution_at FROM room_inherited_credits WHERE room_id = ?")
+    .all(room.id) as { visitor_id: string; first_contribution_at: string }[];
   const members = db.prepare("SELECT visitor_id, active FROM room_members WHERE room_id = ?").all(room.id) as {
     visitor_id: string;
     active: number;
@@ -464,6 +495,9 @@ export function snapshotOf(db: Db, room: RoomRow): Snapshot {
         firstContributionAt: c.first_contribution_at,
         hasBuilt: true, // room_contributors is only ever written on a successful real placement (ADR 0009)
       }),
+    ),
+    inheritedCredits: inheritedCredits.map(
+      (c): Contributor => ({ visitorId: c.visitor_id, firstContributionAt: c.first_contribution_at, hasBuilt: true }),
     ),
     members: members.map((m): Member => ({ visitorId: m.visitor_id, active: !!m.active, isHost: m.visitor_id === room.host_id })),
   };

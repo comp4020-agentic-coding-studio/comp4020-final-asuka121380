@@ -45,6 +45,13 @@ export interface Snapshot {
   plans: Plan[];
   /** Everyone who has ever placed a real part here, independent of current presence. */
   contributors: Contributor[];
+  /**
+   * Credited because they contributed to a snapshot this room was continued
+   * from, but never themselves a member or builder here unless they also
+   * joined and built (in which case they also appear in `contributors`).
+   * Kept distinct per the brief: never described as having joined this room.
+   */
+  inheritedCredits: Contributor[];
   /** Current room members, independent of who has ever contributed. */
   members: Member[];
   maxPlayers: number;
