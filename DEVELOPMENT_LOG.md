@@ -1208,3 +1208,129 @@ the real upgrade path, not a stale one.
 **Tests:** part of the 75/75 reported in `ba5d94f`.
 
 **Limitations:** none.
+
+### 2026-10-13 18:15 AEDT — [`e132a5f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/e132a5f) Routing split into home/lobby/editor; room reachability fixes
+
+**Changes:**
+- `/build/` becomes a room lobby (served from the existing
+  `src/client/build/index.html`, repurposed); the editor moves to
+  `/build/room/:id`, a new route backed by `src/client/build/room/index.html`,
+  registered in `src/server/index.ts` ahead of `express.static` so it isn't
+  shadowed by that directory's own index page. `vite.config.ts` builds all
+  three entries (home, lobby, editor).
+- `src/server/rooms.ts`: `join`, `leave` and `sweepPresence` now push a
+  snapshot over SSE on any real presence transition (an away member
+  reconnecting; someone joining or leaving), not only on a command commit.
+  The SSE keep-alive's own 10-second heartbeat is excluded, so it never
+  spams a snapshot to the room on its own.
+- `respondToInvite`: accepting an invitation now admits the visitor as a
+  room member in the same transaction (still capacity-checked against
+  `scene.maxPlayers`), instead of only marking the invitation accepted and
+  leaving them with no way to reach the room.
+- `src/client/state/transport.ts`: loading a room's data now calls its join
+  endpoint first, so a direct link, a reload, or the browser's own
+  `EventSource` reconnect are all checked exactly as a fresh join would be.
+- `spec/persistence.test.ts`'s route test is rewritten for the three-page
+  structure.
+
+**Why.** Driving the actual lobby and editor with two independent browser
+identities (not the API directly) surfaced all three gaps: a joining member
+was invisible to the room until someone else built something; an accepted
+invitation was a dead end; and a reload of an invite-only room the visitor
+was already in was indistinguishable, in the client's eyes, from one they'd
+never been let into.
+
+**Who decided:** the agent, implementing the author's priority order
+("implement the public lobby and room creation/joining first, then
+friendship and invitations").
+
+**Tests:**
+- `pnpm check` (local): 75/75.
+- `scripts/interaction.ts`: 83/83. `scripts/placement.ts`: 31/31 in Chrome
+  and 31/31 in Playwright's WebKit build.
+- `pnpm check:evidence`: unaffected, still green.
+
+**Limitations:** see `cbe7d30`-era routes; no change to the homepage.
+Evidence of the end-to-end fixes themselves is in `e388b98`'s entry below.
+
+### 2026-10-13 18:16 AEDT — [`e29fe11`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/e29fe11) Lobby UI: create/join a room, friends, invitations, identity recovery
+
+**Changes:**
+- New `src/client/lobby/`: `LobbyApp.tsx` (build alone; start a room with a
+  real, independent visibility and publish choice; join by code; the
+  public lobby's live, polled, never-fabricated list; room invitations;
+  friends; the opt-in recovery-code panel), `lobby.css` (the editor's
+  tokens and components, no new visual language), `main.tsx`.
+- `src/client/state/api.ts` (moved from `lobby/` once the editor needed it
+  too): every fetch wrapper for rooms, friends, invites and snapshots.
+- `src/client/App.tsx`: a Room panel in the header (current members and
+  permanent contributors kept visibly distinct, invite a friend by id,
+  save a copy, leave), a `ConnectionChip` for the realtime stream's own
+  state, and a full-page `AccessScreen` for a room that can't be opened at
+  all (invite-only with no invitation, full, or gone).
+- `src/client/state/store.ts`: `ConnectionStatus`, `selfId`, the room id set
+  once at startup. `src/client/state/transport.ts`: `RoomFullError`
+  alongside the existing `AccessError`.
+- `scripts/interaction.ts`/`placement.ts`: the editor is reached by driving
+  the lobby's own buttons, and every `networkidle` wait is replaced with
+  `domcontentloaded`, since an open SSE connection means the network
+  never truly idles.
+
+**Why.** A working server is not a usable feature until the interface
+reaches it; this is the brief's priority 1–4 made clickable.
+
+**Who decided:** the agent. The visual choices (reusing `.chip`, `.card`,
+`.btn`, `.tag` and the dock's help-panel pattern for the Room panel) follow
+the author's instruction to integrate functionally, not redesign.
+
+**Tests:**
+- `pnpm check` (local): 75/75. `scripts/interaction.ts`: 83/83.
+  `scripts/placement.ts`: 31/31 in Chrome and 31/31 in WebKit.
+- Screenshots in `doc/evidence/shots/rooms-lobby/` (committed in `e388b98`).
+
+**Limitations:** no UI yet for browsing, continuing or publishing a saved
+snapshot (the server endpoints exist; "Save a copy" is reachable, nothing
+else is yet).
+
+### 2026-10-13 18:17 AEDT — [`e388b98`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/e388b98) Two-identity verification: multiplayer.ts, invites.ts; evidence screenshots
+
+**Changes:**
+- New `scripts/multiplayer.ts`: two independent browser contexts (distinct
+  cookies, never two tabs of one identity) driven entirely through visible
+  controls. A creates a public room through the lobby; B discovers and
+  joins it from the public list; both place, recolour and remove real
+  bricks, with propagation measured from each side's own live state; two
+  simultaneous placements in different spots both succeed; a plan is
+  proposed, selected, marked and realized, each step's propagation also
+  measured; a reload is confirmed to restore the authoritative room.
+- New `scripts/invites.ts`: a friend-request link that never grants
+  friendship merely by being opened; an invite-only room that refuses both
+  an uninvited friend and an uninvited stranger; a host invitation that,
+  once accepted, admits the acceptor immediately and usably.
+- New `doc/evidence/shots/rooms-lobby/`: the lobby page, the editor's Room
+  panel open on an invite-only room, and each identity's final screen from
+  the multiplayer run.
+
+**Why.** The author's instruction: "verify the complete flow through
+visible browser controls using two independent browser identities...
+measure propagation of actual building changes... do not rely on manually
+injected room membership or API-only setup as proof."
+
+**Who decided:** the agent.
+
+**Tests, run against a local server (this commit's own evidence):**
+- `scripts/multiplayer.ts`: 15/15. Measured propagation: a placement 2-4ms,
+  a recolour 2-3ms, a removal 2-4ms, two simultaneous placements 2-4ms, a
+  proposed plan 2-4ms, a live mark 9-50ms, a realized plan 2-4ms — all well
+  under the brief's roughly-one-second bar, and all measured as the time
+  until the *other* browser's own live state reflected the change, not a
+  server-side timestamp.
+- `scripts/invites.ts`: 7/7.
+- `pnpm check`: 75/75. `pnpm check:evidence`: unaffected.
+
+**Limitations:**
+- Both scripts ran once, locally, in Chrome only, on one machine; the
+  measured times are not a statistical guarantee, only a demonstration
+  that propagation is not accidentally slow.
+- Neither the deployed app nor a physical second device was used; this
+  revision has not been pushed or deployed.
