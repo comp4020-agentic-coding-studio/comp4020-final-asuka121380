@@ -69,8 +69,13 @@ async function open(context: BrowserContext): Promise<{ page: Page; commands: ()
   let n = 0;
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-  page.on("request", (r) => r.url().endsWith("/api/command") && n++);
-  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
+  page.on("request", (r) => r.url().includes("/command") && n++);
+  // ADR 0007: the editor now lives at /build/room/:id, reached by creating
+  // (or, here, by never having one yet and letting "Create and open" make
+  // the first) a room through the real lobby UI, exactly as a visitor would.
+  await page.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Create and open" }).click();
+  await page.waitForURL(/\/build\/room\//);
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__camera && (window as any).__project);
   await page.waitForTimeout(1200);
   return { page, commands: () => n, errors };
@@ -378,7 +383,7 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   // reload: everything comes back from the server
   const saved = (await state(page)).parts.map((q) => `${q.id}:${q.partId}@${q.x},${q.y},${q.z}r${q.rot}:${q.colour}`).sort();
   const savedInv = JSON.stringify((await state(page)).inventory);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot);
   s = await state(page);
   const loaded = s.parts.map((q) => `${q.id}:${q.partId}@${q.x},${q.y},${q.z}r${q.rot}:${q.colour}`).sort();
@@ -561,7 +566,7 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   await context.close();
 }
 
-// ---- routes: home ↔ build keeps the same visitor and build ----------------
+// ---- routes: home → lobby → room keeps the same visitor and build (ADR 0007) ----------------
 {
   run = "routes";
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -572,20 +577,25 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("request", (r) => r.resourceType() === "script" && scripts.push(new URL(r.url()).pathname));
 
-  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
   check("a fresh visitor's homepage offers Start building", (await page.locator("#start").innerText()) === "Start building");
   check(
     "the homepage loads none of the editor's code",
-    scripts.length > 0 && !scripts.some((s) => /\/build-|Environment|three/i.test(s)),
+    scripts.length > 0 && !scripts.some((s) => /\/editor-|Environment|three/i.test(s)),
     scripts,
   );
   check("the homepage sets no cookie", (await context.cookies()).length === 0);
 
   await page.locator("#start").click();
   await page.waitForURL(/\/build\/$/);
-  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
+  check("the room lobby loads none of the editor's code either", !scripts.some((s) => /\/editor-|Environment|three/i.test(s)), scripts);
+
+  await page.locator("button", { hasText: "Build alone" }).click();
+  await page.waitForURL(/\/build\/room\//);
+  await page.goto(`${page.url()}?debug`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
   await page.waitForTimeout(1200);
+  const roomUrl = page.url();
   await tray(page, "Brick 2×2").click();
   await aimAndClick(page, 4, 3);
   let s = await state(page);
@@ -600,7 +610,9 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
 
   await page.locator("#start").click();
   await page.waitForURL(/\/build\/$/);
-  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
+  await page.locator("button", { hasText: "Build alone" }).click();
+  await page.waitForURL(roomUrl.replace(/\?.*$/, ""));
+  await page.goto(`${page.url()}?debug`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot);
   s = await state(page);
   check(
@@ -609,14 +621,16 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
     s.parts.map((q) => `${q.partId}@${q.x},${q.y},${q.z}`),
   );
 
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot);
   s = await state(page);
-  check("a reload of /build/ keeps it", s.parts.length === 1);
+  check("a reload of the room keeps it", s.parts.length === 1);
 
   const direct = await context.newPage();
   const res = await direct.goto(`${base}/build`, { waitUntil: "domcontentloaded" });
-  check("a direct link to /build reaches the editor", res?.ok() === true && /\/build\/$/.test(direct.url()), direct.url());
+  check("a direct link to /build reaches the lobby", res?.ok() === true && /\/build\/$/.test(direct.url()), direct.url());
+  const roomDirect = await direct.goto(roomUrl, { waitUntil: "domcontentloaded" });
+  check("a direct link to the room reaches the editor", roomDirect?.ok() === true, direct.url());
   const readme = await direct.goto(`${base}/readme/`);
   check("/readme/ still answers", readme?.ok() === true);
   check("no console errors", errors.length === 0, errors.join(" | "));

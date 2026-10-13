@@ -49,8 +49,13 @@ async function open(context: BrowserContext): Promise<{ page: Page; commands: ()
   let n = 0;
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-  page.on("request", (r) => r.url().endsWith("/api/command") && n++);
-  await page.goto(`${base}/build/?debug`, { waitUntil: "networkidle" });
+  page.on("request", (r) => r.url().includes("/command") && n++);
+  // ADR 0007: the editor now lives at /build/room/:id. This script drives
+  // the real lobby UI to create and open a fresh room, exactly as a visitor
+  // would, rather than asking the API out of band for a room id.
+  await page.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Create and open" }).click();
+  await page.waitForURL(/\/build\/room\//);
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__camera && (window as any).__orbit);
   await page.waitForTimeout(1200);
   return { page, commands: () => n, errors };
