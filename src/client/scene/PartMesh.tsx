@@ -40,8 +40,8 @@ export function partTransform(p: Placement): { position: [number, number, number
 interface Props {
   placement: Placement;
   ghost?: "valid" | "invalid";
-  /** Selected (amber) or the delete tool's target (red): an outline plus a tint over the part. */
-  highlight?: "select" | "delete";
+  /** Selected (amber), the delete tool's target (red), or a plan (blue): an outline plus a tint over the part. */
+  highlight?: "select" | "delete" | "plan" | "marked";
   castShadow?: boolean;
   /** Scenery: drawn, never picked. */
   inert?: boolean;
@@ -53,6 +53,8 @@ interface Props {
 const tint = {
   select: new THREE.MeshBasicMaterial({ color: "#f5a623", transparent: true, opacity: 0.22, depthWrite: false }),
   delete: new THREE.MeshBasicMaterial({ color: "#d0342c", transparent: true, opacity: 0.32, depthWrite: false }),
+  plan: new THREE.MeshBasicMaterial({ color: "#1a5bb0", transparent: true, opacity: 0.16, depthWrite: false }),
+  marked: new THREE.MeshBasicMaterial({ color: "#1a5bb0", transparent: true, opacity: 0.32, depthWrite: false }),
 };
 
 export function PartMesh({ placement, ghost, highlight, castShadow = true, inert, faded, userData }: Props) {
@@ -105,10 +107,18 @@ export function PartMesh({ placement, ghost, highlight, castShadow = true, inert
       {(ghost || highlight) && (
         <lineSegments geometry={outline} raycast={() => null} renderOrder={3}>
           <lineBasicMaterial
-            color={ghost === "invalid" || highlight === "delete" ? "#c0392b" : highlight === "select" ? "#e08a00" : "#1b1b1b"}
+            color={
+              ghost === "invalid" || highlight === "delete"
+                ? "#c0392b"
+                : highlight === "select"
+                  ? "#e08a00"
+                  : highlight === "plan" || highlight === "marked"
+                    ? "#1a5bb0"
+                    : "#1b1b1b"
+            }
             linewidth={1}
             transparent
-            opacity={0.9}
+            opacity={highlight === "marked" ? 1 : 0.9}
           />
         </lineSegments>
       )}

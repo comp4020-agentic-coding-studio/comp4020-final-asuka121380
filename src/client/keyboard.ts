@@ -9,6 +9,7 @@ import {
   rotate,
   stepLevel,
   toggleDelete,
+  withdrawPlan,
 } from "./state/store.ts";
 
 // One keyboard listener on the window. The checkpoint's handler sat on the
@@ -65,7 +66,8 @@ function handle(e: KeyboardEvent): boolean {
     case "Delete":
     case "Backspace":
       if (once && s.selectedId) void remove(s.selectedId);
-      return !!s.selectedId;
+      else if (once && s.selectedPlanId) void withdrawPlan(s.selectedPlanId);
+      return !!s.selectedId || !!s.selectedPlanId;
     case "d":
     case "D":
       if (once) toggleDelete();

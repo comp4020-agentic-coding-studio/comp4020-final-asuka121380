@@ -11,10 +11,13 @@ import {
   cycle,
   ensureAnchor,
   getState,
+  markPlanForEveryone,
   moveOnScreen,
   placeHeld,
   preview,
+  proposeHeld,
   putDown,
+  realizePlan,
   recolourSelected,
   remove,
   requestCamera,
@@ -22,10 +25,12 @@ import {
   rotate,
   scene,
   select,
+  selectPlan,
   setColour,
   stepLevel,
   toggleDelete,
   useApp,
+  withdrawPlan,
 } from "./state/store.ts";
 
 // a touch screen gets "tap" wording, and the two-tap confirmations spelled out
@@ -136,6 +141,7 @@ function Context() {
   const colour = useApp((s) => s.colour);
   const snapshot = useApp((s) => s.snapshot);
   const selected = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.selectedId));
+  const selectedPlan = useApp((s) => s.snapshot?.plans.find((p) => p.id === s.selectedPlanId));
   const deleting = useApp((s) => s.deleting);
   const target = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.targetId));
   const saving = useApp((s) => s.save.status === "saving");
@@ -201,6 +207,10 @@ function Context() {
             Cancel <kbd>Esc</kbd>
           </button>
         </div>
+        {/* a plan costs no stock and never blocks real construction (ADR 0009) */}
+        <button className="btn btn-small" aria-disabled={!pv || saving} onClick={() => !saving && void proposeHeld()} title="Show others a transparent suggestion, without placing it or spending stock">
+          Propose instead
+        </button>
         {pv && <Height y={pv.placement.y} fits={pv.fits} />}
         <details className="nudge">
           <summary>Move</summary>
@@ -235,6 +245,35 @@ function Context() {
           </button>
           <Step />
           <button className="btn btn-small" onClick={() => select(null)}>
+            Deselect <kbd>Esc</kbd>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedPlan) {
+    const def = partDef(selectedPlan.partId)!;
+    return (
+      <div className="context">
+        <strong className="context-title">
+          Proposed {def.name} <span className="code">{def.code}</span>
+          <span className="context-sub">suggested {colourName(selectedPlan.colour)}</span>
+        </strong>
+        <span className="context-hint" aria-live="polite">
+          A plan costs no stock and never blocks real building. Anyone can build it, or ask the room to look at it.
+        </span>
+        <div className="context-actions">
+          <button className="btn btn-small btn-red" onClick={() => !saving && void realizePlan(selectedPlan.id)} aria-disabled={saving}>
+            Build this <kbd>Enter</kbd>
+          </button>
+          <button className="btn btn-small" onClick={() => void markPlanForEveryone(selectedPlan.id)}>
+            Mark for everyone
+          </button>
+          <button className="btn btn-small btn-danger danger" onClick={() => !saving && void withdrawPlan(selectedPlan.id)} aria-disabled={saving}>
+            Withdraw
+          </button>
+          <button className="btn btn-small" onClick={() => selectPlan(null)}>
             Deselect <kbd>Esc</kbd>
           </button>
         </div>

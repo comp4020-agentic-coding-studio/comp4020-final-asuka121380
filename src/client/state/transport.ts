@@ -39,16 +39,24 @@ export const httpTransport: Transport = {
 // runs the same rules but keeps nothing: `durable` is false and the UI says so.
 export function localTransport(): Transport {
   const scene = STREET_SCENE;
-  let state: BuildState = { parts: [], inventory: { ...scene.kit } };
+  let state: BuildState = { parts: [], inventory: { ...scene.kit }, plans: [] };
   let revision = 0;
   let n = 0;
   const snapshot = (): Snapshot => ({
     buildId: "local",
+    roomId: "local",
     sceneId: scene.id,
     templateVersion: scene.version,
     revision,
     parts: [...state.parts],
     inventory: { ...state.inventory },
+    plans: [...(state.plans ?? [])],
+    contributors: [],
+    members: [{ visitorId: "local", active: true, isHost: true }],
+    maxPlayers: scene.maxPlayers,
+    visibility: "invite_only",
+    allowPublish: false,
+    hostId: "local",
   });
   if (new URLSearchParams(location.search).has("reference")) {
     for (const p of scene.reference) state = applyPlacement(state, p, `ref${n++}`);

@@ -1,6 +1,6 @@
 import { Html, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Suspense, useEffect, useMemo, useRef, type ComponentRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import * as THREE from "three";
 import { partDef } from "../../domain/catalog.ts";
 import { footprint } from "../../domain/rules.ts";
@@ -13,6 +13,7 @@ import {
   remove,
   scene,
   select,
+  selectPlan,
   setTarget,
   useApp,
 } from "../state/store.ts";
@@ -177,6 +178,7 @@ function CameraRig({ dock }: { dock: number }) {
 
 const placedIdOf = (e: ThreeEvent<PointerEvent | MouseEvent>): string | null =>
   (e.object.userData.placedId as string | undefined) ?? null;
+const planIdOf = (e: ThreeEvent<PointerEvent | MouseEvent>): string | null => (e.object.userData.planId as string | undefined) ?? null;
 
 interface Aim {
   cell: { x: number; z: number };
@@ -218,6 +220,16 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const held = useApp((s) => s.held);
   const colour = useApp((s) => s.colour);
   const selectedId = useApp((s) => s.selectedId);
+  const selectedPlanId = useApp((s) => s.selectedPlanId);
+  const marks = useApp((s) => s.marks);
+  // a mark fades after 6s (ADR 0009); this forces a re-render so it actually
+  // disappears on screen rather than only on the next unrelated state change
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (Object.keys(marks).length === 0) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, [marks]);
   const deleting = useApp((s) => s.deleting);
   const targetId = useApp((s) => s.targetId);
   // preview() reads only these
@@ -299,6 +311,11 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
       else setTarget(id);
       return;
     }
+    const planId = planIdOf(e);
+    if (planId) {
+      selectPlan(planId);
+      return;
+    }
     select(id);
   };
 
@@ -314,6 +331,22 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
           userData={{ placedId: p.id, faded: faded.has(p.id) }}
         />
       ))}
+      {/* transparent plans: never block real construction, never cost stock
+          (ADR 0009). Drawn regardless of held/deleting, like real parts; only
+          their click handling (selection) is suppressed in those states. */}
+      {snapshot?.plans.map((plan) => {
+        const mark = marks[plan.id];
+        const recentlyMarked = mark && Date.now() - mark.at < 6000; // a restrained, fading pulse
+        return (
+          <PartMesh
+            key={plan.id}
+            placement={plan}
+            ghost="valid"
+            highlight={recentlyMarked ? "marked" : !held && !deleting && plan.id === selectedPlanId ? "plan" : undefined}
+            userData={{ planId: plan.id }}
+          />
+        );
+      })}
       {pv && (
         <>
           <PartMesh placement={pv.placement} ghost={pv.rejection ? "invalid" : "valid"} userData={{ ghost: true }} />

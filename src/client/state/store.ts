@@ -54,6 +54,8 @@ export interface AppState {
   /** The colour the next part is placed in; kept across part choices. */
   colour: string;
   selectedId: string | null;
+  /** A selected open plan (ADR 0009), mutually exclusive with `selectedId`. */
+  selectedPlanId: string | null;
   deleting: boolean;
   /** The placed part under the pointer (or keyboard cursor) while the delete tool is on. */
   targetId: string | null;
@@ -61,6 +63,12 @@ export interface AppState {
   /** The last thing worth saying out loud, mirrored to an aria-live region. */
   notice: { text: string; kind: "info" | "error"; at: number } | null;
   camera: CameraRequest;
+  /**
+   * Live "look here" marks pushed over SSE, by plan id (ADR 0009). A mark is
+   * never forced on anyone's camera; the UI reads this to draw a restrained,
+   * fading outline and lets stale entries age out locally.
+   */
+  marks: Record<string, { markedBy: string; at: number }>;
 }
 
 export const scene = STREET_SCENE;
@@ -71,11 +79,13 @@ let state: AppState = {
   held: null,
   colour: "pale-mint",
   selectedId: null,
+  selectedPlanId: null,
   deleting: false,
   targetId: null,
   save: { status: "loading" },
   notice: null,
   camera: { kind: "reset", n: 0 },
+  marks: {},
 };
 
 const listeners = new Set<() => void>();
@@ -104,9 +114,36 @@ export async function start(t: Transport): Promise<void> {
   try {
     const snapshot = await t.load();
     set({ snapshot, save: { status: "saved" } });
+    if (t.durable) connectRealtime(snapshot.roomId);
   } catch (e) {
     set({ save: { status: "load-failed", message: e instanceof Error ? e.message : String(e) } });
   }
+}
+
+// ---- realtime (ADR 0008) ---------------------------------------------------
+//
+// A committed change anywhere in the room — including by this browser's own
+// other tabs, or by another member — is pushed here and merged straight into
+// the live snapshot. A command's own POST response is already authoritative
+// for the actor that sent it; applying the matching pushed snapshot again is
+// harmless, since both describe the same committed state.
+
+let eventSource: EventSource | null = null;
+
+function connectRealtime(roomId: string): void {
+  eventSource?.close();
+  eventSource = new EventSource(`/api/rooms/${roomId}/events`);
+  eventSource.onmessage = (ev) => {
+    const event = JSON.parse(ev.data) as { type: "snapshot"; snapshot: Snapshot } | { type: "plan-marked"; planId: string; markedBy: string };
+    if (event.type === "snapshot") {
+      set({ snapshot: event.snapshot });
+    } else {
+      set({ marks: { ...state.marks, [event.planId]: { markedBy: event.markedBy, at: Date.now() } } });
+    }
+  };
+  // the browser retries a dropped connection on its own; a reconnect's first
+  // event is always a full snapshot (realtime.ts), so no separate recovery
+  // path is needed here
 }
 
 const partOf = (id: string | null) => (id ? state.snapshot?.parts.find((p) => p.id === id) : undefined);
@@ -129,6 +166,7 @@ export function choosePart(partId: string): void {
   set({
     held: { partId, rot, anchor: state.held?.anchor ?? null, level: state.held?.level ?? null, snap: state.held?.snap ?? false },
     selectedId: null,
+    selectedPlanId: null,
     deleting: false,
     targetId: null,
   });
@@ -233,7 +271,7 @@ export function onFootprint(p: Placement, cell: Cell): boolean {
 // ---- selection and the delete tool -----------------------------------------
 
 export function select(id: string | null): void {
-  set({ selectedId: id });
+  set({ selectedId: id, selectedPlanId: null });
   if (id) {
     const part = partOf(id);
     const def = part && partDef(part.partId);
@@ -241,8 +279,18 @@ export function select(id: string | null): void {
   }
 }
 
+/** A plan is a proposal, not a placed part: a different, smaller set of actions applies (ADR 0009). */
+export function selectPlan(id: string | null): void {
+  set({ selectedPlanId: id, selectedId: null });
+  if (id) {
+    const plan = (state.snapshot?.plans ?? []).find((p) => p.id === id);
+    const def = plan && partDef(plan.partId);
+    if (def) say(`Selected a proposed ${def.name} (${def.code}).`);
+  }
+}
+
 export function toggleDelete(on = !state.deleting): void {
-  set({ deleting: on, held: on ? null : state.held, selectedId: null, targetId: null });
+  set({ deleting: on, held: on ? null : state.held, selectedId: null, selectedPlanId: null, targetId: null });
   say(on ? "Delete tool on: choose a part to remove it." : "Delete tool off.");
 }
 
@@ -270,6 +318,7 @@ export function escape(): void {
   if (state.deleting) toggleDelete(false);
   else if (state.held) putDown();
   else if (state.selectedId) select(null);
+  else if (state.selectedPlanId) selectPlan(null);
 }
 
 export function requestCamera(kind: CameraRequest["kind"]): void {
@@ -293,7 +342,9 @@ async function send(envelope: CommandEnvelope, describe: string): Promise<boolea
     say(
       result.code === "revision_conflict"
         ? "Your build changed somewhere else, so it has been reloaded. Nothing was lost; try again."
-        : result.message,
+        : result.code === "part_conflict"
+          ? "Someone else just changed that part; it's been refreshed. Nothing was lost; try again."
+          : result.message,
       "error",
     );
     return false;
@@ -351,14 +402,16 @@ export async function rotate(): Promise<void> {
     say(`A ${def.name} looks the same every way round.`, "error");
     return;
   }
-  await submit({ type: "rotate", placedId: part.id, rot: nextRotation(part.partId, part.rot) }, `Turned ${def.name}.`);
+  // ADR 0008: carrying the part's own revision means a conflict is only
+  // ever reported for *this* part, never for an unrelated change elsewhere.
+  await submit({ type: "rotate", placedId: part.id, rot: nextRotation(part.partId, part.rot), expectedRev: part.rev }, `Turned ${def.name}.`);
 }
 
 export async function remove(id: string | null): Promise<void> {
   const part = partOf(id);
   if (!part) return;
   const name = nameOf(part.id);
-  const ok = await submit({ type: "remove", placedId: part.id }, `Removed ${name}; it's back in your kit.`);
+  const ok = await submit({ type: "remove", placedId: part.id, expectedRev: part.rev }, `Removed ${name}; it's back in your kit.`);
   if (ok && state.selectedId === part.id) set({ selectedId: null });
   if (ok && state.targetId === part.id) set({ targetId: null });
 }
@@ -366,13 +419,62 @@ export async function remove(id: string | null): Promise<void> {
 export async function recolourSelected(colour: string): Promise<void> {
   const part = partOf(state.selectedId);
   if (!part) return;
-  await submit({ type: "recolour", placedId: part.id, colour }, `Recoloured ${nameOf(part.id)}.`);
+  await submit({ type: "recolour", placedId: part.id, colour, expectedRev: part.rev }, `Recoloured ${nameOf(part.id)}.`);
 }
 
-/** Enter: place the held part, or remove the delete tool's target. */
+/** Enter: place the held part, remove the delete tool's target, or build a selected plan. */
 export function confirm(): void {
   if (state.held) void placeHeld();
   else if (state.deleting && state.targetId) void remove(state.targetId);
+  else if (state.selectedPlanId) void realizePlan(state.selectedPlanId);
+}
+
+// ---- plans (ADR 0009) -------------------------------------------------------
+//
+// A plan costs no stock and never blocks real construction: proposing one
+// goes through the same command path as a placement, so it is validated and
+// pushed to every member the same way, but `validatePlan` (not
+// `validatePlacement`) is what the server and this preview check it against.
+
+/** Propose the currently previewed part as a transparent plan, instead of placing it for real. */
+export async function proposeHeld(): Promise<void> {
+  const p = preview();
+  if (!p || !state.snapshot) {
+    say("Point at the plot first, or move the preview with the arrow keys.", "error");
+    return;
+  }
+  const def = partDef(p.placement.partId)!;
+  await submit({ type: "propose-plan", plan: p.placement }, `Proposed a ${def.name}.`);
+}
+
+export async function withdrawPlan(planId: string): Promise<void> {
+  const ok = await submit({ type: "withdraw-plan", planId }, "Plan withdrawn.");
+  if (ok && state.selectedPlanId === planId) set({ selectedPlanId: null });
+}
+
+/** Any member may realize any open plan (author's brief: not restricted to its proposer). */
+export async function realizePlan(planId: string): Promise<void> {
+  const ok = await submit({ type: "realize-plan", planId }, "Built from the plan.");
+  if (ok && state.selectedPlanId === planId) set({ selectedPlanId: null });
+}
+
+/**
+ * "Mark for everyone": a transient, restrained ping, not a command — it
+ * never touches the build, so it bypasses the validated command path
+ * entirely and posts straight to the room's mark endpoint (ADR 0009).
+ */
+export async function markPlanForEveryone(planId: string): Promise<void> {
+  if (!state.snapshot) return;
+  try {
+    await fetch(`/api/rooms/${state.snapshot.roomId}/mark`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ planId }),
+    });
+  } catch {
+    // a missed mark is only ever a missed "look here"; nothing to retry or recover
+  }
 }
 
 export const catalog = CATALOG.filter((d) => d.id in scene.kit);
