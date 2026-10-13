@@ -139,7 +139,10 @@ describe("publication policy", () => {
     const privateSnap = await save(a.cookie, privateRoom.roomId);
     expect(privateSnap.allowPublish).toBe(false);
 
-    // continue it into a brand-new room, explicitly trying to turn publishing on
+    // continue it into a brand-new room, explicitly trying to turn publishing
+    // AND public visibility on — a public room is itself a disclosure path
+    // (anyone can join it from the open lobby), so both are refused, not
+    // only the publish flag
     const derivedRoom = await (
       await fetch(new URL(`/api/snapshots/${privateSnap.id}/continue`, baseUrl), {
         method: "POST",
@@ -147,15 +150,43 @@ describe("publication policy", () => {
         body: JSON.stringify({ visibility: "public", allowPublish: true }),
       })
     ).json();
-    expect(derivedRoom.allowPublish).toBe(true); // the room setting itself can be requested...
+    expect(derivedRoom.allowPublish).toBe(false);
+    expect(derivedRoom.visibility).toBe("invite_only");
 
-    // ...but a snapshot saved from that derived room is still not publishable,
+    // a snapshot saved from that derived room is still not publishable,
     // because the lineage check walks back to the original restricted snapshot
     const derivedSnap = await save(a.cookie, derivedRoom.roomId);
     expect(derivedSnap.allowPublish).toBe(false);
 
     const pub = await fetch(new URL(`/api/snapshots/${derivedSnap.id}/publish`, baseUrl), { method: "POST", headers: { cookie: a.cookie } });
     expect(pub.status).toBe(403);
+  });
+
+  it("a restricted snapshot cannot be exposed through a public derived room either (not only the publish flag)", async () => {
+    const a = await freshVisitor();
+    const privateRoom = await createRoom(a.cookie, "invite_only", false);
+    await place(a.cookie, privateRoom.roomId, 0, 0);
+    const privateSnap = await save(a.cookie, privateRoom.roomId);
+
+    const derivedRoom = await (
+      await fetch(new URL(`/api/snapshots/${privateSnap.id}/continue`, baseUrl), {
+        method: "POST",
+        headers: { cookie: a.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ visibility: "public", allowPublish: true }),
+      })
+    ).json();
+
+    // a stranger, with no relationship to a at all, must not be able to
+    // read or join what is, despite the request above, an invite-only room
+    const stranger = await freshVisitor();
+    const lobby = await (await fetch(new URL("/api/rooms", baseUrl))).json();
+    expect(lobby.some((r: any) => r.id === derivedRoom.roomId)).toBe(false);
+
+    const read = await fetch(new URL(`/api/rooms/${derivedRoom.roomId}`, baseUrl), { headers: { cookie: stranger.cookie } });
+    expect(read.status).toBe(404);
+
+    const join = await fetch(new URL(`/api/rooms/${derivedRoom.roomId}/join`, baseUrl), { method: "POST", headers: { cookie: stranger.cookie } });
+    expect(join.status).toBe(403);
   });
 
   it("the showcase never exposes a room's or snapshot's contents outside the publications table", async () => {

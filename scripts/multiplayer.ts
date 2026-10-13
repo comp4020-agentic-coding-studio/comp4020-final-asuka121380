@@ -76,7 +76,7 @@ await pageA.waitForSelector("text=Create and open");
 await pageA.fill('input[placeholder="e.g. Saturday build"]', label);
 await pageA.getByRole("button", { name: "Create and open" }).click();
 await pageA.waitForURL(/\/build\/room\/.*debug/);
-await pageA.waitForFunction(() => (window as any).__state?.().snapshot);
+await pageA.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
 const roomUrl = pageA.url();
 const roomId = roomUrl.match(/\/build\/room\/([^/?]+)/)![1];
 check("A creates a room through the lobby and it's a fresh, empty room", (await state(pageA)).snapshot.parts.length === 0, roomUrl);
@@ -89,7 +89,7 @@ const row = pageB.locator(".room-row", { hasText: label });
 await row.waitFor({ timeout: 5000 });
 await row.getByRole("button", { name: /Join/ }).click();
 await pageB.waitForURL(new RegExp(`/build/room/${roomId}.*debug`));
-await pageB.waitForFunction(() => (window as any).__state?.().snapshot);
+await pageB.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
 check("B joins the same room by browsing the public lobby, not by an injected membership", (await state(pageB)).snapshot.roomId === roomId);
 
 const idA = (await state(pageA)).selfId;

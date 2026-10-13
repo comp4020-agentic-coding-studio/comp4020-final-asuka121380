@@ -88,7 +88,7 @@ check("accepting a room invitation admits B to the room immediately", !bOk?.incl
 
 // and the room is now genuinely usable: B can place a part in it
 await pageB.goto(`${pageB.url()}?debug`, { waitUntil: "domcontentloaded" });
-await pageB.waitForFunction(() => (window as any).__state?.().snapshot);
+await pageB.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
 await pageB.locator('.tray button[aria-label^="Brick 2×4,"]').click();
 const p = await pageB.evaluate(() => (window as any).__project(2.5, 0, 2.5));
 await pageB.mouse.move(p.x, p.y, { steps: 3 });
