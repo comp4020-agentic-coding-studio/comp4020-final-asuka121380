@@ -1009,3 +1009,202 @@ diff and its file statistics were inspected before this log entry was written.
 **Limitations:** visual and physical-device checks were not repeated for this
 documentation-only change. Online README verification, CI and the C8 tag still
 need checking after the push; no result is asserted in advance here.
+
+### 2026-10-13 16:29 AEDT — [`d8e9f27`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/d8e9f27) Harness and ADRs 0006-0009: identity recovery, rooms, realtime, plans
+
+**Changes:**
+- New `doc/adr/0006-identity-and-recovery.md`: cookie-first identity stays
+  as it was; an opt-in, single-use recovery code (stored only as a hash,
+  rate-limited, never logged or put in a URL, separate from friend links)
+  lets a player link a second browser to the same identity.
+- New `doc/adr/0007-rooms-shared-inventory-and-access.md`: a build belongs
+  to a room, not a visitor. Beach Houses' room capacity is 2, set in scene
+  configuration. Invite-only rooms require a checked, server-side
+  invitation; friendship never substitutes for one. The host has no
+  runtime authority and a room survives the host leaving.
+- New `doc/adr/0008-realtime-transport-and-concurrent-editing.md`: the
+  crit 9 decision record. Server-sent events for the transport. A
+  placement is validated against live state only, never gated on a stale
+  whole-room revision; an edit to an existing part is gated on that part's
+  own last-known state instead, so an unrelated change elsewhere never
+  rejects it. Records the alternative (a whole-room lock) and its cost.
+- New `doc/adr/0009-plans-attribution-snapshots-and-publication.md`:
+  transparent plans cost no stock and never block real construction; any
+  member may realize or mark one; attribution is layered (placedBy never
+  overwritten, editedBy and proposedBy recorded separately); a snapshot is
+  an immutable, single-revision capture any member may take; publication
+  is a room-creation setting whose restriction is computed once from the
+  room's continuation lineage, never re-derived from a possibly-changed
+  setting later.
+- `CLAUDE.md`: the milestone, Never list and a new "Rooms, realtime and
+  cooperation" section are updated to match. The old personal-inventory
+  design is marked explicitly superseded rather than silently dropped.
+
+**Why.** These are the phase 2 brief's four decisions, raised by the agent
+and settled by the author (13 Oct 2026) before any implementation: identity
+and recovery, Beach Houses' room capacity, publication rights, and plans
+in saved snapshots.
+
+**Who decided:** the author set all four policies, including a correction
+of the agent's initial host-only publication recommendation to "any member
+may publish, if the room allows it." The agent wrote the records and the
+implementation choices marked "agent" within them.
+
+**Tests:** none; this commit is documentation only.
+
+**Limitations:** none of the behaviour these ADRs describe is implemented
+by this commit alone; the following commits build it.
+
+### 2026-10-13 16:29 AEDT — [`1b01620`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/1b01620) Domain: plans, per-part conflict checks, maxPlayers
+
+**Changes:**
+- `src/domain/rules.ts`: `Plan` type; `validatePlan` (bounds and a looser
+  `plausibleSupport` check, never real-part occupancy), `validateWithdrawPlan`,
+  `validateRealizePlan` (re-validates with the ordinary `validatePlacement`
+  against current state) and their `apply*` counterparts. `checkPartRevision`
+  for ADR 0008's per-part conflict check. `PlacedPart` gains `placedBy`,
+  `editedBy`, `proposedBy`, `rev`. `validateCommand`/`applyCommand` dispatch
+  the three new command types and take an `actorId`.
+- `src/domain/commands.ts`: `Command` gains `propose-plan`, `withdraw-plan`,
+  `realize-plan`; `remove`/`recolour`/`rotate` gain optional `expectedRev`.
+  `Snapshot` gains `plans`, `contributors`, `members`, `maxPlayers`, `roomId`,
+  `visibility`, `allowPublish`, `hostId`.
+- `src/domain/scene.ts`: `SceneTemplate.maxPlayers`. Beach Houses: 2.
+
+**Why.** The shared rules the server validates with, and the client previews
+with, need the same new vocabulary (ADR 0007-0009) before either side can be
+written against it.
+
+**Who decided:** the agent, implementing the author's ADR decisions.
+
+**Tests:** `pnpm typecheck` passed at this point in the sequence (the
+server and client were updated in the next two commits; this one alone
+left both non-compiling against the new domain types, which is expected
+mid-sequence and was not a state the app was ever run in).
+
+**Limitations:** none beyond what the later commits in this sequence
+complete.
+
+### 2026-10-13 16:30 AEDT — [`ba5d94f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ba5d94f) Server: rooms, realtime SSE, plans, friends, snapshots, publication
+
+**Changes:**
+- `src/server/db.ts`: migration 2 adds `rooms`, `room_members`,
+  `room_invites`, `room_contributors`, `plans`, `recovery_codes`,
+  `sessions`, `friendships`, `friend_requests`, `snapshots` and its four
+  child tables, `publications`, `room_activity`; `parts` gains
+  `edited_by`/`edited_at`/`proposed_by`/`rev`. A startup `backfillRooms`
+  gives every pre-existing build an invite-only, non-publishable room with
+  its original visitor as host and sole member, touching no part, quantity
+  or revision.
+- New `src/server/identity.ts`, `rooms.ts`, `realtime.ts`, `friends.ts`,
+  `snapshots.ts` (see ADRs 0006-0009 for what each does).
+- `src/server/builds.ts` is rewritten around `room_id`; `runCommand`
+  records `room_activity`, contributor rows and per-part `rev` bumps, and
+  pushes the committed snapshot over `realtime.ts`.
+- `src/server/index.ts` adds the room, identity, friends and
+  snapshot/showcase routes. `POST /api/command` is kept as a back-compat
+  path onto the caller's own default room, and still refuses a request
+  with no visitor cookie outright, exactly as C8.
+- New `spec/realtime.test.ts`, `plans-and-attribution.test.ts`,
+  `snapshots-and-showcase.test.ts`, `friends-and-identity.test.ts`.
+
+**Why.** This is the brief's slice A/B/C/D/E server-side implementation,
+built in one commit because the modules are small and mutually dependent;
+the ADRs record the decisions separately from this commit's mechanics.
+
+**Who decided:** the agent, implementing the author's ADR decisions.
+
+**Tests:**
+- Migration verified against a database seeded with the live `c10dfcd`
+  schema (one visitor, one build, one part, real stock): after upgrading,
+  the original cookie still resolved, through the new `sessions` table, to
+  a room containing the exact original part (`brick-2x4@3,0,2`, navy) and
+  its original stock (`brick-2x4: 10`), unchanged.
+- `pnpm check` (local, fresh server): 75/75 (49 existing plus 26 new across
+  the four new spec files), run against a live server with every test
+  using its own freshly created visitor and room.
+- `pnpm check:evidence`: unaffected, still green.
+
+**Limitations:**
+- The realtime bus is in-process, with no cross-instance fan-out; noted in
+  ADR 0008 as revisited only if the app ever runs more than one machine,
+  which it does not (`fly.toml`: one machine).
+- No UI yet for the public lobby, friend requests or the showcase; the
+  server routes exist and are tested over HTTP, but nothing in the editor
+  links to them yet.
+
+### 2026-10-13 16:30 AEDT — [`26377d7`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/26377d7) Client: realtime sync, propose/realize/withdraw/mark a plan
+
+**Changes:**
+- `src/client/state/store.ts`: `start()` opens an `EventSource` on the
+  loaded snapshot's room once the transport is durable; a pushed snapshot
+  replaces the live one, and a `plan-marked` event is recorded for the
+  Workbench to draw. `rotate`/`remove`/`recolourSelected` now send the
+  target part's own `rev`. New `proposeHeld`, `withdrawPlan`,
+  `realizePlan`, `markPlanForEveryone`, and `selectedPlanId`.
+- `src/client/scene/Workbench.tsx` and `PartMesh.tsx`: open plans render
+  as the same translucent ghost a live preview uses, with a blue outline
+  when selected and a brighter pulse (locally faded after 6s) when marked.
+  Clicking a plan selects it unless a part is held or the delete tool is on.
+- `src/client/App.tsx`: "Propose instead" while holding a part; a selected
+  plan's own panel (Build this / Mark for everyone / Withdraw / Deselect).
+- `src/client/keyboard.ts`: Enter builds a selected plan; Delete/Backspace
+  withdraws one.
+
+**Why.** The brief's non-verbal cooperation slice (B): plans and marks need
+to be visible and actionable in the actual 3D editor, not only over the API.
+
+**Who decided:** the agent. The visual treatment (reusing the existing
+ghost material, a blue outline family distinct from the amber
+selection/red delete tints already in use) follows the project's existing
+identity rather than introducing a new one.
+
+**Tests:**
+- `pnpm check` (local): 75/75.
+- `scripts/interaction.ts` in Chrome: 81/81 (unchanged from before this
+  phase; confirms the solo C8 experience is untouched).
+- `scripts/placement.ts`: 31/31 in Chrome and 31/31 in Playwright's WebKit
+  build (unchanged).
+- Two independent Chromium browser contexts (two distinct cookies, never
+  sharing one, per the brief's instruction not to verify multiplayer with
+  two tabs of one identity): one proposed a plan and called "mark for
+  everyone"; the other, already subscribed to the room's own SSE stream
+  before the mark was sent, received the `plan-marked` event on its own
+  connection. This is the real client/server path exercised live, not a
+  simulated one, though it was run from a throwaway script, not committed.
+
+**Limitations:**
+- No room-switching UI yet: the editor still only ever opens the visitor's
+  own default room (the back-compat `/api/build` path). Joining another
+  room, or a second room's live view, has only been exercised directly
+  over the API and in the ad hoc two-context script above, not through the
+  editor's own interface.
+- No UI yet for creating a room with chosen visibility/publish settings,
+  the public lobby, friend requests, saving/publishing a snapshot, or
+  continuing one. These exist and are tested server-side (previous commit)
+  but are not reachable from the editor.
+- The "mark for everyone" cue's colour (blue) is shared with the plan
+  "selected" outline; on the same screen they are distinguishable by
+  brightness and the accompanying "Selected a proposed…" notice, but this
+  has not been checked for a colourblind viewer.
+
+### 2026-10-13 16:31 AEDT — [`8fa3046`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/8fa3046) Spec: upgrade test uses the new identity/db exports
+
+**Changes:**
+- `spec/server/upgrade.test.ts`: imports `visitorFor` from the new
+  `identity.ts` instead of `builds.ts`; its v1 seed now calls the exported
+  `backfillRooms` (which a real restart runs automatically via
+  `openDatabase`) so the manually-seeded pre-rooms build gets a room row
+  before `buildFor` reads it; its `runCommand` call site gains the room id;
+  its first assertion is loosened to `objectContaining`, since a part now
+  carries `placedBy`/`rev` the original exact-equality check didn't expect.
+
+**Why.** `visitorFor` moved modules in the same commit sequence (ADR
+0006/0007); this test needed to follow it to keep compiling and testing
+the real upgrade path, not a stale one.
+
+**Who decided:** the agent.
+
+**Tests:** part of the 75/75 reported in `ba5d94f`.
+
+**Limitations:** none.
