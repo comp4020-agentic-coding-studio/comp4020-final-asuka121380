@@ -7,12 +7,21 @@
 
 A browser 3D brick-building and cooperative-creation site that will hold
 several scenes. The first scene is a row of colourful beach houses; it is not
-the identity of the whole site (author, 6 Oct 2026 evening; ADR 0004). The
-current milestone is C8: a working, server-saved solo build. Multiplayer,
-material requests, shared planning, similarity scoring, galleries, accounts,
-multiple playable scenes and runtime LLM features are out of scope until the
-author says otherwise (author). Cooperation may be *described* on the
-homepage, clearly labelled as planned, but never faked (author).
+the identity of the whole site (author, 6 Oct 2026 evening; ADR 0004).
+
+**Current milestone: C9, real-time shared rooms (author, 13 Oct 2026;
+supersedes the solo-only scope below).** A build now belongs to a room with
+up to a scene's configured number of members (ADR 0007), not to one visitor.
+Real-time sync, shared inventory, transparent plans, live marks, durable
+contributor attribution and immutable snapshots are now in scope and
+specified in ADRs 0006–0009. Still out of scope until the author says
+otherwise: similarity scoring, text/voice chat or any player-written
+communication beyond plans and marks, runtime LLM features, multiple
+playable scenes, physics/collapse, and competitive scoring or brick-count
+rankings (author, phase 2 brief). Cooperation is no longer only described:
+it is implemented, but only to the extent recorded as DONE in
+`DEVELOPMENT_LOG.md` at any given time — never claim a brief's requirement
+is met before its tests and evidence exist.
 
 ## Development log and commits (author, 6 Oct 2026)
 
@@ -62,14 +71,17 @@ Each entry gives, in proportion to the change:
 - Change a build any way except through the one server-side command path:
   validate with `src/domain/rules.ts`, then one transaction (author).
 - Trust the client for stock, validity or identity. The server works out the
-  visitor from the cookie (proposed).
-- Patch stock by hand. For every part type, kit = held + placed. Invalid
-  actions and cancelled previews cost nothing (author).
+  visitor from the cookie, or from a redeemed recovery code (ADR 0006), and
+  resolves every actor server-side; never accept an actor id supplied in a
+  request body (author; phase 2 brief).
+- Patch stock by hand. For every part type, kit = held + placed, now **per
+  room** rather than per visitor (ADR 0007). Invalid actions, cancelled
+  previews and transparent plans cost nothing (author).
 - Make colour a stock dimension, or put fixed scenery in the build, the kit or
   the rules (author, from the design brief).
 - Cascade-delete, drag-to-demolish or add undo. Removal is refused while any
   remaining part would lose its only support, and removed parts return to the
-  kit (author).
+  room's shared kit (author).
 - Change an existing saved kit or invalidate a saved build. Kit changes are
   additive and versioned, and old builds are upgraded in place (author;
   mechanism in ADR 0003).
@@ -81,10 +93,31 @@ Each entry gives, in proportion to the change:
   design research (author: reference images stay out of public assets).
 - Reset or silently migrate saved builds or inventory. Explain any scene
   version or content migration to the author before applying it (author).
+  Existing C8 solo builds are migrated to one-member, invite-only,
+  non-publishable rooms (ADR 0007), never deleted or renumbered.
 - Change `fly.toml`'s limits, the shipped `spec/invariants.test.ts`,
   `0.0.0.0:$PORT`, or `/readme/` (course).
 - Push, deploy, make the repo public or run /comp4020:ship without the
   author's explicit go-ahead in the current conversation (author).
+- **Allocate separate personal inventories, material crowdfunding, or any
+  per-player stock dimension** — superseded by ADR 0007's one shared
+  room-level inventory (author, phase 2 brief, explicit: "this replaces the
+  earlier design of separately allocated personal inventories").
+- Lock a placed part to its original builder, rank players by brick count,
+  or otherwise treat contribution as competitive (author; ADR 0009).
+- Let friendship alone grant access to an invite-only room; access requires
+  a checked, server-side room invitation (ADR 0007).
+- Let a room's host leaving close the room, or give the host's client any
+  runtime authority a member's client doesn't have (ADR 0007: the server
+  stays sole authority; no host-authoritative networking).
+- Publish a snapshot the publication policy doesn't clear, including through
+  a derived room or a showcase preview; a restricted snapshot's restriction
+  follows every room and snapshot derived from it (ADR 0009).
+- Store a recovery code anywhere but its hash, put one in a log or a URL, or
+  let a friend-request link double as a recovery or login credential
+  (ADR 0006).
+- Snapshot live presence, plan marks, or room invitations as part of a saved
+  work (ADR 0009).
 
 ## Shape of the code
 
@@ -187,6 +220,64 @@ Each entry gives, in proportion to the change:
   floating bottom toolbar with real part thumbnails rendered from the part
   geometry; on mobile it collapses. It is styled from the shared UI, not
   grey glass (author, ADR 0004).
+
+## Rooms, realtime and cooperation (author, 13 Oct 2026; ADRs 0006–0009)
+
+- **Identity.** A visitor is still a browser cookie by default (ADR 0001/0003).
+  A player may opt in to a single-use recovery code, generated from an
+  identity panel, to link a second browser to the same identity. Recovery
+  codes are stored only as a hash, rate-limited, never logged or put in a
+  URL, and are a completely separate mechanism from friend-request links
+  (ADR 0006).
+- **Rooms, not per-visitor builds.** A build belongs to a room with up to
+  the scene's configured `maxPlayers` (Beach Houses: 2). A room is public
+  (listed, joinable while capacity allows) or invite-only (unlisted,
+  requires a checked server-side invitation; friendship never substitutes
+  for one). The inventory is shared by the whole room; joining or leaving
+  never creates, removes or carries away stock (ADR 0007).
+- **The host has no runtime authority.** The server is sole authority for
+  every command, exactly as C8. A room survives its host disconnecting.
+- **Realtime.** Server-sent events push committed changes to every open
+  session on a room within about a second, with no reload. Writes still go
+  through the one validated `POST /api/command` path; SSE only pushes
+  (ADR 0008).
+- **Concurrency.** A placement is valid or not against live state at commit
+  time, not against a stale whole-room revision: two people building in two
+  different places both succeed. Editing or removing an existing part is
+  gated on that part's own last-known state, not the room's global
+  revision, so an unrelated change elsewhere in the room never rejects it
+  (ADR 0008).
+- **Plans are proposals, not orders.** A transparent plan costs no stock and
+  never blocks real construction. Any member may realize one (atomically
+  consuming stock and creating the real part) or mark one for everyone
+  (a restrained, fading, non-forcing visual cue naming who marked it).
+  Marks are transient and are never written into permanent activity history
+  (ADR 0009).
+- **Attribution is permanent and layered.** `placed_by` never changes once
+  set; a later edit records a separate `edited_by`. A part realized from a
+  plan keeps both `proposed_by` and `placed_by`. Once any real part is
+  placed, that visitor is a permanent room contributor, even after leaving,
+  even if every one of their parts is later removed. Plan-only
+  participation is recorded and shown separately, never merged into a
+  placed-parts count (ADR 0009).
+- **Snapshots are immutable, consistent, and may be continued.** Any member
+  may save a room at any time without pausing or changing it. A snapshot
+  captures parts, inventory and contributors at one consistent revision;
+  unfinished plans are captured separately, hidden by default, and restored
+  only if the snapshot is continued into a new room. Continuing creates an
+  independent room with its own visibility, invitations and members, while
+  crediting the snapshot's prior contributors as inherited, not as having
+  joined (ADR 0009).
+- **Publication is a room-creation setting, not a role.** `allow_publish` is
+  fixed when a room is created (default on for public rooms, off for
+  invite-only), shown to a joiner before they join. If set, any member may
+  publish their own saved snapshot, keeping full credit. The setting is
+  never more permissive after derivation than its source: a snapshot or a
+  room continued from a non-publishable one stays non-publishable, checked
+  again whenever a publish is attempted or the showcase is read, not only
+  inherited silently from the setting that created it (ADR 0009). Only
+  `publications` rows are ever publicly readable; nothing else exposes a
+  room's or a snapshot's contents publicly.
 
 ## Before saying something works
 
