@@ -1334,3 +1334,150 @@ injected room membership or API-only setup as proof."
   that propagation is not accidentally slow.
 - Neither the deployed app nor a physical second device was used; this
   revision has not been pushed or deployed.
+
+### 2026-10-13 19:33 AEDT — [`62cdb5f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/62cdb5f) Separate inherited credits from room contributors; close public-room publication bypass
+
+**Changes:**
+- `src/server/db.ts`: migration 3 adds `room_inherited_credits` and
+  `snapshot_inherited_credits` (`room_id`/`snapshot_id`, `visitor_id`,
+  `first_contribution_at`).
+- `src/server/rooms.ts`: `seedFromSnapshot` now writes a continued room's
+  prior contributors into `room_inherited_credits`, not `room_contributors`
+  — the earlier implementation had merged the two, conflating "credited
+  from an earlier version" with "actually built in this room", which
+  ADR 0009 explicitly requires stay distinct. `createRoom` now reads the
+  source snapshot's `allow_publish` when `opts.fromSnapshotId` is set, and
+  clamps the new room's `visibility`/`allowPublish` to `invite_only`/
+  `false` whenever it is false, regardless of what was requested.
+  `snapshotOf` returns `inheritedCredits` separately from `contributors`.
+- `src/server/snapshots.ts`: `saveSnapshot` persists `source_snapshot_id`
+  and writes `room_inherited_credits` into the new
+  `snapshot_inherited_credits` table, kept distinct from
+  `snapshot_contributors`. `getSnapshot`/`snapshotsSavedBy` read and
+  return both credit kinds and `sourceSnapshotId`.
+- `src/domain/commands.ts`: `Snapshot` gains `inheritedCredits` alongside
+  `contributors`; `src/client/state/transport.ts`'s local (solo) transport
+  updated to satisfy the new field.
+
+**Why.** Reviewing the already-implemented backend against the brief's
+exact wording before building UI on top of it surfaced two real gaps,
+neither flagged by a failing test: (1) the brief says "do not describe
+inherited creators as people who joined the new room", which the
+contributor-merging code was silently violating; (2) the brief's
+publication-restriction requirement says a restricted snapshot must not
+be exposed "through a public room or preview", and `createRoom` was only
+enforcing the publish flag, not room visibility/listing — a public,
+listed, joinable-by-anyone room is itself a disclosure path independent
+of the showcase.
+
+**Who decided:** the agent, by re-reading the approved brief and ADR 0009
+against the existing implementation.
+
+**Tests:**
+- `pnpm check` (local, fresh server): 76/76 (was 75 before this session;
+  one new test added in `ab6aef9`).
+- `spec/snapshots-and-showcase.test.ts`'s existing "no laundering" test
+  was updated in the same work (committed separately in `ab6aef9`) because
+  its old assertions expected the pre-fix (vulnerable) behaviour.
+
+**Limitations:** none known beyond what's noted in ADR 0009's "As built"
+section.
+
+### 2026-10-13 19:33 AEDT — [`eb17e4b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/eb17e4b) Collection, read-only snapshot viewer and public showcase UI
+
+**Changes:**
+- New `src/client/lobby/Collection.tsx`: `CollectionPage` (lists a
+  visitor's saved snapshots via `mySnapshots()`, with View/Publish
+  actions), `ShowcasePage` (lists published entries via `showcaseList()`),
+  `SnapshotViewerPage` (loads a snapshot or showcase entry, renders it
+  read-only via `SnapshotView`, shows `Credits` and `ContinueControls`).
+  `Credits` shows publisher, saved-by, contributors to this version, and
+  (if any) credits inherited from an earlier continued version, each
+  distinctly labelled, with an inline "+ friend" button for anyone who
+  isn't the viewer. `ContinueControls` lets the viewer choose visibility
+  and publish settings for a new room and reports when the server clamped
+  that choice because the source snapshot is restricted.
+- New `src/client/scene/SnapshotView.tsx`: a read-only R3F canvas reusing
+  the existing `Plot`, `PartMesh` and scene environment components, with
+  `OrbitControls` but no tray or edit controls. Confirmed in the
+  production build to be its own lazy chunk, not part of the base lobby
+  bundle.
+- `src/client/lobby/LobbyApp.tsx`: query-param routing added
+  (`?snapshot=id`, `?showcase=id`, `?view=collection`, `?view=showcase`)
+  and header links to the collection/showcase pages.
+- `src/client/App.tsx`: the Room panel's "Save a copy" action now tracks
+  and links to the saved snapshot ("View it"), and gained a "My
+  collection" link.
+- `src/client/state/api.ts`: `SnapshotSummary`/`SnapshotDetail` gained
+  `sourceSnapshotId`/`inheritedCredits`; `continueSnapshot` returns the
+  server's (possibly clamped) `visibility`/`allowPublish`.
+
+**Why.** The author's instruction: "continue with the collection,
+snapshot viewing/continuation, and public showcase UI... these are
+already within the approved scope." Backend-only endpoints do not count as
+completed product features per the prior instruction, so this makes all
+six of the brief's numbered steps reachable through visible controls.
+
+**Who decided:** the agent for layout/wording, following the author's
+"keep the current visual style and scope" instruction; the credit
+categories and continue-controls behaviour follow ADR 0009's policy as
+approved by the author.
+
+**Tests:** `pnpm check` (local, fresh server): 76/76; `pnpm typecheck`
+clean. Interactive verification is the next commit.
+
+**Limitations:** no UI yet to browse or revoke a specific published entry
+beyond what's listed; no pagination for a collection/showcase with many
+entries (not required by the brief at this scale).
+
+### 2026-10-13 19:33 AEDT — [`ab6aef9`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ab6aef9) Verify collection/showcase flow with two independent identities; evidence
+
+**Changes:**
+- `spec/snapshots-and-showcase.test.ts`: updated the existing "no
+  laundering" test's assertions to the corrected behaviour
+  (`allowPublish: false`, `visibility: "invite_only"` on the derived
+  room), and added a new test asserting the derived room is also absent
+  from the public lobby listing, refuses a stranger's direct join, and
+  refuses a stranger's direct `GET`.
+- New `scripts/showcase.ts`: two independent browser identities (distinct
+  cookie jars) driven through visible controls only, covering: (1) saving
+  a room to the collection, (2) opening it read-only with no edit
+  controls and finding it listed on the collection page, (3) continuing it
+  into an independent room while confirming the source snapshot is
+  unchanged (read back over HTTP), (4) publishing it and finding it listed
+  on the showcase, (5) a second, independent identity continuing the
+  published version into their own room, (6) the credits distinguishing
+  publisher/contributors/inherited credits with working friend-request
+  buttons, plus the negative case: a restricted snapshot's publish attempt
+  is refused (403), its continue request is clamped server-side rather
+  than honoured, its derived room is absent from the public lobby and
+  refuses a stranger's join, and there is no endpoint that serves it by
+  its raw snapshot id (404).
+- `scripts/multiplayer.ts`, `scripts/invites.ts`: fixed a race where
+  `__project` could be called before `Workbench.tsx`'s debug-hook effect
+  had installed it, which was producing occasional "not a function"
+  failures; both now wait for `__project` alongside the snapshot.
+- New `doc/evidence/shots/collection-showcase/`: the read-only snapshot
+  viewer, the collection page, and the showcase list page.
+
+**Why.** The author's instruction: "verify this complete flow through
+visible UI using independent identities... include a negative test
+showing that a restricted snapshot cannot be exposed through publication,
+a public derived room, or a public preview."
+
+**Who decided:** the agent.
+
+**Tests, run against a fresh local server (this commit's own evidence):**
+- `pnpm check`: 76/76. `pnpm check:evidence`: clean.
+- `scripts/showcase.ts`: 16/16, reproduced across multiple clean reruns
+  (rebuild + fresh database + fresh server each time).
+- `scripts/multiplayer.ts`: 15/15. `scripts/invites.ts`: 7/7.
+- `scripts/placement.ts`: 31/31 in Chrome, 31/31 in WebKit.
+
+**Limitations:**
+- All verification ran once per check, locally, in Chrome (plus WebKit for
+  `placement.ts`), on one machine; not a statistical guarantee.
+- Neither the deployed app nor a physical second device was used; this
+  revision has not been pushed or deployed.
+- No pagination or search across a large collection/showcase; not
+  exercised at scale.
