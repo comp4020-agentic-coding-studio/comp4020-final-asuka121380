@@ -19,12 +19,30 @@ export interface Placement {
 
 export interface PlacedPart extends Placement {
   id: string;
+  /** Who placed it; never overwritten by a later edit (ADR 0009). */
+  placedBy?: string;
+  /** Who most recently recoloured or rotated it, if anyone (ADR 0009). */
+  editedBy?: string;
+  /** The plan's original proposer, if this part was realized from one (ADR 0009). */
+  proposedBy?: string;
+  /** Bumped on every edit to this part; the basis for ADR 0008's per-part conflict check. */
+  rev?: number;
+}
+
+/** A transparent proposal (ADR 0009): costs no stock, blocks nothing real. */
+export interface Plan extends Placement {
+  id: string;
+  proposedBy: string;
+  createdAt: string;
+  status: "open" | "realized" | "withdrawn";
 }
 
 export interface BuildState {
   parts: readonly PlacedPart[];
   /** Pieces still held, by part type. Colour is not a dimension of it. */
   inventory: Readonly<Record<string, number>>;
+  /** Open and resolved plans; most callers only care about `status === "open"`. */
+  plans?: readonly Plan[];
 }
 
 export type RejectionCode =
@@ -38,7 +56,10 @@ export type RejectionCode =
   | "out_of_stock"
   | "not_found"
   | "would_unsupport"
-  | "no_change";
+  | "no_change"
+  | "plan_not_open"
+  | "room_full"
+  | "part_conflict";
 
 export interface Rejection {
   code: RejectionCode;
@@ -204,6 +225,99 @@ export function validateRecolour(state: BuildState, placedId: string, colour: st
   return null;
 }
 
+/**
+ * ADR 0008: an edit command may carry the part's own revision as the client
+ * last saw it. If someone else has since changed that same part, this is a
+ * specific, part-level conflict — never the whole room's revision, so an
+ * unrelated change elsewhere never trips it. `undefined` skips the check, for
+ * callers (older clients, the local single-actor preview) that never
+ * encounter another actor.
+ */
+export function checkPartRevision(state: BuildState, placedId: string, expectedRev: number | undefined): Rejection | null {
+  if (expectedRev === undefined) return null;
+  const part = state.parts.find((p) => p.id === placedId);
+  if (part && (part.rev ?? 0) !== expectedRev) {
+    return { code: "part_conflict", message: "Someone already changed that part; its latest version is shown now." };
+  }
+  return null;
+}
+
+// ---- plans (ADR 0009) -------------------------------------------------------
+//
+// A plan is a transparent proposal: it costs no stock and must never block
+// real construction, so it is checked against bounds and a looser "is this
+// plausible geometry" support rule, never against real parts' occupancy.
+
+/**
+ * Looser than `supporters()`: true if there is *any* footprint cell with
+ * something at y-1 immediately below it, real or planned, or if y is 0 (the
+ * plot itself always supports). A plan may describe a future state whose own
+ * support doesn't exist yet either, so this only rejects plans floating over
+ * nothing at all, not plans resting on other plans or on parts not yet built.
+ */
+function plausibleSupport(def: PartDefinition, p: Pick<Placement, "x" | "y" | "z" | "rot">, parts: readonly PlacedPart[], plans: readonly Plan[]): boolean {
+  if (p.y === 0) return true;
+  const below = new Set(footprint(def, p).map((c) => `${c.x},${c.z}`));
+  const under = (q: Pick<Placement, "x" | "y" | "z" | "rot" | "partId">): boolean => {
+    const qd = partDef(q.partId);
+    if (!qd || q.y + qd.h !== p.y) return false;
+    return studCells(qd, q).some((c) => below.has(`${c.x},${c.z}`));
+  };
+  return parts.some(under) || plans.some((pl) => pl.status === "open" && under(pl));
+}
+
+export function validatePlan(scene: SceneTemplate, state: BuildState, p: Placement): Rejection | null {
+  const def = partDef(p.partId);
+  if (!def || !(p.partId in scene.kit)) return { code: "unknown_part", message: "That part isn't in this scene's kit." };
+  if (!def.rotations.includes(p.rot)) return { code: "bad_rotation", message: "That rotation isn't allowed for this part." };
+  if (!isColour(p.colour)) return { code: "bad_colour", message: "That colour isn't in the palette." };
+  if (![p.x, p.y, p.z].every(isInt)) return { code: "bad_position", message: "Positions are whole studs and plates." };
+  const size = rotatedSize(def, p.rot);
+  const b = scene.bounds;
+  if (p.x < 0 || p.z < 0 || p.y < 0 || p.x + size.w > b.w || p.z + size.d > b.d || p.y + def.h > b.h) {
+    return { code: "out_of_bounds", message: "That would stick out of the build plot." };
+  }
+  if (!plausibleSupport(def, p, state.parts, state.plans ?? [])) {
+    return { code: "unsupported", message: "That has nothing under it, real or planned, to rest on." };
+  }
+  return null;
+}
+
+export function validateWithdrawPlan(state: BuildState, planId: string): Rejection | null {
+  const plan = (state.plans ?? []).find((p) => p.id === planId);
+  if (!plan) return { code: "not_found", message: "That plan is no longer there." };
+  if (plan.status !== "open") return { code: "plan_not_open", message: "That plan has already been realized or withdrawn." };
+  return null;
+}
+
+/** Realizing is placing for real: the plan's own geometry is re-checked against current live state. */
+export function validateRealizePlan(scene: SceneTemplate, state: BuildState, planId: string): { rejection: Rejection | null; plan?: Plan } {
+  const plan = (state.plans ?? []).find((p) => p.id === planId);
+  if (!plan) return { rejection: { code: "not_found", message: "That plan is no longer there." } };
+  if (plan.status !== "open") return { rejection: { code: "plan_not_open", message: "That plan has already been realized or withdrawn." }, plan };
+  return { rejection: validatePlacement(scene, state, plan), plan };
+}
+
+export function applyProposePlan(state: BuildState, p: Placement, id: string, proposedBy: string, createdAt: string): BuildState {
+  const plan: Plan = { ...p, id, proposedBy, createdAt, status: "open" };
+  return { ...state, plans: [...(state.plans ?? []), plan] };
+}
+
+export function applyWithdrawPlan(state: BuildState, planId: string): BuildState {
+  return { ...state, plans: (state.plans ?? []).map((p) => (p.id === planId ? { ...p, status: "withdrawn" } : p)) };
+}
+
+/** Consumes stock, creates the real part (carrying both proposer and realizer), resolves the plan. */
+export function applyRealizePlan(state: BuildState, planId: string, newId: string, realizedBy: string): BuildState {
+  const plan = (state.plans ?? []).find((p) => p.id === planId)!;
+  const placed: PlacedPart = { partId: plan.partId, x: plan.x, y: plan.y, z: plan.z, rot: plan.rot, colour: plan.colour, id: newId, placedBy: realizedBy, proposedBy: plan.proposedBy, rev: 0 };
+  return {
+    parts: [...state.parts, placed],
+    inventory: { ...state.inventory, [plan.partId]: (state.inventory[plan.partId] ?? 0) - 1 },
+    plans: (state.plans ?? []).map((p) => (p.id === plan.id ? { ...p, status: "realized" } : p)),
+  };
+}
+
 // Pure transitions. The server applies the same changes inside one database
 // transaction; these exist so the rules can be tested end to end without one.
 
@@ -253,15 +367,26 @@ export function validateCommand(scene: SceneTemplate, state: BuildState, command
     case "place":
       return validatePlacement(scene, state, command.placement);
     case "remove":
-      return validateRemoval(state, command.placedId);
+      return validateRemoval(state, command.placedId) ?? checkPartRevision(state, command.placedId, command.expectedRev);
     case "recolour":
-      return validateRecolour(state, command.placedId, command.colour);
+      return validateRecolour(state, command.placedId, command.colour) ?? checkPartRevision(state, command.placedId, command.expectedRev);
     case "rotate":
-      return validateRotation(scene, state, command.placedId, command.rot);
+      return validateRotation(scene, state, command.placedId, command.rot) ?? checkPartRevision(state, command.placedId, command.expectedRev);
+    case "propose-plan":
+      return validatePlan(scene, state, command.plan);
+    case "withdraw-plan":
+      return validateWithdrawPlan(state, command.planId);
+    case "realize-plan":
+      return validateRealizePlan(scene, state, command.planId).rejection;
   }
 }
 
-export function applyCommand(state: BuildState, command: Command, newId: string): BuildState {
+/**
+ * `actorId` attributes a plan proposal or a realized part; it may be omitted
+ * for the other command types (and for the local, single-actor preview,
+ * where there is never anyone else to attribute to).
+ */
+export function applyCommand(state: BuildState, command: Command, newId: string, actorId = "local"): BuildState {
   switch (command.type) {
     case "place":
       return applyPlacement(state, command.placement, newId);
@@ -271,5 +396,11 @@ export function applyCommand(state: BuildState, command: Command, newId: string)
       return applyRecolour(state, command.placedId, command.colour);
     case "rotate":
       return applyRotation(state, command.placedId, command.rot);
+    case "propose-plan":
+      return applyProposePlan(state, command.plan, newId, actorId, new Date().toISOString());
+    case "withdraw-plan":
+      return applyWithdrawPlan(state, command.planId);
+    case "realize-plan":
+      return applyRealizePlan(state, command.planId, newId, actorId);
   }
 }

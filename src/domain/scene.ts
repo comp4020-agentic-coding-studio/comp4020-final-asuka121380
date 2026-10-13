@@ -20,6 +20,12 @@ export interface SceneTemplate {
    * upgraded by adding the new types' stock (ADR 0003).
    */
   additions: Readonly<Record<number, Readonly<Record<string, number>>>>;
+  /**
+   * The most distinct visitors one room of this scene admits, including the
+   * host (ADR 0007, author's decision). Scene configuration, not a global
+   * constant: a future scene sets its own value.
+   */
+  maxPlayers: number;
 }
 
 // Reference: the dark-blue-roofed house and its tree from LEGO Classic 11035,
@@ -133,6 +139,9 @@ export const STREET_SCENE: SceneTemplate = {
   reference,
   kit: kitFrom(kitFrom(billOfMaterials(reference), surplus), v2),
   additions: { 2: v2 },
+  // ADR 0007 (author, 13 Oct 2026): a maximum of 2 distinct players per room,
+  // including the host.
+  maxPlayers: 2,
 };
 
 export const SCENES: Readonly<Record<string, SceneTemplate>> = { [STREET_SCENE.id]: STREET_SCENE };
