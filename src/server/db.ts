@@ -264,6 +264,32 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (snapshot_id, visitor_id)
   );
   `,
+  // 4 (phase 2 corrective review, author-approved scope change): explicit,
+  // visible accounts, replacing cookie-first identity as the primary way to
+  // reach the same rooms/friends/collection on another device. An account
+  // is a thin, durable label and login layered OVER the existing visitor
+  // model, never a replacement for it: every room, friendship, contributor
+  // record and snapshot stays keyed on visitor_id exactly as before. An
+  // account's "primary visitor" (visitors.account_id pointing back to it,
+  // at most one row per account — the partial unique index below) is the
+  // one and only visitor_id signing in ever resolves to, on any browser:
+  // signing in issues a fresh SESSION for that same visitor_id (identity.ts's
+  // existing multi-session mechanism, unchanged), it never creates a second
+  // visitor. This is what makes "the same account reaches the same rooms on
+  // another device" true without touching any of the existing room/
+  // friendship/snapshot tables, all of which stay keyed on visitor_id.
+  `
+  CREATE TABLE accounts (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    password_salt TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  ALTER TABLE visitors ADD COLUMN account_id TEXT REFERENCES accounts(id);
+  CREATE UNIQUE INDEX visitors_one_primary_per_account ON visitors(account_id) WHERE account_id IS NOT NULL;
+  `,
 ];
 
 export function openDatabase(path: string): Db {

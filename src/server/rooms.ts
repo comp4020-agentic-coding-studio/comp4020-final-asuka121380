@@ -222,6 +222,43 @@ function pushRoomState(db: Db, roomId: string): void {
   if (room) emitRoomEvent(roomId, { type: "snapshot", snapshot: snapshotOf(db, room) });
 }
 
+export type AdmitOutcome = { ok: true; changed: boolean } | { ok: false; code: "room_full" };
+
+/**
+ * The one place that decides whether a visitor may hold an *active* slot in
+ * a room right now, enforcing capacity for every inactive -> active
+ * transition alike: a brand-new join, a returning member whose presence had
+ * lapsed, an accepted invitation, and an SSE (re)connect all funnel through
+ * this, so none of them can admit past the scene's `maxPlayers` by a
+ * different path than the others.
+ *
+ * Already-active is always a no-op success with no capacity check at all
+ * (an already-active identity opening a second tab, or its SSE keep-alive
+ * heartbeat, never consumes or re-checks a slot). Must be called from
+ * inside an already-open `transaction()` — it does not open its own, so two
+ * simultaneous calls for the last slot still can't both succeed.
+ */
+function admitActive(db: Db, roomId: string, visitorId: string, createIfAbsent: boolean): AdmitOutcome {
+  const existing = db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId) as
+    | { active: number }
+    | undefined;
+  const t = now();
+  if (existing?.active) {
+    db.prepare("UPDATE room_members SET last_seen_at = ? WHERE room_id = ? AND visitor_id = ?").run(t, roomId, visitorId);
+    return { ok: true, changed: false };
+  }
+  const { n } = db.prepare("SELECT count(*) AS n FROM room_members WHERE room_id = ? AND active = 1").get(roomId) as { n: number };
+  if (n >= scene.maxPlayers) return { ok: false, code: "room_full" };
+  if (existing) {
+    db.prepare("UPDATE room_members SET active = 1, last_seen_at = ? WHERE room_id = ? AND visitor_id = ?").run(t, roomId, visitorId);
+  } else if (createIfAbsent) {
+    db.prepare("INSERT INTO room_members (room_id, visitor_id, joined_at, last_seen_at, active) VALUES (?, ?, ?, ?, 1)").run(roomId, visitorId, t, t);
+  } else {
+    return { ok: false, code: "room_full" }; // not a member at all and the caller didn't ask to create one
+  }
+  return { ok: true, changed: true };
+}
+
 export function join(db: Db, roomId: string, visitorId: string): JoinOutcome {
   const outcome = transaction(db, (): JoinOutcome & { changed?: boolean } => {
     const room = findRoom(db, roomId);
@@ -232,30 +269,26 @@ export function join(db: Db, roomId: string, visitorId: string): JoinOutcome {
         .get(roomId, visitorId);
       if (!invite) return { ok: false, code: "forbidden" };
     }
-    const existing = db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId) as
-      | { active: number }
-      | undefined;
-    const t = now();
-    if (existing) {
-      db.prepare("UPDATE room_members SET active = 1, last_seen_at = ? WHERE room_id = ? AND visitor_id = ?").run(t, roomId, visitorId);
-      return { ok: true, changed: !existing.active }; // only a transition from away -> active is news to anyone else
-    }
-    const { n } = db.prepare("SELECT count(*) AS n FROM room_members WHERE room_id = ? AND active = 1").get(roomId) as { n: number };
-    if (n >= scene.maxPlayers) return { ok: false, code: "room_full" };
-    db.prepare("INSERT INTO room_members (room_id, visitor_id, joined_at, last_seen_at, active) VALUES (?, ?, ?, ?, 1)").run(roomId, visitorId, t, t);
-    return { ok: true, changed: true };
+    const admitted = admitActive(db, roomId, visitorId, true);
+    if (!admitted.ok) return admitted;
+    return { ok: true, changed: admitted.changed };
   });
   if (outcome.ok && outcome.changed) pushRoomState(db, roomId);
   return outcome;
 }
 
-export function markActive(db: Db, roomId: string, visitorId: string): void {
-  // only push when this flips someone from away to active; the periodic SSE
-  // keep-alive call (every 10s per open connection) must never itself spam a
-  // snapshot to every other member
-  const row = db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId) as { active: number } | undefined;
-  db.prepare("UPDATE room_members SET active = 1, last_seen_at = ? WHERE room_id = ? AND visitor_id = ?").run(now(), roomId, visitorId);
-  if (row && !row.active) pushRoomState(db, roomId);
+/**
+ * Called on every SSE connect and keep-alive (ADR 0008): a brand-new
+ * connection from a currently-inactive member (a returning player, after
+ * their earlier presence lapsed) is capacity-checked exactly like `join`,
+ * so a reconnect can't silently exceed the room's capacity just because the
+ * visitor was already a historical member. An already-active member's own
+ * heartbeat is always a no-op (never re-checked, never pushes a snapshot).
+ */
+export function markActive(db: Db, roomId: string, visitorId: string): AdmitOutcome {
+  const outcome = transaction(db, (): AdmitOutcome => admitActive(db, roomId, visitorId, false));
+  if (outcome.ok && outcome.changed) pushRoomState(db, roomId);
+  return outcome;
 }
 
 /** 30s grace (ADR 0007) so a reload or brief drop doesn't flip presence off; called by a periodic sweep. */
@@ -310,17 +343,27 @@ export interface RoomInvite {
   label: string | null;
   invitedBy: string;
   createdAt: string;
+  /** Shown before accepting (brief: disclose publication policy before admission). */
+  allowPublish: boolean;
 }
 
 export function pendingInvitesFor(db: Db, visitorId: string): RoomInvite[] {
   const rows = db
     .prepare(
-      `SELECT i.id, i.room_id, r.scene_id, r.label, i.invited_by, i.created_at
+      `SELECT i.id, i.room_id, r.scene_id, r.label, i.invited_by, i.created_at, r.allow_publish
        FROM room_invites i JOIN rooms r ON r.id = i.room_id
        WHERE i.invited_visitor_id = ? AND i.status = 'pending' ORDER BY i.created_at`,
     )
-    .all(visitorId) as { id: string; room_id: string; scene_id: string; label: string | null; invited_by: string; created_at: string }[];
-  return rows.map((r) => ({ id: r.id, roomId: r.room_id, sceneId: r.scene_id, label: r.label, invitedBy: r.invited_by, createdAt: r.created_at }));
+    .all(visitorId) as { id: string; room_id: string; scene_id: string; label: string | null; invited_by: string; created_at: string; allow_publish: number }[];
+  return rows.map((r) => ({
+    id: r.id,
+    roomId: r.room_id,
+    sceneId: r.scene_id,
+    label: r.label,
+    invitedBy: r.invited_by,
+    createdAt: r.created_at,
+    allowPublish: !!r.allow_publish,
+  }));
 }
 
 export type RespondInviteOutcome =
@@ -345,19 +388,15 @@ export function respondToInvite(db: Db, inviteId: string, visitorId: string, acc
       db.prepare("UPDATE room_invites SET status = 'declined' WHERE id = ?").run(inviteId);
       return { ok: true, roomId: row.room_id, status: "declined" };
     }
-    const already = isMember(db, row.room_id, visitorId);
-    if (!already) {
-      const { n } = db.prepare("SELECT count(*) AS n FROM room_members WHERE room_id = ? AND active = 1").get(row.room_id) as { n: number };
-      if (n >= scene.maxPlayers) return { ok: false, code: "room_full" };
-    }
+    // the same capacity-enforcing admission `join` uses: a returning,
+    // currently-inactive member accepting an invite is checked exactly like
+    // a fresh join, not waved through as "already a member" (that was the
+    // capacity bypass: this branch used to skip the capacity check whenever
+    // `room_members` already had *any* row for this visitor, active or not)
+    const admitted = admitActive(db, row.room_id, visitorId, true);
+    if (!admitted.ok) return admitted;
     db.prepare("UPDATE room_invites SET status = 'accepted' WHERE id = ?").run(inviteId);
-    const t = now();
-    if (already) {
-      db.prepare("UPDATE room_members SET active = 1, last_seen_at = ? WHERE room_id = ? AND visitor_id = ?").run(t, row.room_id, visitorId);
-    } else {
-      db.prepare("INSERT INTO room_members (room_id, visitor_id, joined_at, last_seen_at, active) VALUES (?, ?, ?, ?, 1)").run(row.room_id, visitorId, t, t);
-    }
-    return { ok: true, roomId: row.room_id, status: "accepted", changed: true };
+    return { ok: true, roomId: row.room_id, status: "accepted", changed: admitted.changed };
   });
   if (result.ok && result.changed) pushRoomState(db, result.roomId);
   return result;
@@ -392,17 +431,19 @@ export interface LobbyRoom {
   label: string | null;
   occupancy: number;
   capacity: number;
+  /** Shown before joining (brief: disclose publication policy before admission), not only after. */
+  allowPublish: boolean;
 }
 
 /** Only public rooms, with real, server-counted occupancy — never fabricated. */
 export function publicLobby(db: Db): LobbyRoom[] {
   const rows = db
     .prepare(
-      `SELECT r.id, r.scene_id, r.label, (SELECT count(*) FROM room_members m WHERE m.room_id = r.id AND m.active = 1) AS occupancy
+      `SELECT r.id, r.scene_id, r.label, r.allow_publish, (SELECT count(*) FROM room_members m WHERE m.room_id = r.id AND m.active = 1) AS occupancy
        FROM rooms r WHERE r.visibility = 'public' ORDER BY r.created_at DESC`,
     )
-    .all() as { id: string; scene_id: string; label: string | null; occupancy: number }[];
-  return rows.map((r) => ({ id: r.id, sceneId: r.scene_id, label: r.label, occupancy: r.occupancy, capacity: scene.maxPlayers }));
+    .all() as { id: string; scene_id: string; label: string | null; allow_publish: number; occupancy: number }[];
+  return rows.map((r) => ({ id: r.id, sceneId: r.scene_id, label: r.label, occupancy: r.occupancy, capacity: scene.maxPlayers, allowPublish: !!r.allow_publish }));
 }
 
 // ---- snapshot assembly (the live room, for a command result or SSE push) --

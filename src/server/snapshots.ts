@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { transaction, type Db } from "./db.ts";
-import { findRoom } from "./rooms.ts";
+import { findRoom, isMember } from "./rooms.ts";
 
 // ADR 0009: a snapshot is an immutable, consistently-captured copy of a
 // room — parts, inventory and contributors at one revision, plans kept
@@ -120,6 +120,63 @@ export function saveSnapshot(db: Db, roomId: string, savedBy: string): SnapshotS
   });
 }
 
+/**
+ * Copies an existing, already-authorized snapshot directly into
+ * `collectedBy`'s own collection — a distinct, immutable row they now also
+ * own as `saved_by` — without creating or joining any room (the brief:
+ * "do not create or join a room as a side effect"). Every child table is
+ * copied from the SOURCE SNAPSHOT's own rows, never from any live room, so
+ * the exact construction, remaining stock, unfinished plans and existing
+ * credits are preserved unchanged; the source snapshot itself is never
+ * written to. `allow_publish` and `source_snapshot_id` are inherited
+ * directly from the source (which already reflects its own full lineage
+ * check), so a collected copy is never more publishable than what it was
+ * collected from. The caller must have already authorized access to
+ * `sourceSnapshotId` (the same `canAccessSnapshot` check viewing or
+ * continuing it uses) before calling this.
+ */
+export function collectSnapshot(db: Db, sourceSnapshotId: string, collectedBy: string): SnapshotSummary | undefined {
+  return transaction(db, (): SnapshotSummary | undefined => {
+    const src = db.prepare("SELECT * FROM snapshots WHERE id = ?").get(sourceSnapshotId) as
+      | { id: string; room_id: string; scene_id: string; template_version: number; revision: number; allow_publish: number }
+      | undefined;
+    if (!src) return undefined;
+    const id = randomUUID();
+    const t = now();
+    db.prepare(
+      "INSERT INTO snapshots (id, room_id, scene_id, template_version, revision, saved_by, saved_at, allow_publish, source_snapshot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(id, src.room_id, src.scene_id, src.template_version, src.revision, collectedBy, t, src.allow_publish, src.id);
+
+    db.prepare(
+      "INSERT INTO snapshot_parts (snapshot_id, part_id, type_id, x, y, z, rot, colour, placed_by, proposed_by, edited_by) SELECT ?, part_id, type_id, x, y, z, rot, colour, placed_by, proposed_by, edited_by FROM snapshot_parts WHERE snapshot_id = ?",
+    ).run(id, sourceSnapshotId);
+    db.prepare("INSERT INTO snapshot_inventory (snapshot_id, part_id, quantity) SELECT ?, part_id, quantity FROM snapshot_inventory WHERE snapshot_id = ?").run(
+      id,
+      sourceSnapshotId,
+    );
+    db.prepare(
+      "INSERT INTO snapshot_contributors (snapshot_id, visitor_id, first_contribution_at) SELECT ?, visitor_id, first_contribution_at FROM snapshot_contributors WHERE snapshot_id = ?",
+    ).run(id, sourceSnapshotId);
+    db.prepare(
+      "INSERT INTO snapshot_inherited_credits (snapshot_id, visitor_id, first_contribution_at) SELECT ?, visitor_id, first_contribution_at FROM snapshot_inherited_credits WHERE snapshot_id = ?",
+    ).run(id, sourceSnapshotId);
+    db.prepare(
+      "INSERT INTO snapshot_plans (snapshot_id, plan_id, part_id, x, y, z, rot, colour, proposed_by) SELECT ?, plan_id, part_id, x, y, z, rot, colour, proposed_by FROM snapshot_plans WHERE snapshot_id = ?",
+    ).run(id, sourceSnapshotId);
+
+    return {
+      id,
+      roomId: src.room_id,
+      sceneId: src.scene_id,
+      revision: src.revision,
+      savedBy: collectedBy,
+      savedAt: t,
+      allowPublish: !!src.allow_publish,
+      sourceSnapshotId: src.id,
+    };
+  });
+}
+
 export interface SnapshotDetail extends SnapshotSummary {
   parts: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string; placedBy: string; proposedBy?: string; editedBy?: string }[];
   inventory: Record<string, number>;
@@ -229,6 +286,32 @@ export function snapshotsSavedBy(db: Db, visitorId: string): SnapshotSummary[] {
     allowPublish: !!r.allow_publish,
     sourceSnapshotId: r.source_snapshot_id,
   }));
+}
+
+/**
+ * Whether `visitorId` is authorized to read, copy or continue this snapshot
+ * at all — distinct from whether it is *eligible for public publication*
+ * (that's `allow_publish`/the lineage check above). Possession of a
+ * snapshot id is never itself authorization (a UUID is guessable-adjacent
+ * over enough requests, and more importantly, a link can simply be shared):
+ * access requires one of (a) having saved it yourself, (b) being a current
+ * member of the room it was saved from (so a roommate can revisit a
+ * teammate's save), or (c) the snapshot having actually been published —
+ * the one case where "anyone" is correct, and the only one that doesn't
+ * route through the snapshot id at all in the UI (the showcase links by
+ * publication id, not snapshot id, but the publish state itself must still
+ * make a direct `/api/snapshots/:id` request to the same snapshot
+ * permissible, since publishing *is* the act of making it public).
+ */
+export function canAccessSnapshot(db: Db, snapshotId: string, visitorId: string): boolean {
+  const row = db.prepare("SELECT saved_by, room_id FROM snapshots WHERE id = ?").get(snapshotId) as
+    | { saved_by: string; room_id: string }
+    | undefined;
+  if (!row) return false;
+  if (row.saved_by === visitorId) return true;
+  if (isMember(db, row.room_id, visitorId)) return true;
+  const published = db.prepare("SELECT 1 FROM publications WHERE snapshot_id = ?").get(snapshotId);
+  return !!published;
 }
 
 // ---- publication (author's policy, ADR 0009) -------------------------------

@@ -49,7 +49,14 @@ export type OpenLinkOutcome =
   | { ok: true; requestId: string; fromVisitor: string }
   | { ok: false; code: "invalid" | "self" | "already_friends" };
 
-/** Viewing a link's request (not yet acceptance): who it's from, so the UI can ask before accepting. */
+/**
+ * Viewing a link's request (not yet acceptance): who it's from, so the UI
+ * can show the sender and ask before accepting — opening it is never itself
+ * acceptance (author). This link has no expiry in this phase: it stays
+ * usable (by anyone who has the URL, repeatedly, by different viewers)
+ * until the two people involved become friends; that limitation is
+ * documented (ADR 0006/0007), not silently assumed.
+ */
 export function openFriendLink(db: Db, token: string, viewer: string): OpenLinkOutcome {
   const row = db.prepare("SELECT id, from_visitor FROM friend_requests WHERE token = ? AND status = 'pending'").get(token) as
     | { id: string; from_visitor: string }
@@ -58,8 +65,8 @@ export function openFriendLink(db: Db, token: string, viewer: string): OpenLinkO
   if (row.from_visitor === viewer) return { ok: false, code: "self" };
   if (areFriends(db, row.from_visitor, viewer)) return { ok: false, code: "already_friends" };
   // a link may be opened by several distinct people; each gets their own
-  // pending request once they ask to accept, so reuse this row's id loosely
-  // as "the request to act on" for this (from, viewer) pair
+  // friendship once they ask to accept, so reuse this row's id loosely as
+  // "the request to act on" for this (from, viewer) pair
   return { ok: true, requestId: row.id, fromVisitor: row.from_visitor };
 }
 

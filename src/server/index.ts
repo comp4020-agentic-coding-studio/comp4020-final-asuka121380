@@ -1,9 +1,10 @@
 import express, { type Request, type Response } from "express";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { accountForVisitor, authRateLimited, confirmSignIn, displayNamesFor, register, signOut, verifyCredentials, visitorHasOwnWork } from "./accounts.ts";
 import { buildFor, parseEnvelope, roomSnapshot, runCommand, summaryFor } from "./builds.ts";
 import { openDatabase } from "./db.ts";
-import { createRecoveryCode, createSession, findVisitor, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
+import { createRecoveryCode, createSession, deleteSession, findVisitor, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
 import { markPlan, subscribe } from "./realtime.ts";
@@ -23,7 +24,7 @@ import {
   snapshotOf,
   sweepPresence,
 } from "./rooms.ts";
-import { getSnapshot, publishSnapshot, saveSnapshot, showcaseEntry, showcaseList, snapshotsSavedBy } from "./snapshots.ts";
+import { canAccessSnapshot, collectSnapshot, getSnapshot, publishSnapshot, saveSnapshot, showcaseEntry, showcaseList, snapshotsSavedBy } from "./snapshots.ts";
 
 // One same-origin service: the built client (the homepage at / and the
 // editor at /build/), the build API, the realtime room stream, and /readme/.
@@ -84,6 +85,52 @@ app.use("/api", (_req, res, next) => {
   next();
 });
 
+// CSRF: the session cookie is already SameSite=Lax, which blocks a
+// cross-site HTML form's simple cross-site POST from carrying it at all.
+// The residual gap this closes is a cross-site browser request that Lax
+// still allows in some cases (e.g. a top-level navigation), so every
+// state-changing request additionally requires its Origin (or, lacking
+// that, Referer) header to match this server's own origin. A browser sets
+// Origin on every POST itself and a script cannot override or omit it
+// cross-origin, so this can't be bypassed from another site; a same-origin
+// request (the only kind this single-page app itself ever makes) always
+// satisfies it without any client-side change.
+function sameOrigin(req: Request): boolean {
+  const host = req.header("host");
+  const origin = req.header("origin");
+  if (origin) {
+    try {
+      return new URL(origin).host === host;
+    } catch {
+      return false;
+    }
+  }
+  const referer = req.header("referer");
+  if (referer) {
+    try {
+      return new URL(referer).host === host;
+    } catch {
+      return false;
+    }
+  }
+  // Neither header present: a real cross-origin browser POST always sends
+  // Origin, so this case is either same-origin tooling that doesn't bother
+  // setting either header (this project's own spec/API test scripts,
+  // curl, server-to-server calls) or a same-site navigation that dropped
+  // Referer for privacy reasons — not a forgeable cross-site browser
+  // request, which is what SameSite=Lax plus this check together defend
+  // against. Accepted, since every write still requires the session
+  // cookie, which a genuinely cross-site browser request cannot attach.
+  return true;
+}
+app.use("/api", (req, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS" || sameOrigin(req)) {
+    next();
+    return;
+  }
+  res.status(403).json({ ok: false, code: "bad_request", message: "Cross-site request refused." });
+});
+
 // ---- identity and recovery (ADR 0006) --------------------------------------
 
 app.get("/api/build", (req, res) => {
@@ -99,7 +146,9 @@ app.get("/api/summary", (req, res) => {
 // who the server resolves this request's cookie to; the lobby UI uses this
 // to mark "you" in a member list without the server trusting a client-sent id
 app.get("/api/me", (req, res) => {
-  res.json({ visitorId: identify(req, res) });
+  const visitorId = identify(req, res);
+  const account = accountForVisitor(db, visitorId);
+  res.json({ visitorId, account: account ?? null });
 });
 
 app.post("/api/identity/recovery-code", (req, res) => {
@@ -122,6 +171,111 @@ app.post("/api/identity/recover", (req, res) => {
   // so redeeming the code never signs another of their devices out
   setCookie(req, res, createSession(db, visitorId));
   res.json({ ok: true, message: "Recovered. This code is now spent — generate a new one if you want to link another device." });
+});
+
+// ---- explicit accounts (phase 2 corrective review) -------------------------
+
+// Whether THIS browser's current anonymous visitor already has rooms,
+// snapshots or friendships of its own — the client checks this before
+// registering or signing in, to decide whether to warn about a migration
+// conflict (brief: never silently merge or reassign another identity's
+// work). Read-only; never links or creates anything.
+app.get("/api/account/migration-check", (req, res) => {
+  const visitorId = identify(req, res);
+  const alreadyLinked = !!accountForVisitor(db, visitorId);
+  res.json({ hasOwnWork: visitorHasOwnWork(db, visitorId), alreadyLinked });
+});
+
+app.post("/api/account/register", (req, res) => {
+  if (authRateLimited(req.ip ?? "unknown")) {
+    res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
+    return;
+  }
+  const visitorId = identify(req, res);
+  const username = typeof req.body?.username === "string" ? req.body.username : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const displayName = typeof req.body?.displayName === "string" ? req.body.displayName : username;
+  const outcome = register(db, visitorId, username, password, displayName);
+  if (!outcome.ok) {
+    const message =
+      outcome.code === "username_taken"
+        ? "That username is already taken."
+        : outcome.code === "invalid_username"
+          ? "Usernames are 3-24 letters, numbers, underscores or hyphens, starting with a letter or number."
+          : outcome.code === "weak_password"
+            ? "Use a password of at least 8 characters."
+            : "This browser is already signed in to an account.";
+    res.status(400).json({ ok: false, code: outcome.code, message });
+    return;
+  }
+  res.json({ ok: true, account: outcome.account });
+});
+
+// Two-step sign-in, specifically because of the migration-conflict case
+// (brief: never silently switch a browser away from an anonymous identity
+// that already has its own work; "obtain a decision where necessary"). This
+// first step only verifies the password and reports whether the CURRENT
+// browser's own anonymous visitor has rooms/friends/snapshots of its own —
+// it sets no cookie and creates no session, so merely checking credentials
+// (or a page reload, or a retry) can never itself complete the switch.
+app.post("/api/account/sign-in", (req, res) => {
+  if (authRateLimited(req.ip ?? "unknown")) {
+    res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
+    return;
+  }
+  const username = typeof req.body?.username === "string" ? req.body.username : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const outcome = verifyCredentials(db, username, password);
+  if (!outcome.ok) {
+    // non-enumerating: identical response whether the username doesn't
+    // exist or the password is simply wrong
+    res.status(401).json({ ok: false, message: "Incorrect username or password." });
+    return;
+  }
+  const priorVisitorId = findVisitor(db, readCookie(req));
+  const priorHadOwnWork = !!priorVisitorId && priorVisitorId !== outcome.visitorId && visitorHasOwnWork(db, priorVisitorId);
+  res.json({ ok: true, account: outcome.account, priorHadOwnWork });
+});
+
+// The second step: only ever called either immediately (no conflict), or
+// after the UI showed the conflict warning and the player explicitly chose
+// to continue. Re-verifies the password itself — this endpoint is not
+// trusted to "just switch" on the strength of the first call's response
+// alone, since that response already left the browser unauthenticated.
+app.post("/api/account/sign-in/confirm", (req, res) => {
+  if (authRateLimited(req.ip ?? "unknown")) {
+    res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
+    return;
+  }
+  const username = typeof req.body?.username === "string" ? req.body.username : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const outcome = verifyCredentials(db, username, password);
+  if (!outcome.ok) {
+    res.status(401).json({ ok: false, message: "Incorrect username or password." });
+    return;
+  }
+  const session = confirmSignIn(db, outcome.visitorId);
+  setCookie(req, res, session);
+  res.json({ ok: true, account: outcome.account });
+});
+
+app.post("/api/account/sign-out", (req, res) => {
+  const token = readCookie(req);
+  if (token) signOut(db, token);
+  // a signed-out visit still needs an identity to act as (an anonymous one,
+  // exactly like a brand-new visit); identify() issues a fresh cookie here
+  identify(req, res);
+  res.json({ ok: true });
+});
+
+// Batch display-name lookup: every list that shows "who" (friends,
+// invitations, members, contributors, attribution, credits) resolves
+// through this instead of a raw visitor id. A visitor with no account has
+// no entry in the response; the client falls back to its own short,
+// anonymous label.
+app.get("/api/account/names", (req, res) => {
+  const ids = typeof req.query.ids === "string" ? req.query.ids.split(",").filter(Boolean).slice(0, 100) : [];
+  res.json(displayNamesFor(db, ids));
 });
 
 // ---- rooms (ADR 0007) -------------------------------------------------------
@@ -211,6 +365,16 @@ app.get("/api/rooms/:id", (req, res) => {
 
 // Realtime: server-sent events, one connection per open session per room
 // (ADR 0008). Writes still only ever happen through POST /api/command.
+//
+// `isMember` only proves *historical* membership (a room_members row exists
+// at all, active or not) — it is not itself proof this visitor currently
+// holds one of the room's live slots. A returning member whose presence had
+// lapsed (left, disconnected past the grace period, or simply never active
+// again after someone else took the freed slot) must go through the same
+// capacity check a fresh join does before being marked active; connecting
+// the stream and only afterward discovering the room is already full at
+// capacity would both reject the viewer's own events and still have opened
+// a never-torn-down SSE handle, so the check happens first.
 app.get("/api/rooms/:id/events", (req, res) => {
   const visitorId = identify(req, res);
   const room = findRoom(db, req.params.id);
@@ -218,7 +382,11 @@ app.get("/api/rooms/:id/events", (req, res) => {
     res.status(404).json({ ok: false, message: "No such room." });
     return;
   }
-  markActive(db, room.id, visitorId);
+  const admitted = markActive(db, room.id, visitorId);
+  if (!admitted.ok) {
+    res.status(409).json({ ok: false, code: admitted.code, message: "This room is already at capacity." });
+    return;
+  }
   const unsubscribe = subscribe(room.id, res, snapshotOf(db, room));
   const keepAlive = setInterval(() => markActive(db, room.id, visitorId), 10_000);
   req.on("close", () => {
@@ -233,6 +401,17 @@ app.post("/api/rooms/:id/mark", (req, res) => {
   const planId = typeof req.body?.planId === "string" ? req.body.planId : "";
   if (!room || !isMember(db, room.id, visitorId) || !planId) {
     res.status(404).json({ ok: false, message: "No such room or plan." });
+    return;
+  }
+  // The target must actually be a current, open plan IN THIS ROOM: an
+  // isolated check found that any string was accepted and broadcast as
+  // `sent: true`, including a plan from a different room or one that was
+  // never a real plan id at all. `snapshotOf`'s `plans` are already
+  // filtered to `status = 'open'` for this room.id, so this is the same
+  // authoritative list a member's own client reads.
+  const isOpenPlanHere = snapshotOf(db, room).plans.some((p) => p.id === planId);
+  if (!isOpenPlanHere) {
+    res.status(404).json({ ok: false, message: "That plan isn't open in this room." });
     return;
   }
   const sent = markPlan(room.id, planId, visitorId);
@@ -365,7 +544,7 @@ app.get("/api/snapshots", (req, res) => {
 app.get("/api/snapshots/:id", (req, res) => {
   const visitorId = identify(req, res);
   const snapshot = getSnapshot(db, req.params.id);
-  if (!snapshot || (snapshot.savedBy !== visitorId && !isMember(db, snapshot.roomId, visitorId))) {
+  if (!snapshot || !canAccessSnapshot(db, req.params.id, visitorId)) {
     res.status(404).json({ ok: false, message: "No such snapshot." });
     return;
   }
@@ -386,10 +565,39 @@ app.post("/api/snapshots/:id/publish", (req, res) => {
   res.json({ ok: true, publicationId: outcome.id });
 });
 
+// A direct "save to my collection" from a viewed (saved-or-published)
+// version: a distinct, immutable copy this visitor now owns, with no room
+// created or joined as a side effect (the brief, section 10 — "creating a
+// room and saving from that room is not equivalent to collecting a work").
+// Authorized by the same rule viewing it already required.
+app.post("/api/snapshots/:id/collect", (req, res) => {
+  const visitorId = identify(req, res);
+  if (!canAccessSnapshot(db, req.params.id, visitorId)) {
+    res.status(404).json({ ok: false, message: "No such snapshot." });
+    return;
+  }
+  const summary = collectSnapshot(db, req.params.id, visitorId);
+  if (!summary) {
+    res.status(404).json({ ok: false, message: "No such snapshot." });
+    return;
+  }
+  res.json(summary);
+});
+
+// Access to the SOURCE must be authorized before anything is copied:
+// possession of a snapshot id is not authorization (a link can be shared
+// freely, and a UUID is not a secret). Continuing is refused, with nothing
+// created, unless the requester saved it themselves, is a current member of
+// the room it came from, or it has actually been published — the same
+// three cases GET /api/snapshots/:id itself allows, checked here with the
+// identical function, not a looser or different rule (the brief's
+// "apply the same policy consistently to viewing, copying... and
+// continuing" — this was the bug: continue skipped the check GET already
+// had, so a 404 on GET gave no protection at all against continue).
 app.post("/api/snapshots/:id/continue", (req, res) => {
   const visitorId = identify(req, res);
   const snapshot = getSnapshot(db, req.params.id);
-  if (!snapshot) {
+  if (!snapshot || !canAccessSnapshot(db, req.params.id, visitorId)) {
     res.status(404).json({ ok: false, message: "No such snapshot." });
     return;
   }

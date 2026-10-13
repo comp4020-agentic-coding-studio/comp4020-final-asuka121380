@@ -88,6 +88,51 @@ describe("plans", () => {
     expect(again.json.ok).toBe(false);
   });
 
+  // Regression: an independent review found that a plan floating with no
+  // real or planned structure underneath it was rejected with "unsupported"
+  // — but the design explicitly permits proposing a future roof before its
+  // supporting walls exist (a plan is a suggestion, not a description of
+  // something already buildable). Realizing is a separate question, fully
+  // re-checked against live state, and correctly still requires support.
+  it("accepts a plan with no support underneath at all (a future roof before its walls), but refuses to realize it until the support is real", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+
+    const proposed = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 3, z: 0, rot: 0, colour: "sky" } });
+    expect(proposed.json.ok, JSON.stringify(proposed.json)).toBe(true);
+    const planId = proposed.json.snapshot.plans[0].id;
+    expect(proposed.json.snapshot.plans[0].y).toBe(3);
+
+    // can't be built yet: nothing real supports it at height 3 (a brick-2x4 is 3 plates tall)
+    const tooSoon = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, proposed.json.snapshot.revision);
+    expect(tooSoon.json.ok).toBe(false);
+    expect(tooSoon.json.code).toBe("unsupported");
+    expect(tooSoon.json.snapshot.plans.some((p: any) => p.id === planId)).toBe(true); // still open, not dropped
+
+    // build the wall underneath for real...
+    const wall = await command(a.cookie, room.roomId, { type: "place", placement: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "navy" } }, tooSoon.json.snapshot.revision);
+    expect(wall.json.ok).toBe(true);
+
+    // ...now the same plan can be realized
+    const realized = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, wall.json.snapshot.revision);
+    expect(realized.json.ok, JSON.stringify(realized.json)).toBe(true);
+  });
+
+  it("accepts a plan that collides with current real construction (it's only a proposal); realizing it is refused until the space is clear", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+    const real = await command(a.cookie, room.roomId, { type: "place", placement: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "navy" } });
+    expect(real.json.ok).toBe(true);
+
+    const proposed = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } }, real.json.snapshot.revision);
+    expect(proposed.json.ok, JSON.stringify(proposed.json)).toBe(true);
+    const planId = proposed.json.snapshot.plans[0].id;
+
+    const blocked = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, proposed.json.snapshot.revision);
+    expect(blocked.json.ok).toBe(false);
+    expect(blocked.json.code).toBe("collision");
+  });
+
   it("rejects realizing a plan that no longer fits, without silently dropping it", async () => {
     const a = await freshVisitor();
     const room = await createRoom(a.cookie);
@@ -103,6 +148,68 @@ describe("plans", () => {
     expect(realize.json.code).toBe("collision");
     // the plan itself is still there, open, not silently removed
     expect(realize.json.snapshot.plans.some((p: any) => p.id === planId)).toBe(true);
+  });
+});
+
+describe("marking a plan", () => {
+  // Regression: an isolated test found POST /api/rooms/:id/mark returned 200
+  // with { sent: true } for a nonexistent plan id — the endpoint checked room
+  // membership but never that the id named a real, currently-open plan in
+  // THAT room, so any string was accepted and broadcast over SSE.
+  it("refuses a nonexistent plan id, without broadcasting anything", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+    const res = await fetch(new URL(`/api/rooms/${room.roomId}/mark`, baseUrl), {
+      method: "POST",
+      headers: { cookie: a.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ planId: "not-a-real-plan-id" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("refuses a plan that belongs to a different room, even one this visitor is a member of", async () => {
+    const a = await freshVisitor();
+    const roomA = await createRoom(a.cookie);
+    const roomB = await createRoom(a.cookie);
+    const proposed = await command(a.cookie, roomA.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } });
+    const planId = proposed.json.snapshot.plans[0].id;
+
+    const crossRoom = await fetch(new URL(`/api/rooms/${roomB.roomId}/mark`, baseUrl), {
+      method: "POST",
+      headers: { cookie: a.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ planId }),
+    });
+    expect(crossRoom.status).toBe(404);
+  });
+
+  it("refuses a plan that has already been realized (no longer open)", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+    const proposed = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } });
+    const planId = proposed.json.snapshot.plans[0].id;
+    const realized = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, proposed.json.snapshot.revision);
+    expect(realized.json.ok).toBe(true);
+
+    const mark = await fetch(new URL(`/api/rooms/${room.roomId}/mark`, baseUrl), {
+      method: "POST",
+      headers: { cookie: a.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ planId }),
+    });
+    expect(mark.status).toBe(404);
+  });
+
+  it("accepts a real, currently-open plan in this room", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+    const proposed = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } });
+    const planId = proposed.json.snapshot.plans[0].id;
+    const mark = await fetch(new URL(`/api/rooms/${room.roomId}/mark`, baseUrl), {
+      method: "POST",
+      headers: { cookie: a.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ planId }),
+    });
+    expect(mark.status).toBe(200);
+    expect((await mark.json()).sent).toBe(true);
   });
 });
 

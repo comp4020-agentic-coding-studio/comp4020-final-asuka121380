@@ -122,8 +122,8 @@ export function validatePlacement(scene: SceneTemplate, state: BuildState, p: Pl
   return checkFit(scene, state.parts, p, def);
 }
 
-/** Bounds, collision and support for a part among `parts`; stock is the caller's business. */
-function checkFit(scene: SceneTemplate, parts: readonly PlacedPart[], p: Placement, def: PartDefinition): Rejection | null {
+/** Bounds and collision for a part among `parts`; support is checked separately by `checkFit`. */
+function checkBoundsAndCollision(scene: SceneTemplate, parts: readonly PlacedPart[], p: Placement, def: PartDefinition): Rejection | null {
   const size = rotatedSize(def, p.rot);
   const b = scene.bounds;
   if (p.x < 0 || p.z < 0 || p.y < 0 || p.x + size.w > b.w || p.z + size.d > b.d || p.y + def.h > b.h) {
@@ -140,7 +140,13 @@ function checkFit(scene: SceneTemplate, parts: readonly PlacedPart[], p: Placeme
       }
     }
   }
+  return null;
+}
 
+/** Bounds, collision and support for a part among `parts`; stock is the caller's business. */
+function checkFit(scene: SceneTemplate, parts: readonly PlacedPart[], p: Placement, def: PartDefinition): Rejection | null {
+  const base = checkBoundsAndCollision(scene, parts, p, def);
+  if (base) return base;
   if (p.y > 0 && supporters(def, p, parts).length === 0) {
     return { code: "unsupported", message: "Nothing to attach to there: it needs studs directly underneath." };
   }
@@ -244,29 +250,22 @@ export function checkPartRevision(state: BuildState, placedId: string, expectedR
 
 // ---- plans (ADR 0009) -------------------------------------------------------
 //
-// A plan is a transparent proposal: it costs no stock and must never block
-// real construction, so it is checked against bounds and a looser "is this
-// plausible geometry" support rule, never against real parts' occupancy.
-
-/**
- * Looser than `supporters()`: true if there is *any* footprint cell with
- * something at y-1 immediately below it, real or planned, or if y is 0 (the
- * plot itself always supports). A plan may describe a future state whose own
- * support doesn't exist yet either, so this only rejects plans floating over
- * nothing at all, not plans resting on other plans or on parts not yet built.
- */
-function plausibleSupport(def: PartDefinition, p: Pick<Placement, "x" | "y" | "z" | "rot">, parts: readonly PlacedPart[], plans: readonly Plan[]): boolean {
-  if (p.y === 0) return true;
-  const below = new Set(footprint(def, p).map((c) => `${c.x},${c.z}`));
-  const under = (q: Pick<Placement, "x" | "y" | "z" | "rot" | "partId">): boolean => {
-    const qd = partDef(q.partId);
-    if (!qd || q.y + qd.h !== p.y) return false;
-    return studCells(qd, q).some((c) => below.has(`${c.x},${c.z}`));
-  };
-  return parts.some(under) || plans.some((pl) => pl.status === "open" && under(pl));
-}
+// A plan is a transparent proposal, not a description of something already
+// buildable: it costs no stock and must never block real construction, and
+// — corrected per an independent review (the design explicitly permits
+// planning a future roof before its supporting walls exist) — it is never
+// rejected for lacking structural support, real or planned. A plan is
+// checked only against the kinds of input error that make it nonsense
+// regardless of what else exists yet: an unknown part, a disallowed
+// rotation or colour, a non-integer position, or sticking out of the plot.
+// It is never checked against real parts' occupancy either (so it can't
+// collide with, and is never blocked by, the current real construction).
+// "Valid proposal" and "currently buildable" are deliberately different
+// questions: `validateRealizePlan` asks the second one, in full, against
+// live state, at the moment someone actually tries to build it.
 
 export function validatePlan(scene: SceneTemplate, state: BuildState, p: Placement): Rejection | null {
+  void state; // kept for signature symmetry with validatePlacement; a plan checks no build state at all
   const def = partDef(p.partId);
   if (!def || !(p.partId in scene.kit)) return { code: "unknown_part", message: "That part isn't in this scene's kit." };
   if (!def.rotations.includes(p.rot)) return { code: "bad_rotation", message: "That rotation isn't allowed for this part." };
@@ -276,9 +275,6 @@ export function validatePlan(scene: SceneTemplate, state: BuildState, p: Placeme
   const b = scene.bounds;
   if (p.x < 0 || p.z < 0 || p.y < 0 || p.x + size.w > b.w || p.z + size.d > b.d || p.y + def.h > b.h) {
     return { code: "out_of_bounds", message: "That would stick out of the build plot." };
-  }
-  if (!plausibleSupport(def, p, state.parts, state.plans ?? [])) {
-    return { code: "unsupported", message: "That has nothing under it, real or planned, to rest on." };
   }
   return null;
 }
@@ -348,13 +344,30 @@ export function applyRecolour(state: BuildState, placedId: string, colour: strin
  * Every height, lowest first, at which a part fits over (x, z): in bounds,
  * clear of other parts, and on the plot or on studs (ADR 0005). Stock is
  * left out because it is the same at every height. The client offers these
- * as the preview's heights; the server never uses this, because it only
- * checks the placement it's sent.
+ * as the preview's heights for a REAL placement; the server never uses
+ * this, because it only checks the placement it's sent.
  */
 export function fitHeights(scene: SceneTemplate, def: PartDefinition, p: Pick<Placement, "x" | "z" | "rot">, parts: readonly PlacedPart[]): number[] {
   const out: number[] = [];
   for (let y = 0; y + def.h <= scene.bounds.h; y++) {
     if (!checkFit(scene, parts, { ...p, y, partId: def.id, colour: def.defaultColour }, def)) out.push(y);
+  }
+  return out;
+}
+
+/**
+ * Every height a PLAN could describe over (x, z): in bounds and clear of
+ * current real parts, but — unlike `fitHeights` — never requiring support,
+ * since a plan may describe a position nothing real holds up yet (a future
+ * roof before its walls). This is what the UI steps through while deciding
+ * where to propose, so "propose a future position with nothing under it"
+ * is actually reachable through Higher/Lower, not only through the
+ * backend accepting it if a client somehow constructed the command.
+ */
+export function planHeights(scene: SceneTemplate, def: PartDefinition, p: Pick<Placement, "x" | "z" | "rot">, parts: readonly PlacedPart[]): number[] {
+  const out: number[] = [];
+  for (let y = 0; y + def.h <= scene.bounds.h; y++) {
+    if (!checkBoundsAndCollision(scene, parts, { ...p, y, partId: def.id, colour: def.defaultColour }, def)) out.push(y);
   }
   return out;
 }

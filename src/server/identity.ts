@@ -47,6 +47,11 @@ export function createSession(db: Db, visitorId: string): string {
   return token;
 }
 
+/** Deletes exactly one session row: clean, server-side invalidation on sign-out, not only clearing the client's cookie. */
+export function deleteSession(db: Db, token: string): void {
+  db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hash(token));
+}
+
 // ---- recovery codes (ADR 0006) ---------------------------------------------
 
 /** Grouped base32 for a person to type back: no 0/1/O/I, 20 bytes of entropy. */
