@@ -165,6 +165,37 @@ recolouring and removing real bricks with propagation measured at 2–50 ms
 accept-and-join path for an invite-only room, including the refusals for an
 uninvited friend and an uninvited stranger (`scripts/invites.ts`).
 
+## As built, corrected (independent review, 13 Oct 2026): capacity enforcement unified across every admission path
+
+The first implementation's capacity check only ran when a visitor had
+*no* `room_members` row at all: `join` and `respondToInvite` each checked
+`n >= maxPlayers` solely in the "brand-new member" branch, waving through
+anyone who already had a historical row (ever joined, ever invited, left
+or not) regardless of how many *active* members the room currently held.
+An independent review demonstrated the bypass directly: with a 2-player
+room at capacity (A and B both active), B leaves, C joins (now C and A
+active), and B then rejoins successfully — reporting 3 active members in
+a 2-player room, bypassing the limit through nothing more than having
+been a member before.
+
+Fixed by factoring every active/inactive transition through one function,
+`admitActive()` (`src/server/rooms.ts`), which re-checks capacity
+regardless of whether the visitor has a historical `room_members` row,
+and is the *only* code path that flips a row from inactive to active or
+inserts a new active one. `join`, `respondToInvite`'s acceptance branch,
+and the SSE connect/keep-alive path (`markActive`, now capacity-checked
+for a currently-inactive visitor rather than assumed-fine) all call it;
+none has its own separate capacity arithmetic anymore. An already-active
+visitor's own request (a second tab, or the periodic SSE heartbeat) is
+always a cheap no-op, never re-checked and never capacity-consuming,
+preserving the original "same visitor, many tabs" rule. Verified by
+`spec/server/capacity.test.ts` against seven scenarios directly: leave
+then replacement then rejoin, a presence-sweep expiry then replacement
+then return, the returning host (no exemption for having created the
+room), multiple tabs for one active identity, an accepted invitation
+re-admitting past capacity, an SSE reconnect for a returning member, and
+concurrent join attempts for the last slot.
+
 ## What's still out of scope for this phase
 
 - A full room-management UI (renaming, transferring host, kicking a

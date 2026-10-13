@@ -23,6 +23,19 @@ it is implemented, but only to the extent recorded as DONE in
 `DEVELOPMENT_LOG.md` at any given time — never claim a brief's requirement
 is met before its tests and evidence exist.
 
+**Explicit accounts (author, 13 Oct 2026; ADR 0010; author-approved scope
+change, overriding ADR 0006's earlier cookie-first-only framing).** A real,
+visible registration/sign-in flow is now in scope: local username/password
+accounts (Node's own `scrypt`, never a hand-rolled algorithm), layered OVER
+the existing anonymous-visitor model rather than replacing it — an account
+is a durable label and login for exactly one visitor_id, so every room,
+friendship and snapshot stays keyed on `visitor_id` unchanged. No external
+identity provider, no email, no password-reset flow: these all remain out
+of scope unless the author separately asks for them (a change to the
+no-runtime-external-services rule below). Browsing and building still need
+no account at all; see ADR 0010 for the full architecture and the
+migration-conflict handling.
+
 ## Development log and commits (author, 6 Oct 2026)
 
 `DEVELOPMENT_LOG.md` is the running factual record. Each kind of record has
@@ -118,6 +131,28 @@ Each entry gives, in proportion to the change:
   (ADR 0006).
 - Snapshot live presence, plan marks, or room invitations as part of a saved
   work (ADR 0009).
+- Let possessing a snapshot id alone authorize reading, copying or
+  continuing it. Access requires having saved it, being a current member of
+  the room it came from, or its having been published — checked identically
+  at every read and write path, not only at the one a prior pass happened to
+  cover (ADR 0009, corrected 13 Oct 2026 after an independent review found
+  `continue` skipped the check `GET` already had).
+- Let a visitor's historical room membership (a `room_members` row existing
+  at all) substitute for an active-capacity check. Every admission to an
+  active slot — a fresh join, a returning member, an accepted invitation, an
+  SSE reconnect — goes through the one capacity-checking path regardless of
+  prior membership (ADR 0007, corrected 13 Oct 2026 after an independent
+  review demonstrated a returning member exceeding a room's capacity).
+- Require real or planned structural support for a PLAN (as opposed to a
+  real placement, which still requires it). A plan may describe a position
+  nothing yet built supports — a future roof before its walls — and is
+  checked only for being well-formed input within scene bounds (ADR 0009,
+  corrected 13 Oct 2026: the first cut's "plausible support" check was still
+  too strict against the brief's own example).
+- Hand-roll password hashing, store a password anywhere but its salted
+  `scrypt` hash, or let checking credentials alone (without an explicit
+  confirmation step) switch a browser away from an anonymous identity that
+  already has rooms, friendships or saved work of its own (ADR 0010).
 
 ## Shape of the code
 
@@ -223,12 +258,17 @@ Each entry gives, in proportion to the change:
 
 ## Rooms, realtime and cooperation (author, 13 Oct 2026; ADRs 0006–0009)
 
-- **Identity.** A visitor is still a browser cookie by default (ADR 0001/0003).
-  A player may opt in to a single-use recovery code, generated from an
-  identity panel, to link a second browser to the same identity. Recovery
-  codes are stored only as a hash, rate-limited, never logged or put in a
-  URL, and are a completely separate mechanism from friend-request links
-  (ADR 0006).
+- **Identity.** A visitor is still a browser cookie by default (ADR
+  0001/0003). A player may opt in to a single-use recovery code, generated
+  from an identity panel, to link a second browser to the same identity
+  without registering anything. Recovery codes are stored only as a hash,
+  rate-limited, never logged or put in a URL, and are a completely separate
+  mechanism from friend-request links (ADR 0006) **and** from account
+  passwords (ADR 0010). A player may also register an explicit, visible
+  account (local username/password, `scrypt`-hashed) as the primary way to
+  reliably reach the same rooms/friends/collection from another device;
+  this never replaces the cookie/visitor model, only layers a login over
+  one visitor_id (ADR 0010).
 - **Rooms, not per-visitor builds.** A build belongs to a room with up to
   the scene's configured `maxPlayers` (Beach Houses: 2). A room is public
   (listed, joinable while capacity allows) or invite-only (unlisted,

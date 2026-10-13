@@ -203,6 +203,46 @@ initial host-only recommendation)
   (author), matching ADR 0007's migration to `invite_only` rooms with
   `allow_publish = false`.
 
+## As built, corrected (independent review, 13 Oct 2026): plans never require support
+
+The first implementation's `plausibleSupport` (described above) still
+rejected a plan with *nothing at all* — real or planned — beneath it,
+including at height 0 in some code paths, reasoning that this excluded
+only "floating over nothing", not genuine future positions. An independent
+review found this still too strict against the brief's own example: a
+roof proposed before *any* of its supporting walls exist (not merely
+before the wall directly beneath that one roof panel) was refused with
+`unsupported`, which is exactly the scenario the brief's "planning a
+future roof before its supporting structure exists" was written to allow.
+
+`validatePlan` (`src/domain/rules.ts`) no longer checks support at all,
+in either its strict (`supporters()`) or relaxed (`plausibleSupport`)
+form. It validates only: known part/kit membership, allowed rotation,
+palette colour, integer position, and scene bounds — the same "not
+nonsense geometry" standard the original decision intended, now applied
+consistently rather than stopping short of it. `checkFit` was split into
+`checkBoundsAndCollision` (shared) plus the support check (used only by
+real placement, via `checkFit` itself), so the two paths no longer
+duplicate bounds/collision logic while genuinely diverging on support.
+**Realizing** a plan is unchanged: it still re-validates full
+`validatePlacement`, support included, against live state, so a plan can
+describe something not yet buildable but can never become a real part
+until it actually is.
+
+The client's height-stepping (`src/client/state/store.ts`) needed a
+matching change to make this reachable through the UI, not only through
+the API: `fitHeights` (real, supported heights) and a new `planHeights`
+(no collision, not required to be supported) are now tracked separately
+as a preview's `fits`/`planFits`. Lower is unchanged; Higher, once past
+the topmost real height, climbs one level at a time through positions
+only a plan could occupy, so "propose a future roof with nothing under
+it" is something a player can actually steer the preview onto with the
+visible Higher button, not only something the backend happens to accept
+if a client somehow constructed the right command. `scripts/review-fixes.ts`
+verifies exactly this path end to end (stepping Higher past the real
+heights, confirming Place is refused there but Propose instead is
+enabled, and that clicking it actually creates the plan).
+
 ## As built (agent; revises the plan above)
 
 - **Inherited credits are their own table, not folded into
@@ -251,6 +291,42 @@ initial host-only recommendation)
   inherited credits with working friend-request buttons — plus the two
   negative cases above, 16 checks total, passing consistently across
   multiple clean reruns.
+
+## As built, corrected (independent review, 13 Oct 2026): continuation requires authorization, not just a known id
+
+`POST /api/snapshots/:id/continue` originally authorized nothing: it only
+checked that a snapshot with that id existed, then copied its contents and
+made the requester host of a new room from it. `GET /api/snapshots/:id`,
+by contrast, already refused a stranger with a 404. An independent review
+showed this was a real bypass, not merely redundant with the showcase
+gate: a private snapshot id obtained any way (a shared link, a guess, a
+leaked URL) let a complete stranger copy its real construction and
+attribution immediately, regardless of what the *derived* room's own
+visibility turned out to be — by the time `continue` returns 200, the
+disclosure has already happened. Fixed with `canAccessSnapshot()`
+(`src/server/snapshots.ts`): a visitor may read, copy or continue a
+snapshot only if they saved it themselves, are a current member of the
+room it was saved from, or it has been published. `GET`, `continue` and
+the new `collect` endpoint (below) all call the identical function, so the
+policy is enforced the same way at every entry point, not re-derived
+per-route. A regression test specifically covers "GET correctly refuses
+it, but continue used to let it through anyway", with a snapshot
+containing real construction and attribution, not an empty kit.
+
+## As built (added, not revised): saving a published version directly to a collection
+
+Section 10 of the follow-up review asked for a direct "save to my
+collection" action on a viewed (saved-or-published) version, distinct
+from continuing it into a room: "creating a room and saving from that
+room is not equivalent to collecting a work for later." `collectSnapshot`
+(`src/server/snapshots.ts`) copies every child row (`snapshot_parts`,
+`snapshot_inventory`, `snapshot_contributors`, `snapshot_inherited_credits`,
+`snapshot_plans`) from the source snapshot directly into a brand-new
+snapshot row owned by the collector, inheriting `allow_publish` and
+`source_snapshot_id` from the source (never more permissive than it,
+exactly as `saveSnapshot`'s own lineage rule already requires) — and
+creates or joins no room at all. Authorized by the same
+`canAccessSnapshot()` check as viewing and continuing.
 
 ## Consequences
 
