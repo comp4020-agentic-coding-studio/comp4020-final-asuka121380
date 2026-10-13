@@ -443,6 +443,7 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
   const [inviteTo, setInviteTo] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [savedSnapshotId, setSavedSnapshotId] = useState<string | null>(null);
 
   if (!snapshot || !roomId) return null; // the default-room path has no room to show a panel for
 
@@ -461,7 +462,8 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
   const save = async () => {
     setSaveStatus("Saving a copy…");
     try {
-      await saveRoom(roomId);
+      const summary = await saveRoom(roomId);
+      setSavedSnapshotId(summary.id);
       setSaveStatus("Saved to your collection.");
     } catch {
       setSaveStatus("Couldn't save a copy; try again.");
@@ -524,8 +526,15 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
             <a className="btn btn-small" href="/build/">
               All rooms
             </a>
+            <a className="btn btn-small" href="/build/?view=collection">
+              My collection
+            </a>
           </div>
-          {saveStatus && <p className="fineprint" role="status">{saveStatus}</p>}
+          {saveStatus && (
+            <p className="fineprint" role="status">
+              {saveStatus} {savedSnapshotId && <a href={`/build/?snapshot=${savedSnapshotId}`}>View it</a>}
+            </p>
+          )}
         </div>
       )}
     </>

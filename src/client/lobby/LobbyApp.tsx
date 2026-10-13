@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { sceneInfo } from "../scenes/registry.ts";
 import { STREET_SCENE as scene } from "../../domain/scene.ts";
 import { brandMark } from "../ui/iso.ts";
+import { CollectionPage, ShowcasePage, SnapshotViewerPage } from "./Collection.tsx";
 import {
   createFriendLink,
   createRecoveryCode,
@@ -402,6 +403,18 @@ export function LobbyApp() {
     location.href = `/build/room/${roomId}${location.search}`;
   };
 
+  // No router: /build/ itself is the lobby, and a few query params pick one
+  // of a handful of read-only pages (ADR 0009) without a new route tree.
+  const params = new URLSearchParams(location.search);
+  const snapshotId = params.get("snapshot");
+  const showcaseId = params.get("showcase");
+  const view = params.get("view");
+
+  if (snapshotId) return <SnapshotViewerPage id={snapshotId} selfId={selfId} />;
+  if (showcaseId) return <SnapshotViewerPage id={showcaseId} published selfId={selfId} />;
+  if (view === "collection") return <CollectionPage selfId={selfId} />;
+  if (view === "showcase") return <ShowcasePage />;
+
   return (
     <div className="lobby">
       <header className="lobby-header">
@@ -413,6 +426,9 @@ export function LobbyApp() {
         <p className="lobby-hint">
           Up to {scene.maxPlayers} people share one room's inventory and construction. Plans and marks let you suggest
           ideas without spending anyone's stock.
+        </p>
+        <p className="lobby-hint">
+          <a href="/build/?view=collection">Your collection</a> · <a href="/build/?view=showcase">Public showcase</a>
         </p>
       </header>
       <main className="lobby-grid">

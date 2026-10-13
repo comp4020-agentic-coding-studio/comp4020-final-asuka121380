@@ -119,6 +119,8 @@ export interface SnapshotSummary {
   savedBy: string;
   savedAt: string;
   allowPublish: boolean;
+  /** The snapshot the room this was saved from was itself continued from, if any. */
+  sourceSnapshotId: string | null;
 }
 export const saveRoom = (roomId: string): Promise<SnapshotSummary> => fetch(`/api/rooms/${roomId}/save`, { method: "POST" }).then((r) => json(r));
 
@@ -127,7 +129,10 @@ export const mySnapshots = (): Promise<SnapshotSummary[]> => fetch("/api/snapsho
 export interface SnapshotDetail extends SnapshotSummary {
   parts: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string; placedBy: string; proposedBy?: string; editedBy?: string }[];
   inventory: Record<string, number>;
+  /** Who actually built in the room this snapshot captures. */
   contributors: { visitorId: string; firstContributionAt: string }[];
+  /** Credited from an earlier snapshot in the chain; never conflated with `contributors`. */
+  inheritedCredits: { visitorId: string; firstContributionAt: string }[];
 }
 export const getSnapshot = (id: string): Promise<SnapshotDetail> => fetch(`/api/snapshots/${id}`).then((r) => json(r));
 
@@ -135,7 +140,17 @@ export function publishSnapshot(id: string): Promise<{ ok: boolean; publicationI
   return fetch(`/api/snapshots/${id}/publish`, { method: "POST" }).then((r) => r.json());
 }
 
-export function continueSnapshot(id: string, visibility: "public" | "invite_only", allowPublish: boolean): Promise<{ roomId: string }> {
+/**
+ * The server may clamp the requested visibility/publish settings if the
+ * source snapshot is restricted (never more permissive than its lineage),
+ * so the response's own `visibility`/`allowPublish` are what actually
+ * applied, which may differ from what was requested.
+ */
+export function continueSnapshot(
+  id: string,
+  visibility: "public" | "invite_only",
+  allowPublish: boolean,
+): Promise<{ roomId: string; visibility: "public" | "invite_only"; allowPublish: boolean }> {
   return fetch(`/api/snapshots/${id}/continue`, {
     method: "POST",
     headers: { "content-type": "application/json" },

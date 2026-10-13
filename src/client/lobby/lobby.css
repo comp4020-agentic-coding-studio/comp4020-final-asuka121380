@@ -186,3 +186,57 @@ fieldset.field {
     padding: 1rem 0.75rem 3rem;
   }
 }
+
+/* ---- collection, showcase and the read-only snapshot viewer ------------- */
+
+.snapshot-page {
+  display: grid;
+  gap: 1rem;
+}
+.snapshot-viewer {
+  height: min(60vh, 32rem);
+  overflow: hidden;
+}
+.viewer-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.credits p {
+  margin: 0.45rem 0;
+  font-size: 0.9rem;
+}
+.credit-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.credit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.credit-chip button {
+  padding: 0 0.3rem;
+  border: 0;
+  background: none;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--blue);
+  cursor: pointer;
+}
+.continue-box {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 2px solid var(--line);
+}
+.continue-box h3 {
+  margin: 0 0 0.3rem;
+}
