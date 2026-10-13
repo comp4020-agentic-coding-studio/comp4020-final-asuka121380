@@ -13,8 +13,9 @@ const baseUrl = inject("baseUrl");
 
 interface Snapshot {
   buildId: string;
+  roomId: string;
   revision: number;
-  parts: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string }[];
+  parts: { id: string; partId: string; x: number; y: number; z: number; rot: number; colour: string; rev?: number }[];
   inventory: Record<string, number>;
 }
 
@@ -98,13 +99,55 @@ describe("a visitor's build", () => {
     expect(after.inventory).toEqual(build.inventory);
   });
 
-  it("refuses a command made against a stale revision", async () => {
+  // ADR 0008: a placement is checked only against live state (collision,
+  // bounds, stock), never gated on a stale whole-room revision, because two
+  // people placing in two different spots must both be able to succeed.
+  it("accepts a second placement sent with a stale revision, as long as it doesn't actually conflict", async () => {
     const { cookie, build } = await newVisitor();
     await send(cookie, place(build.revision, {}));
     const stale = await send(cookie, place(build.revision, { x: 4 }));
-    expect(stale.status).toBe(409);
-    expect(stale.json.code).toBe("revision_conflict");
+    expect(stale.status).toBe(200);
+    expect(stale.json.ok).toBe(true);
+    expect((await load(cookie)).parts).toHaveLength(2);
+  });
+
+  it("still refuses a placement that collides, regardless of the revision sent", async () => {
+    const { cookie, build } = await newVisitor();
+    await send(cookie, place(build.revision, {}));
+    const colliding = await send(cookie, place(build.revision, {}));
+    expect(colliding.status).toBe(422);
+    expect(colliding.json).toMatchObject({ ok: false, code: "collision" });
     expect((await load(cookie)).parts).toHaveLength(1);
+  });
+
+  it("refuses an edit against a part whose own revision has moved on, without rejecting an unrelated edit", async () => {
+    const { cookie, build } = await newVisitor();
+    await send(cookie, place(build.revision, { x: 0, z: 0 }));
+    await send(cookie, place(build.revision, { x: 4, z: 0 }));
+    const s = await load(cookie);
+    const [a, b] = s.parts;
+
+    // someone (or some other tab) recolours `a`, moving its own revision on
+    await send(cookie, { commandId: randomUUID(), expectedRevision: s.revision, command: { type: "recolour", placedId: a.id, colour: "sky" } });
+
+    // a stale edit aimed at `a` specifically is refused, by its own version...
+    const stale = await send(cookie, {
+      commandId: randomUUID(),
+      expectedRevision: s.revision,
+      command: { type: "recolour", placedId: a.id, colour: "rose", expectedRev: a.rev ?? 0 },
+    });
+    expect(stale.status).toBe(409);
+    expect(stale.json.code).toBe("part_conflict");
+
+    // ...but an edit to the untouched `b`, sent with the same stale room
+    // revision, is unaffected: it is gated on b's own revision, not a's
+    const unrelated = await send(cookie, {
+      commandId: randomUUID(),
+      expectedRevision: s.revision,
+      command: { type: "recolour", placedId: b.id, colour: "rose", expectedRev: b.rev ?? 0 },
+    });
+    expect(unrelated.status).toBe(200);
+    expect(unrelated.json.ok).toBe(true);
   });
 
   it("won't remove a part that is something's only support, and returns removed parts to the kit", async () => {

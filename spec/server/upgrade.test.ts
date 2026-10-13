@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { buildFor, runCommand, visitorFor } from "../../src/server/builds.ts";
-import { openDatabase } from "../../src/server/db.ts";
+import { buildFor, runCommand } from "../../src/server/builds.ts";
+import { backfillRooms, openDatabase } from "../../src/server/db.ts";
+import { visitorFor } from "../../src/server/identity.ts";
 import { STREET_SCENE as scene } from "../../src/domain/scene.ts";
 
 // A build saved under scene version 1 must still load, keep every saved part
@@ -33,6 +34,9 @@ function seedV1(): { db: ReturnType<typeof openDatabase>; visitorId: string; bui
     visitorId,
     t,
   );
+  // a real restart runs this for us (openDatabase); here the v1 build is
+  // seeded by hand, after the database was already opened, so it's rerun
+  backfillRooms(db);
   return { db, visitorId, buildId, partId };
 }
 
@@ -43,7 +47,9 @@ describe("a build saved under scene version 1", () => {
     expect(snap.buildId).toBe(buildId);
     expect(snap.templateVersion).toBe(scene.version);
     expect(snap.revision).toBe(1);
-    expect(snap.parts).toEqual([{ id: partId, partId: "brick-2x4", x: 6, y: 0, z: 2, rot: 0, colour: "brick-red" }]);
+    expect(snap.parts).toEqual([
+      expect.objectContaining({ id: partId, partId: "brick-2x4", x: 6, y: 0, z: 2, rot: 0, colour: "brick-red", placedBy: visitorId }),
+    ]);
     for (const [p, q] of Object.entries(v1Kit)) expect(snap.inventory[p], p).toBe(p === "brick-2x4" ? q - 1 : q);
     for (const [p, q] of Object.entries(scene.additions[2])) expect(snap.inventory[p], p).toBe(q);
     // K = held + placed for every type
@@ -62,7 +68,7 @@ describe("a build saved under scene version 1", () => {
   it("accepts a new decorative part after the upgrade, through the command path", () => {
     const { db, visitorId } = seedV1();
     const snap = buildFor(db, visitorId);
-    const { result } = runCommand(db, visitorId, {
+    const { result } = runCommand(db, visitorId, snap.roomId, {
       commandId: randomUUID(),
       expectedRevision: snap.revision,
       command: { type: "place", placement: { partId: "planter-1x2", x: 2, y: 0, z: 6, rot: 0, colour: "bark" } },
