@@ -5,11 +5,13 @@ import { sceneInfo } from "./scenes/registry.ts";
 import { brandMark } from "./ui/iso.ts";
 import { Workbench } from "./scene/Workbench.tsx";
 import { pictures, type Pictures } from "./scene/thumbnails.ts";
+import { inviteToRoom, leaveRoom, saveRoom } from "./state/api.ts";
 import {
   catalog,
   choosePart,
   cycle,
   ensureAnchor,
+  getRoomId,
   getState,
   markPlanForEveryone,
   moveOnScreen,
@@ -57,11 +59,7 @@ function SaveStatus() {
     case "loading":
       return <span className="chip">Loading your build…</span>;
     case "load-failed":
-      return (
-        <span className="chip chip-error">
-          Couldn't load ({save.message}) <button onClick={() => location.reload()}>Reload</button>
-        </span>
-      );
+      return null; // the full-page AccessScreen (App) covers this case
     case "saving":
       return <span className="chip">Saving…</span>;
     case "saved":
@@ -73,6 +71,16 @@ function SaveStatus() {
         </span>
       );
   }
+}
+
+/** The realtime stream's own state (ADR 0008): independent of whether a command can still be sent over plain HTTP. */
+function ConnectionChip() {
+  const connection = useApp((s) => s.connection);
+  const durable = useApp((s) => s.durable);
+  if (!durable || connection === "connected") return null;
+  if (connection === "reconnecting") return <span className="chip chip-warn">Reconnecting…</span>;
+  if (connection === "offline") return <span className="chip chip-warn">Live updates paused</span>;
+  return null; // "connecting": the initial SaveStatus "Loading…" already covers this moment
 }
 
 function Swatches({ value, onPick, label }: { value: string; onPick: (id: string) => void; label: string }) {
@@ -412,10 +420,112 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             <dt>T / Home</dt>
             <dd>top view / reset view</dd>
           </dl>
-          <p className="fineprint">
-            Your build is saved on the server against this browser. Clearing this site's cookies, or another device, starts
-            afresh: there are no accounts.
+          <h3>Plans and marks</h3>
+          <p>
+            Propose instead of placing to show a transparent suggestion that costs no stock. Anyone can build a plan, or
+            mark it for everyone, which briefly highlights it for other people in the room.
           </p>
+          <p className="fineprint">
+            Your build is saved on the server against this browser. Clearing this site's cookies starts afresh unless
+            you've generated a recovery code from the room lobby.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Current members (live presence) and permanent contributors (ADR 0007/0009), kept visibly distinct. */
+function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const snapshot = useApp((s) => s.snapshot);
+  const selfId = useApp((s) => s.selfId);
+  const roomId = getRoomId();
+  const [inviteTo, setInviteTo] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  if (!snapshot || !roomId) return null; // the default-room path has no room to show a panel for
+
+  const members = snapshot.members;
+  const contributors = snapshot.contributors;
+  const active = members.filter((m) => m.active).length;
+
+  const invite = async () => {
+    const to = inviteTo.trim();
+    if (!to) return;
+    const result = await inviteToRoom(roomId, to);
+    setInviteStatus(result.ok ? "Invitation sent." : result.message ?? "Couldn't invite them — are they your friend?");
+    if (result.ok) setInviteTo("");
+  };
+
+  const save = async () => {
+    setSaveStatus("Saving a copy…");
+    try {
+      await saveRoom(roomId);
+      setSaveStatus("Saved to your collection.");
+    } catch {
+      setSaveStatus("Couldn't save a copy; try again.");
+    }
+  };
+
+  const leave = async () => {
+    await leaveRoom(roomId);
+    location.href = "/build/";
+  };
+
+  return (
+    <>
+      <button className="chip-button" aria-expanded={open} onClick={onToggle}>
+        Room <span className="room-occupancy">{active}/{snapshot.maxPlayers}</span>
+      </button>
+      {open && (
+        <div className="help room-panel" role="dialog" aria-label="This room">
+          <h2>{snapshot.visibility === "public" ? "Public room" : "Invite-only room"}</h2>
+          <h3>Here now</h3>
+          <ul className="people">
+            {members.map((m) => (
+              <li key={m.visitorId} className={m.active ? "" : "inactive"}>
+                {m.visitorId === selfId ? "You" : m.visitorId.slice(0, 8)}
+                {m.isHost && <span className="tag room-tag">Host</span>}
+                {!m.active && <span className="room-tag room-tag-muted">away</span>}
+              </li>
+            ))}
+          </ul>
+          <h3>Contributors</h3>
+          <p className="fineprint">Everyone who has ever placed a real part here, even after leaving.</p>
+          {contributors.length === 0 ? (
+            <p className="fineprint">No one has placed a part yet.</p>
+          ) : (
+            <ul className="people">
+              {contributors.map((c) => (
+                <li key={c.visitorId}>{c.visitorId === selfId ? "You" : c.visitorId.slice(0, 8)}</li>
+              ))}
+            </ul>
+          )}
+          {snapshot.visibility === "invite_only" && (
+            <>
+              <h3>Invite a friend</h3>
+              <div className="field-row">
+                <input value={inviteTo} onChange={(e) => setInviteTo(e.target.value)} placeholder="Their id (from Friends)" aria-label="Friend's id to invite" />
+                <button className="btn btn-small" onClick={() => void invite()} aria-disabled={!inviteTo.trim()}>
+                  Invite
+                </button>
+              </div>
+              {inviteStatus && <p className="fineprint" role="status">{inviteStatus}</p>}
+            </>
+          )}
+          <div className="room-panel-actions">
+            <button className="btn btn-small" onClick={() => void save()}>
+              Save a copy
+            </button>
+            <button className="btn btn-small btn-danger danger" onClick={() => void leave()}>
+              Leave room
+            </button>
+            <a className="btn btn-small" href="/build/">
+              All rooms
+            </a>
+          </div>
+          {saveStatus && <p className="fineprint" role="status">{saveStatus}</p>}
         </div>
       )}
     </>
@@ -424,13 +534,42 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
 
 const MARK = brandMark();
 
+/** A full-page state for a room that couldn't be opened at all: access denied, full, or a network failure. */
+function AccessScreen({ code, message }: { code?: "access_denied" | "room_full"; message?: string }) {
+  const title = code === "access_denied" ? "This room isn't open to you" : code === "room_full" ? "This room is full" : "Couldn't load this room";
+  const body =
+    code === "access_denied"
+      ? "It's invite-only, and you don't have an accepted invitation, or it no longer exists."
+      : code === "room_full"
+        ? "It's already got as many people as this scene allows. Try again later, or start your own room."
+        : message || "Something went wrong reaching the server.";
+  return (
+    <div className="access-screen">
+      <div className="card access-card">
+        <h1>{title}</h1>
+        <p>{body}</p>
+        <div className="context-actions">
+          <a className="btn btn-red" href="/build/">
+            Back to the room lobby
+          </a>
+          <button className="btn" onClick={() => location.reload()}>
+            Try again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const deleting = useApp((s) => s.deleting);
   const placed = useApp((s) => s.snapshot?.parts.length ?? 0);
+  const save = useApp((s) => s.save);
   const [pics, setPics] = useState<Pictures | null>(null);
   const [trayOpen, setTrayOpen] = useState(true);
   const [targetOpen, setTargetOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [roomOpen, setRoomOpen] = useState(false);
   const dockRef = useRef<HTMLElement>(null);
   const [dockHeight, setDockHeight] = useState(0);
   const [reserve, setReserve] = useState(0);
@@ -439,7 +578,8 @@ export function App() {
     void pictures(scene.reference).then(setPics);
   }, []);
   useLayoutEffect(() => {
-    const el = dockRef.current!;
+    const el = dockRef.current;
+    if (!el) return; // not mounted when the AccessScreen replaces the dock
     // The 3D view keeps the plot above the dock, but reserves only the dock's
     // stable part: the tray and one row of controls. The top row grows and
     // shrinks with what's held or selected, and if the view followed it the
@@ -456,6 +596,11 @@ export function App() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // A room that couldn't be opened at all (invite-only with no invitation,
+  // full, or gone) replaces the whole editor shell, rather than loading a
+  // broken 3D view behind an error chip.
+  if (save.status === "load-failed") return <AccessScreen code={save.code} message={save.message} />;
 
   return (
     <div className="app" style={{ "--dock-h": `${dockHeight}px` } as CSSProperties}>
@@ -476,6 +621,8 @@ export function App() {
 
       <nav className="overlay overlay-right" aria-label="View and status">
         <SaveStatus />
+        <ConnectionChip />
+        <RoomPanel open={roomOpen} onToggle={() => setRoomOpen((o) => !o)} />
         <Help open={helpOpen} onToggle={() => setHelpOpen((o) => !o)} />
         <button className="chip-button" onClick={() => requestCamera("top")}>
           Top view <kbd>T</kbd>

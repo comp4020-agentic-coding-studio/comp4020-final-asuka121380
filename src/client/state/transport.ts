@@ -10,30 +10,58 @@ export interface Transport {
 }
 
 export class NetworkError extends Error {}
+/** The room doesn't exist, or isn't one this visitor may read (invite-only, not a member). */
+export class AccessError extends Error {}
+/** The room exists and this visitor could join it, but it's already at its scene's maxPlayers. */
+export class RoomFullError extends Error {}
 
-export const httpTransport: Transport = {
-  durable: true,
-  async load() {
-    const res = await fetch("/api/build", { credentials: "same-origin" });
-    if (!res.ok) throw new NetworkError(`couldn't load the build (HTTP ${res.status})`);
-    return (await res.json()) as Snapshot;
-  },
-  async send(envelope) {
-    let res: Response;
-    try {
-      res = await fetch(`/api/command`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(envelope),
-      });
-    } catch {
-      throw new NetworkError("no connection to the server");
-    }
-    if (res.status >= 500) throw new NetworkError(`the server failed (HTTP ${res.status})`);
-    return (await res.json()) as CommandResult;
-  },
-};
+/**
+ * A specific room (ADR 0007). `roomId` undefined means "my own default solo
+ * room", the back-compat path the server still serves at `/api/build` and
+ * `/api/command` for a visitor with no room chosen yet.
+ */
+export function roomTransport(roomId: string | undefined): Transport {
+  const buildUrl = roomId ? `/api/rooms/${roomId}` : "/api/build";
+  const commandUrl = roomId ? `/api/rooms/${roomId}/command` : "/api/command";
+  return {
+    durable: true,
+    async load() {
+      // A direct link, a reload, or a reconnect is the same request as a
+      // join: it restores this visitor's membership (a no-op if they're
+      // already in) before reading state, so "restores the correct room and
+      // authoritative state" holds whether this is the first visit or the
+      // hundredth. For an invite-only room with no accepted invitation, this
+      // is refused exactly as a join would be.
+      if (roomId) {
+        const joined = await fetch(`/api/rooms/${roomId}/join`, { method: "POST", credentials: "same-origin" });
+        if (joined.status === 403 || joined.status === 404) throw new AccessError("this room isn't open to you");
+        if (joined.status === 409) throw new RoomFullError("this room is full");
+      }
+      const res = await fetch(buildUrl, { credentials: "same-origin" });
+      if (res.status === 404) throw new AccessError("this room isn't open to you");
+      if (!res.ok) throw new NetworkError(`couldn't load the build (HTTP ${res.status})`);
+      return (await res.json()) as Snapshot;
+    },
+    async send(envelope) {
+      let res: Response;
+      try {
+        res = await fetch(commandUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(envelope),
+        });
+      } catch {
+        throw new NetworkError("no connection to the server");
+      }
+      if (res.status >= 500) throw new NetworkError(`the server failed (HTTP ${res.status})`);
+      return (await res.json()) as CommandResult;
+    },
+  };
+}
+
+/** Back-compat alias: the visitor's own default room. */
+export const httpTransport: Transport = roomTransport(undefined);
 
 // In-browser stand-in for the server, for the visual preview (`?local`). It
 // runs the same rules but keeps nothing: `durable` is false and the UI says so.

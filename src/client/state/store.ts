@@ -12,7 +12,7 @@ import {
   type Rejection,
 } from "../../domain/rules.ts";
 import { STREET_SCENE } from "../../domain/scene.ts";
-import { NetworkError, type Transport } from "./transport.ts";
+import { AccessError, NetworkError, RoomFullError, type Transport } from "./transport.ts";
 import { screenToGrid } from "./view.ts";
 
 // Client state. The snapshot is the server's, replaced wholesale on every
@@ -46,6 +46,13 @@ export interface Held {
 
 export type SaveStatus = "loading" | "load-failed" | "saved" | "saving" | "failed";
 export type CameraRequest = { kind: "top" | "reset"; n: number };
+/**
+ * The realtime stream's own state (ADR 0008), separate from `save`: a
+ * command can still be sent and answered over plain HTTP while the live
+ * push channel is reconnecting, so the two are never conflated into one
+ * status.
+ */
+export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "offline";
 
 export interface AppState {
   snapshot: Snapshot | null;
@@ -59,7 +66,9 @@ export interface AppState {
   deleting: boolean;
   /** The placed part under the pointer (or keyboard cursor) while the delete tool is on. */
   targetId: string | null;
-  save: { status: SaveStatus; message?: string };
+  save: { status: SaveStatus; message?: string; code?: "access_denied" | "room_full" };
+  /** The realtime stream's own state; independent of whether a command can still be sent (ADR 0008). */
+  connection: ConnectionStatus;
   /** The last thing worth saying out loud, mirrored to an aria-live region. */
   notice: { text: string; kind: "info" | "error"; at: number } | null;
   camera: CameraRequest;
@@ -69,9 +78,23 @@ export interface AppState {
    * fading outline and lets stale entries age out locally.
    */
   marks: Record<string, { markedBy: string; at: number }>;
+  /** This browser's own visitor id, so "you" can be marked in a member list; resolved once from the server. */
+  selfId: string | null;
 }
 
 export const scene = STREET_SCENE;
+
+/**
+ * The room this editor opened (from the URL, ADR 0007), or null for the
+ * back-compat default-room path. Set once at startup by main.tsx, before
+ * `start()` runs; never changes within one page load — switching rooms
+ * means navigating to a different /build/room/:id, not an in-place swap.
+ */
+let roomId: string | null = null;
+export const setRoomId = (id: string | null): void => {
+  roomId = id;
+};
+export const getRoomId = (): string | null => roomId;
 
 let state: AppState = {
   snapshot: null,
@@ -83,9 +106,11 @@ let state: AppState = {
   deleting: false,
   targetId: null,
   save: { status: "loading" },
+  connection: "connecting",
   notice: null,
   camera: { kind: "reset", n: 0 },
   marks: {},
+  selfId: null,
 };
 
 const listeners = new Set<() => void>();
@@ -110,13 +135,25 @@ let pending: CommandEnvelope | null = null;
 
 export async function start(t: Transport): Promise<void> {
   transport = t;
-  set({ durable: t.durable, save: { status: "loading" } });
+  eventSource?.close();
+  eventSource = null;
+  set({ durable: t.durable, save: { status: "loading" }, connection: "connecting" });
+  if (t.durable) {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((r: { visitorId: string }) => set({ selfId: r.visitorId }))
+      .catch(() => {});
+  }
   try {
     const snapshot = await t.load();
     set({ snapshot, save: { status: "saved" } });
     if (t.durable) connectRealtime(snapshot.roomId);
   } catch (e) {
-    set({ save: { status: "load-failed", message: e instanceof Error ? e.message : String(e) } });
+    const code = e instanceof AccessError ? "access_denied" : e instanceof RoomFullError ? "room_full" : undefined;
+    set({
+      save: { status: "load-failed", message: e instanceof Error ? e.message : String(e), code },
+      connection: "offline",
+    });
   }
 }
 
@@ -132,8 +169,11 @@ let eventSource: EventSource | null = null;
 
 function connectRealtime(roomId: string): void {
   eventSource?.close();
-  eventSource = new EventSource(`/api/rooms/${roomId}/events`);
-  eventSource.onmessage = (ev) => {
+  const es = new EventSource(`/api/rooms/${roomId}/events`);
+  eventSource = es;
+  es.onopen = () => set({ connection: "connected" });
+  es.onmessage = (ev) => {
+    set({ connection: "connected" }); // any event proves the stream is live, open or not
     const event = JSON.parse(ev.data) as { type: "snapshot"; snapshot: Snapshot } | { type: "plan-marked"; planId: string; markedBy: string };
     if (event.type === "snapshot") {
       set({ snapshot: event.snapshot });
@@ -141,9 +181,14 @@ function connectRealtime(roomId: string): void {
       set({ marks: { ...state.marks, [event.planId]: { markedBy: event.markedBy, at: Date.now() } } });
     }
   };
-  // the browser retries a dropped connection on its own; a reconnect's first
-  // event is always a full snapshot (realtime.ts), so no separate recovery
-  // path is needed here
+  // the browser retries a dropped connection on its own (readyState goes
+  // CONNECTING, then either open again or closed if the room is gone); a
+  // reconnect's first event is always a full snapshot (realtime.ts), so no
+  // separate recovery fetch is needed, only the status shown while it's down
+  es.onerror = () => {
+    if (eventSource !== es) return; // a newer connection superseded this one
+    set({ connection: es.readyState === EventSource.CONNECTING ? "reconnecting" : "offline" });
+  };
 }
 
 const partOf = (id: string | null) => (id ? state.snapshot?.parts.find((p) => p.id === id) : undefined);
