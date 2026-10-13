@@ -68,11 +68,12 @@ await pageC.goto(`${base}/build/room/${roomId}/`, { waitUntil: "domcontentloaded
 const cBlockedBody = await pageC.textContent("body");
 check("C, a stranger, is refused the same way", cBlockedBody?.includes("isn't open to you") ?? false);
 
-// A invites B specifically, through the room panel
+// A invites B specifically, through the room panel — choosing them from the
+// selectable list of actual friends, never typing a raw id
 await pageA.goto(`${base}/build/room/${roomId}/`, { waitUntil: "domcontentloaded" });
 await pageA.waitForFunction(() => (window as any).__state === undefined || true); // no debug hooks needed here
 await pageA.getByRole("button", { name: /^Room/ }).click();
-await pageA.fill('input[aria-label="Friend\'s id to invite"]', idB);
+await pageA.locator('select[aria-label="Friend to invite"]').selectOption(idB);
 await pageA.getByRole("button", { name: "Invite", exact: true }).click();
 await pageA.waitForSelector("text=Invitation sent.");
 
