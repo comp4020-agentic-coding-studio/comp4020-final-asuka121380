@@ -5,7 +5,8 @@ import { sceneInfo } from "./scenes/registry.ts";
 import { brandMark } from "./ui/iso.ts";
 import { Workbench } from "./scene/Workbench.tsx";
 import { pictures, type Pictures } from "./scene/thumbnails.ts";
-import { inviteToRoom, leaveRoom, saveRoom } from "./state/api.ts";
+import { inviteToRoom, leaveRoom, myFriends, saveRoom, sendFriendRequest } from "./state/api.ts";
+import { useDisplayNames, who as whoName } from "./state/names.ts";
 import {
   catalog,
   choosePart,
@@ -50,6 +51,7 @@ const GROUPS: { id: "all" | PartDefinition["group"]; label: string }[] = [
   { id: "openings", label: "Windows & doors" },
   { id: "details", label: "Details" },
 ];
+
 
 function SaveStatus() {
   const save = useApp((s) => s.save);
@@ -110,9 +112,14 @@ function Swatches({ value, onPick, label }: { value: string; onPick: (id: string
  * The preview's height, and the buttons that step it through the heights
  * that fit here: how a lower spot under an overhang is reached (ADR 0005).
  */
-function Height({ y, fits }: { y: number; fits: number[] }) {
+function Height({ y, fits, planFits }: { y: number; fits: number[]; planFits: number[] }) {
   const i = fits.indexOf(y);
   const where = y === 0 ? "on the plot" : `${y} plate${y === 1 ? "" : "s"} up`;
+  // Higher can also climb into positions only a plan could occupy (no real
+  // support yet), one level at a time, past the topmost real height — so
+  // it's enabled whenever either a further real height OR the next bare
+  // level up is reachable, not just when a real height is above (store.ts).
+  const higherReachable = fits.some((f) => f > y) || planFits.includes(y + 1);
   return (
     <div className="height" role="group" aria-label="Height">
       <button className="btn btn-small" onClick={() => stepLevel(-1)} aria-label="Lower: the next height down that fits" disabled={!fits.some((f) => f < y)}>
@@ -122,7 +129,7 @@ function Height({ y, fits }: { y: number; fits: number[] }) {
         {where}
         {fits.length > 1 && i >= 0 && <span className="height-of"> · height {i + 1} of {fits.length}</span>}
       </span>
-      <button className="btn btn-small" onClick={() => stepLevel(1)} aria-label="Higher: the next height up that fits" disabled={!fits.some((f) => f > y)}>
+      <button className="btn btn-small" onClick={() => stepLevel(1)} aria-label="Higher: the next height up that fits" disabled={!higherReachable}>
         ▲ Higher <kbd>PgUp</kbd>
       </button>
     </div>
@@ -153,6 +160,12 @@ function Context() {
   const deleting = useApp((s) => s.deleting);
   const target = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.targetId));
   const saving = useApp((s) => s.save.status === "saving");
+  const selfId = useApp((s) => s.selfId);
+  const marks = useApp((s) => s.marks);
+  const namedIds = [selected?.placedBy, selected?.editedBy, selected?.proposedBy, selectedPlan?.proposedBy, ...Object.values(marks).map((m) => m.markedBy)].filter(
+    (id): id is string => !!id,
+  );
+  const names = useDisplayNames(namedIds);
 
   if (deleting) {
     const def = target && partDef(target.partId);
@@ -215,11 +228,29 @@ function Context() {
             Cancel <kbd>Esc</kbd>
           </button>
         </div>
-        {/* a plan costs no stock and never blocks real construction (ADR 0009) */}
-        <button className="btn btn-small" aria-disabled={!pv || saving} onClick={() => !saving && void proposeHeld()} title="Show others a transparent suggestion, without placing it or spending stock">
+        {/*
+         * A plan costs no stock and never blocks real construction, and —
+         * unlike Place — never requires structural support: proposing a
+         * future roof before its walls exist is explicitly allowed (ADR
+         * 0009). Its own, looser check (`planRejection`) decides whether
+         * this button is enabled, never `rejection` (Place's check, which
+         * does require support), so a spot refused for Place can still be a
+         * valid plan.
+         */}
+        <button
+          className="btn btn-small"
+          aria-disabled={!pv || !!pv.planRejection || saving}
+          onClick={() => !saving && void proposeHeld()}
+          title="Show others a transparent suggestion, without placing it or spending stock — even somewhere nothing is built yet to hold it up"
+        >
           Propose instead
         </button>
-        {pv && <Height y={pv.placement.y} fits={pv.fits} />}
+        {pv?.rejection?.code === "unsupported" && !pv.planRejection && (
+          <span className="context-hint" aria-live="polite">
+            Can't place that for real yet — nothing's built underneath. You can still propose it as a plan for later.
+          </span>
+        )}
+        {pv && <Height y={pv.placement.y} fits={pv.fits} planFits={pv.planFits} />}
         <details className="nudge">
           <summary>Move</summary>
           {/* the same screen-relative steps as the arrow keys (ADR 0005) */}
@@ -236,12 +267,27 @@ function Context() {
 
   if (selected) {
     const def = partDef(selected.partId)!;
+    const builder = whoName(selected.placedBy, selfId, names);
+    const editor = whoName(selected.editedBy, selfId, names);
+    const proposer = whoName(selected.proposedBy, selfId, names);
     return (
       <div className="context">
         <strong className="context-title">
           {def.name} <span className="code">{def.code}</span>
           <span className="context-sub">{colourName(selected.colour)}</span>
         </strong>
+        {/* attribution is permanent and layered (ADR 0009): who placed it is
+            never overwritten by who last edited it, and a part realized from
+            a plan keeps the plan's original proposer distinct from whoever
+            actually built it — shown here, not just stored invisibly */}
+        <span className="context-hint" aria-live="polite">
+          {proposer && proposer !== builder ? (
+            <>Proposed by {proposer}, built by {builder}.</>
+          ) : (
+            builder && <>Placed by {builder}.</>
+          )}
+          {editor && editor !== builder && <> Last changed by {editor}.</>}
+        </span>
         <Swatches value={selected.colour} onPick={(c) => void recolourSelected(c)} label={`Recolour the ${def.colourRegion ?? "part"}`} />
         <div className="context-actions">
           {/* aria-disabled while saving, not disabled: a disabled button drops keyboard focus */}
@@ -262,14 +308,23 @@ function Context() {
 
   if (selectedPlan) {
     const def = partDef(selectedPlan.partId)!;
+    const proposer = whoName(selectedPlan.proposedBy, selfId, names);
+    const mark = marks[selectedPlan.id];
+    const recentlyMarked = mark && Date.now() - mark.at < 6000;
+    const marker = recentlyMarked ? whoName(mark.markedBy, selfId, names) : null;
     return (
       <div className="context">
         <strong className="context-title">
           Proposed {def.name} <span className="code">{def.code}</span>
           <span className="context-sub">suggested {colourName(selectedPlan.colour)}</span>
         </strong>
+        {/* a plan's own author, kept distinct from "placed a real part"
+            (ADR 0009) — and, while a mark is live, who issued it: a mark
+            identifies a person, without opening chat */}
         <span className="context-hint" aria-live="polite">
+          {proposer && <>Proposed by {proposer}. </>}
           A plan costs no stock and never blocks real building. Anyone can build it, or ask the room to look at it.
+          {marker && <> {marker === "you" ? "You" : marker} marked this for everyone.</>}
         </span>
         <div className="context-actions">
           <button className="btn btn-small btn-red" onClick={() => !saving && void realizePlan(selectedPlan.id)} aria-disabled={saving}>
@@ -444,12 +499,38 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [savedSnapshotId, setSavedSnapshotId] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Set<string> | null>(null);
+  const [friendStatus, setFriendStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    void myFriends().then((r) => setFriends(new Set(r.friends)));
+  }, [open]);
+
+  const roomNames = useDisplayNames([
+    ...(snapshot ? [...snapshot.members.map((m) => m.visitorId), ...snapshot.contributors.map((c) => c.visitorId), ...snapshot.inheritedCredits.map((c) => c.visitorId)] : []),
+    ...(friends ? [...friends] : []),
+  ]);
 
   if (!snapshot || !roomId) return null; // the default-room path has no room to show a panel for
 
   const members = snapshot.members;
   const contributors = snapshot.contributors;
+  const inherited = snapshot.inheritedCredits;
   const active = members.filter((m) => m.active).length;
+
+  const friend = async (id: string) => {
+    const r = await sendFriendRequest(id);
+    setFriendStatus(r.ok ? "Friend request sent." : r.code === "already_friends" ? "Already friends." : r.code === "pending" ? "Already pending." : "Couldn't send that request.");
+  };
+
+  /** Only shown for someone else the viewer isn't already friends with (server re-checks everything anyway). */
+  const FriendButton = ({ id }: { id: string }) =>
+    id !== selfId && friends && !friends.has(id) ? (
+      <button className="btn btn-small" onClick={() => void friend(id)} title="Send a friend request">
+        + friend
+      </button>
+    ) : null;
 
   const invite = async () => {
     const to = inviteTo.trim();
@@ -487,9 +568,10 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
           <ul className="people">
             {members.map((m) => (
               <li key={m.visitorId} className={m.active ? "" : "inactive"}>
-                {m.visitorId === selfId ? "You" : m.visitorId.slice(0, 8)}
+                {whoName(m.visitorId, selfId, roomNames)}
                 {m.isHost && <span className="tag room-tag">Host</span>}
                 {!m.active && <span className="room-tag room-tag-muted">away</span>}
+                <FriendButton id={m.visitorId} />
               </li>
             ))}
           </ul>
@@ -500,19 +582,51 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
           ) : (
             <ul className="people">
               {contributors.map((c) => (
-                <li key={c.visitorId}>{c.visitorId === selfId ? "You" : c.visitorId.slice(0, 8)}</li>
+                <li key={c.visitorId}>
+                  {whoName(c.visitorId, selfId, roomNames)} <FriendButton id={c.visitorId} />
+                </li>
               ))}
             </ul>
           )}
+          {/* inherited from an earlier continued version — distinct from
+              having built HERE, never merged into the list above (ADR 0009) */}
+          {inherited.length > 0 && (
+            <>
+              <h3>Also credited from an earlier version</h3>
+              <p className="fineprint">This room continued a saved version; these people built in that earlier one.</p>
+              <ul className="people">
+                {inherited.map((c) => (
+                  <li key={c.visitorId}>
+                    {whoName(c.visitorId, selfId, roomNames)} <FriendButton id={c.visitorId} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {friendStatus && <p className="fineprint" role="status">{friendStatus}</p>}
           {snapshot.visibility === "invite_only" && (
             <>
               <h3>Invite a friend</h3>
-              <div className="field-row">
-                <input value={inviteTo} onChange={(e) => setInviteTo(e.target.value)} placeholder="Their id (from Friends)" aria-label="Friend's id to invite" />
-                <button className="btn btn-small" onClick={() => void invite()} aria-disabled={!inviteTo.trim()}>
-                  Invite
-                </button>
-              </div>
+              {friends && friends.size === 0 ? (
+                <p className="fineprint">
+                  You don't have any friends yet — get a friend-request link from the <a href="/build/">room lobby</a>.
+                </p>
+              ) : (
+                <div className="field-row">
+                  <select value={inviteTo} onChange={(e) => setInviteTo(e.target.value)} aria-label="Friend to invite">
+                    <option value="">Choose a friend…</option>
+                    {friends &&
+                      [...friends].map((id) => (
+                        <option key={id} value={id}>
+                          {roomNames[id] ?? `a guest builder (${id.slice(0, 8)})`}
+                        </option>
+                      ))}
+                  </select>
+                  <button className="btn btn-small" onClick={() => void invite()} aria-disabled={!inviteTo.trim()}>
+                    Invite
+                  </button>
+                </div>
+              )}
               {inviteStatus && <p className="fineprint" role="status">{inviteStatus}</p>}
             </>
           )}
@@ -528,6 +642,9 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
             </a>
             <a className="btn btn-small" href="/build/?view=collection">
               My collection
+            </a>
+            <a className="btn btn-small" href="/build/?view=account">
+              Account
             </a>
           </div>
           {saveStatus && (

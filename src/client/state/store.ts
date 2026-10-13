@@ -6,8 +6,10 @@ import {
   fitHeights,
   footprint,
   nextRotation,
+  planHeights,
   validateCommand,
   validatePlacement,
+  validatePlan,
   type Placement,
   type Rejection,
 } from "../../domain/rules.ts";
@@ -259,7 +261,20 @@ export function moveOnScreen(right: number, up: number): void {
   moveAnchor(dx, dz);
 }
 
-/** Higher (+1) or Lower (−1): the next height above or below that fits here. */
+/**
+ * Higher (+1) or Lower (−1): the next height above or below that's
+ * reachable here. Lower is unchanged from ADR 0005: it steps between the
+ * real, supported heights (`fits`) exactly as before. Higher does too,
+ * UNLESS it has run past the topmost real height — only then does it climb
+ * one level at a time through positions only a plan could occupy
+ * (`planFits`, a superset of `fits`: no collision, but not necessarily
+ * support). This is the one, explicit way to steer the preview onto a
+ * future position (a roof before its walls) so it can be proposed there;
+ * Place still separately refuses it at any such height (`rejection` stays
+ * set). Lower, from such a speculative height, jumps straight back to the
+ * nearest real support below — the same "find the plot" behavior as
+ * always, not required to retrace the speculative climb level by level.
+ */
 export function stepLevel(dir: 1 | -1): void {
   const p = preview();
   if (!state.held || !p) {
@@ -267,23 +282,48 @@ export function stepLevel(dir: 1 | -1): void {
     return;
   }
   const y = p.placement.y;
-  const next = dir === 1 ? p.fits.find((f) => f > y) : [...p.fits].reverse().find((f) => f < y);
-  if (next === undefined) {
-    say(dir === 1 ? "Nothing fits any higher here." : "Nothing fits any lower here.", "error");
+  if (dir === 1) {
+    const nextReal = p.fits.find((f) => f > y);
+    if (nextReal !== undefined) {
+      setHeld({ level: nextReal, snap: false });
+      return;
+    }
+    const above = y + 1;
+    if (p.planFits.includes(above)) {
+      setHeld({ level: above, snap: false });
+      return;
+    }
+    say("Nothing fits any higher here.", "error");
     return;
   }
-  setHeld({ level: next, snap: false });
+  const prevReal = [...p.fits].reverse().find((f) => f < y);
+  if (prevReal === undefined) {
+    say("Nothing fits any lower here.", "error");
+    return;
+  }
+  setHeld({ level: prevReal, snap: false });
 }
 
 /** The heights that fit, and where the preview sits among them. */
 export interface Preview {
   placement: Placement;
+  /** Whether a REAL placement would be accepted here (includes the support rule). */
   rejection: Rejection | null;
-  /** Every height that fits at this footprint, lowest first. */
+  /** Whether a PLAN could be proposed here instead (never requires support: ADR 0009/the brief's "future roof"). */
+  planRejection: Rejection | null;
+  /** Every height a REAL placement fits at, lowest first (ADR 0005, unchanged): in bounds, clear, and supported. */
   fits: number[];
+  /**
+   * Every height a PLAN could be proposed at, lowest first: a superset of
+   * `fits` that also includes unsupported future positions. Higher/Lower
+   * step through this, not `fits`, so a plan can be steered onto a
+   * position Place would refuse; Place itself still separately checks
+   * `rejection` at wherever the preview ends up.
+   */
+  planFits: number[];
 }
 
-/** The previewed placement and whether the rules would accept it. */
+/** The previewed placement, and whether a real placement or a plan would be accepted there. */
 export function preview(s: AppState = state): Preview | null {
   const { held, snapshot } = s;
   if (!held?.anchor || !snapshot) return null;
@@ -295,9 +335,16 @@ export function preview(s: AppState = state): Preview | null {
   const x = Math.min(scene.bounds.w - w, Math.max(0, held.anchor.x - Math.floor((w - 1) / 2)));
   const z = Math.min(scene.bounds.d - d, Math.max(0, held.anchor.z - Math.floor((d - 1) / 2)));
   const fits = fitHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
+  const planFits = planHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
   const y = chooseLevel(held, fits);
   const placement: Placement = { partId: def.id, x, y, z, rot: held.rot, colour: s.colour };
-  return { placement, rejection: validatePlacement(scene, snapshot, placement), fits };
+  return {
+    placement,
+    rejection: validatePlacement(scene, snapshot, placement),
+    planRejection: validatePlan(scene, snapshot, placement),
+    fits,
+    planFits,
+  };
 }
 
 function chooseLevel(held: Held, fits: number[]): number {

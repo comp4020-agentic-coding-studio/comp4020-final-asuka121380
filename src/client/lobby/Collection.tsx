@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { Placement } from "../../domain/rules.ts";
 import {
+  collectSnapshot,
   continueSnapshot,
   getSnapshot,
   mySnapshots,
@@ -12,6 +13,7 @@ import {
   type SnapshotDetail,
   type SnapshotSummary,
 } from "../state/api.ts";
+import { useDisplayNames, who } from "../state/names.ts";
 
 // The collection (a visitor's own saved snapshots) and the public showcase
 // (ADR 0009). Both open a read-only SnapshotView; "Continue" creates a new,
@@ -30,6 +32,10 @@ function partsOf(detail: SnapshotDetail): Placement[] {
 
 /** Who built what, kept distinct: publisher / contributors to this version / inherited source credits / current-room members are never merged (the brief). */
 function Credits({ detail, publishedBy, selfId, onFriend }: { detail: SnapshotDetail; publishedBy?: string; selfId: string | null; onFriend: (id: string) => void }) {
+  const ids = [publishedBy, detail.savedBy, ...detail.contributors.map((c) => c.visitorId), ...detail.inheritedCredits.map((c) => c.visitorId)].filter(
+    (id): id is string => !!id,
+  );
+  const names = useDisplayNames(ids);
   const FriendButton = ({ id }: { id: string }) =>
     id !== selfId ? (
       <button className="btn btn-small" onClick={() => onFriend(id)} title="Send a friend request">
@@ -40,11 +46,11 @@ function Credits({ detail, publishedBy, selfId, onFriend }: { detail: SnapshotDe
     <div className="credits">
       {publishedBy && (
         <p>
-          <strong>Published by</strong> {publishedBy === selfId ? "you" : short(publishedBy)} <FriendButton id={publishedBy} />
+          <strong>Published by</strong> {who(publishedBy, selfId, names)} <FriendButton id={publishedBy} />
         </p>
       )}
       <p>
-        <strong>Saved by</strong> {detail.savedBy === selfId ? "you" : short(detail.savedBy)}{" "}
+        <strong>Saved by</strong> {who(detail.savedBy, selfId, names)}{" "}
         {detail.savedBy !== publishedBy && <FriendButton id={detail.savedBy} />}
       </p>
       <p>
@@ -55,7 +61,7 @@ function Credits({ detail, publishedBy, selfId, onFriend }: { detail: SnapshotDe
           <span className="credit-list">
             {detail.contributors.map((c) => (
               <span key={c.visitorId} className="credit-chip">
-                {c.visitorId === selfId ? "you" : short(c.visitorId)} <FriendButton id={c.visitorId} />
+                {who(c.visitorId, selfId, names)} <FriendButton id={c.visitorId} />
               </span>
             ))}
           </span>
@@ -67,7 +73,7 @@ function Credits({ detail, publishedBy, selfId, onFriend }: { detail: SnapshotDe
           <span className="credit-list">
             {detail.inheritedCredits.map((c) => (
               <span key={c.visitorId} className="credit-chip">
-                {c.visitorId === selfId ? "you" : short(c.visitorId)} <FriendButton id={c.visitorId} />
+                {who(c.visitorId, selfId, names)} <FriendButton id={c.visitorId} />
               </span>
             ))}
           </span>
@@ -134,6 +140,8 @@ function SnapshotPage({ id, published, selfId }: { id: string; published?: boole
   const [entry, setEntry] = useState<ShowcaseEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [friendStatus, setFriendStatus] = useState<string | null>(null);
+  const [collectResult, setCollectResult] = useState<{ ok: boolean; id?: string } | null>(null);
+  const [collecting, setCollecting] = useState(false);
 
   useEffect(() => {
     setDetail(null);
@@ -154,6 +162,24 @@ function SnapshotPage({ id, published, selfId }: { id: string; published?: boole
 
   const partCount = detail.parts.length;
   const kinds = new Set(detail.parts.map((p) => p.partId)).size;
+  const alreadyMine = detail.savedBy === selfId;
+
+  // a direct copy into this viewer's own collection — never creates or
+  // joins a room, and never touches the version being viewed (section 10).
+  // `detail.id` is always the real snapshot id; `id` (the prop) is the
+  // publication id when viewing via the showcase, which /api/snapshots
+  // doesn't accept.
+  const collect = async () => {
+    setCollecting(true);
+    try {
+      const copy = await collectSnapshot(detail.id);
+      setCollectResult({ ok: true, id: copy.id });
+    } catch {
+      setCollectResult({ ok: false });
+    } finally {
+      setCollecting(false);
+    }
+  };
 
   return (
     <div className="snapshot-page">
@@ -170,6 +196,24 @@ function SnapshotPage({ id, published, selfId }: { id: string; published?: boole
         </p>
         <Credits detail={detail} publishedBy={entry?.publishedBy} selfId={selfId} onFriend={(id) => void friend(id)} />
         {friendStatus && <p className="lobby-hint" role="status">{friendStatus}</p>}
+        {!alreadyMine && (
+          <p>
+            <button className="btn btn-small" onClick={() => void collect()} aria-disabled={collecting}>
+              {collecting ? "Saving…" : "Save to my collection"}
+            </button>
+          </p>
+        )}
+        {collectResult && (
+          <p className="lobby-hint" role="status">
+            {collectResult.ok ? (
+              <>
+                Saved to your collection. <a href={`/build/?snapshot=${collectResult.id}`}>View it</a>
+              </>
+            ) : (
+              "Couldn't save it; try again."
+            )}
+          </p>
+        )}
         <ContinueControls detail={detail} onContinued={(roomId) => { location.href = `/build/room/${roomId}`; }} />
       </div>
     </div>
@@ -237,9 +281,10 @@ export function CollectionPage({ selfId }: { selfId: string | null }) {
   );
 }
 
-export function ShowcasePage() {
+export function ShowcasePage({ selfId }: { selfId: string | null }) {
   const [entries, setEntries] = useState<ShowcaseEntry[] | null>(null);
   useEffect(() => void showcaseList().then(setEntries), []);
+  const names = useDisplayNames((entries ?? []).map((e) => e.publishedBy));
   return (
     <main className="lobby-grid">
       <header className="lobby-header">
@@ -255,7 +300,7 @@ export function ShowcasePage() {
           <ul className="room-list">
             {entries.map((e) => (
               <li key={e.publicationId} className="room-row">
-                <span className="room-name">Published {dateOf(e.publishedAt)} by {short(e.publishedBy)}</span>
+                <span className="room-name">Published {dateOf(e.publishedAt)} by {who(e.publishedBy, selfId, names)}</span>
                 <a className="btn btn-small btn-red" href={`/build/?showcase=${e.publicationId}`}>
                   View
                 </a>

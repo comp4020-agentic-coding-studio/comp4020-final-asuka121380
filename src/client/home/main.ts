@@ -106,3 +106,19 @@ fetch("/api/summary")
     note.hidden = false;
   })
   .catch(() => {});
+
+// ---- account nav link -------------------------------------------------------
+
+// Only ask if this browser already has an identity cookie: /api/me would
+// otherwise silently create a fresh anonymous visitor just from loading the
+// homepage, which the site's "the homepage must not create a visitor by
+// browsing" rule (mirrored here from /api/summary's own read-only contract)
+// rules out. A first-time visitor simply sees "Sign in", asking nothing.
+if (document.cookie.includes("brick_visitor=")) {
+  fetch("/api/me")
+    .then((r) => r.json())
+    .then((r: { account: { displayName: string } | null }) => {
+      if (r.account) document.getElementById("account-nav")!.textContent = r.account.displayName;
+    })
+    .catch(() => {});
+}

@@ -8,6 +8,8 @@ export interface LobbyRoom {
   label: string | null;
   occupancy: number;
   capacity: number;
+  /** Disclosed before joining (the brief: show publication policy before admission, not only after). */
+  allowPublish: boolean;
 }
 
 export interface MyRoom {
@@ -26,6 +28,8 @@ export interface RoomInvite {
   label: string | null;
   invitedBy: string;
   createdAt: string;
+  /** Disclosed before accepting. */
+  allowPublish: boolean;
 }
 
 export interface FriendRequest {
@@ -39,7 +43,65 @@ async function json<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export const whoAmI = (): Promise<{ visitorId: string }> => fetch("/api/me").then((r) => json(r));
+export interface Account {
+  id: string;
+  username: string;
+  displayName: string;
+}
+export const whoAmI = (): Promise<{ visitorId: string; account: Account | null }> => fetch("/api/me").then((r) => json(r));
+
+// ---- explicit accounts (phase 2 corrective review) -------------------------
+
+export const migrationCheck = (): Promise<{ hasOwnWork: boolean; alreadyLinked: boolean }> =>
+  fetch("/api/account/migration-check").then((r) => json(r));
+
+export type RegisterCode = "username_taken" | "invalid_username" | "weak_password" | "already_linked";
+export function register(username: string, password: string, displayName: string): Promise<{ ok: boolean; account?: Account; code?: RegisterCode; message?: string }> {
+  return fetch("/api/account/register", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password, displayName }),
+  }).then((r) => r.json());
+}
+
+/**
+ * Step one: verifies the password and reports whether THIS browser's own
+ * anonymous visitor has rooms/friends/snapshots of its own, but sets no
+ * cookie and switches nothing yet (the migration-conflict case: never
+ * switch a browser away from a worked-in anonymous identity without an
+ * explicit decision). If `priorHadOwnWork` is false, the caller can go
+ * straight to `confirmSignIn`; if true, show the warning first.
+ */
+export function signIn(username: string, password: string): Promise<{ ok: boolean; account?: Account; priorHadOwnWork?: boolean; message?: string }> {
+  return fetch("/api/account/sign-in", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  }).then((r) => r.json());
+}
+
+/** Step two: actually issues the session and switches this browser's cookie. Called immediately (no conflict) or after the conflict warning is confirmed. */
+export function confirmSignIn(username: string, password: string): Promise<{ ok: boolean; account?: Account; message?: string }> {
+  return fetch("/api/account/sign-in/confirm", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  }).then((r) => r.json());
+}
+
+export const signOut = (): Promise<{ ok: boolean }> => fetch("/api/account/sign-out", { method: "POST" }).then((r) => json(r));
+
+// a small in-memory cache: the same visitor id is looked up repeatedly
+// across a member list, a contributor list and credits on one page
+const nameCache = new Map<string, string>();
+export async function displayNamesFor(ids: readonly string[]): Promise<Record<string, string>> {
+  const unknown = ids.filter((id) => !nameCache.has(id));
+  if (unknown.length > 0) {
+    const fetched = await fetch(`/api/account/names?ids=${unknown.join(",")}`).then((r) => json<Record<string, string>>(r));
+    for (const id of unknown) if (fetched[id]) nameCache.set(id, fetched[id]);
+  }
+  return Object.fromEntries(ids.map((id) => [id, nameCache.get(id)] as const).filter((e): e is [string, string] => !!e[1]));
+}
 
 /** The visitor's own default solo room, fetched-or-created, exactly as C8's single build (ADR 0007). */
 export const myDefaultRoom = (): Promise<{ roomId: string }> => fetch("/api/build").then((r) => json(r));
@@ -68,6 +130,19 @@ export async function joinRoom(roomId: string): Promise<JoinResult> {
   if (res.ok) return { ok: true };
   const body = (await res.json().catch(() => ({}))) as { code?: JoinCode };
   return { ok: false, code: body.code ?? "not_found" };
+}
+
+/**
+ * GET /api/rooms/:id already refuses an invite-only room with no standing
+ * (404), same as a join would — so previewing it this way discloses nothing
+ * a join attempt wouldn't also reveal. Used to show the publication setting
+ * before someone commits to joining by a direct id/link (the brief).
+ */
+export async function previewRoom(roomId: string): Promise<{ allowPublish: boolean } | null> {
+  const res = await fetch(`/api/rooms/${roomId}`);
+  if (!res.ok) return null;
+  const body = (await res.json()) as { allowPublish: boolean };
+  return { allowPublish: body.allowPublish };
 }
 
 export const leaveRoom = (roomId: string): Promise<void> => fetch(`/api/rooms/${roomId}/leave`, { method: "POST" }).then(() => undefined);
@@ -157,6 +232,9 @@ export function continueSnapshot(
     body: JSON.stringify({ visibility, allowPublish }),
   }).then((r) => json(r));
 }
+
+/** Copies a saved or published version directly into this visitor's own collection; creates or joins no room. */
+export const collectSnapshot = (id: string): Promise<SnapshotSummary> => fetch(`/api/snapshots/${id}/collect`, { method: "POST" }).then((r) => json(r));
 
 export interface ShowcaseEntry {
   publicationId: string;
