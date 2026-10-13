@@ -1481,3 +1481,160 @@ a public derived room, or a public preview."
   revision has not been pushed or deployed.
 - No pagination or search across a large collection/showcase; not
   exercised at scale.
+
+### 2026-10-13 23:06 AEDT — [`3248d41`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/3248d41) Fix critical security review findings: unauthorized snapshot continuation, capacity bypass; correct plan-support rule
+
+**Changes:**
+- `src/server/snapshots.ts`: new `canAccessSnapshot()` (saved it yourself,
+  current member of its room, or it has been published); `src/server/
+  index.ts`'s `POST /api/snapshots/:id/continue` now calls it (previously
+  it checked nothing beyond the snapshot existing, while `GET
+  /api/snapshots/:id` already did), and the new `collect` endpoint (see
+  `84de4e7`) uses the same function.
+- `src/server/rooms.ts`: new `admitActive()`, the one function that
+  decides whether a visitor may hold an active room slot right now,
+  capacity-checked for every inactive→active transition regardless of
+  prior historical membership; `join`, `respondToInvite`'s acceptance
+  branch, and `markActive` (the SSE connect/keep-alive path, in
+  `index.ts`) all call it, replacing three separate, inconsistent ad hoc
+  checks.
+- `src/domain/rules.ts`: `validatePlan` no longer checks structural
+  support in any form (previously a "plausible support" relaxation still
+  required *something*, real or planned, beneath a plan above y=0).
+  `checkFit` split into `checkBoundsAndCollision` (shared) plus the
+  support check, used only by real placement.
+- `src/server/index.ts`'s `POST /api/rooms/:id/mark` now checks the
+  target is a real, currently-open plan in that specific room before
+  broadcasting (previously any string was accepted and broadcast as
+  `sent: true`).
+
+**Why.** An independent review of the deployed-equivalent build found four
+issues: possessing a private snapshot id was sufficient to copy its
+contents via `continue`, bypassing the access check `GET` already
+enforced; a returning room member could exceed a 2-player room's capacity
+because the capacity check only ran for visitors with no `room_members`
+row at all; a plan was rejected for lacking support, contradicting the
+approved "a future roof before its walls" design; and an isolated test
+found `/mark` accepted a nonexistent plan id.
+
+**Who decided:** the author identified the four issues; the agent
+diagnosed root causes and chose the fixes.
+
+**Tests:** `pnpm check` (fresh server): 94/94 (new:
+`spec/server/capacity.test.ts`, 7 scenarios covering leave/rejoin after
+replacement, presence-sweep expiry, the returning host, multiple tabs,
+an accepted invite re-admitting past capacity, SSE reconnect, and
+concurrent attempts for the last slot; `spec/snapshots-and-showcase.test.ts`
+gained the "GET refused but continue let it through anyway" regression,
+using a snapshot with real construction and attribution, not an empty
+kit; `spec/plans-and-attribution.test.ts` gained the no-support-at-all
+plan case and four mark-validation cases). `pnpm check:evidence`: clean.
+
+**Limitations:** this commit alone left the client's height-stepping UI
+unable to actually reach the now-unsupported plan positions through
+Higher/Lower; fixed in the next commit (`84de4e7`) once
+`scripts/placement.ts`'s existing "Lower then finds the plot" check (run
+before committing either change) caught the regression.
+
+### 2026-10-13 23:08 AEDT — [`84de4e7`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/84de4e7) Explicit accounts, display names, friend-link UI, attribution display, and UI fixes from the review
+
+**Changes:**
+- New `src/server/accounts.ts` and `src/client/lobby/Account.tsx`: local
+  username/password accounts (`scrypt`-hashed), layered over the existing
+  visitor model; a two-step sign-in (verify, then confirm) specifically so
+  checking credentials alone can never switch a browser away from an
+  anonymous identity with its own work before the player has seen and
+  confirmed the migration-conflict warning.
+- New `src/client/state/names.ts`: resolves visitor ids to account display
+  names wherever "who" is shown, falling back to a short anonymous label.
+- `src/client/lobby/LobbyApp.tsx`: `?friend=token` now renders a
+  `FriendLinkPage` showing the sender and an explicit accept/decline
+  (previously the link was generated but never read by the page itself);
+  the Friends panel lists actual friends by name, not a count; room
+  invitation uses a selectable dropdown of real friends instead of a raw
+  visitor-id text field; friends and invitations poll every 4s while open.
+- `src/client/App.tsx`: a selected part shows who placed it and, once
+  edited by someone else, who last changed it, distinctly; a selected plan
+  shows its proposer and, while marked, who marked it; the Room panel
+  shows inherited credits separately from current contributors, each with
+  a friend-request button.
+- `src/client/lobby/Collection.tsx`: a "Save to my collection" button
+  calling the new `/collect` endpoint directly, creating no room (fixed a
+  bug my own verification script found: it was passed the showcase's
+  publication id rather than the snapshot id).
+- Publication setting disclosed in the public lobby list, the pending-
+  invitation list, and a new `previewRoom()` check before a direct-id
+  join.
+- `src/client/state/store.ts`: `fits` (real, supported heights) and
+  `planFits` (also reachable by a plan) tracked separately; Higher climbs
+  into plan-only territory once past the topmost real height, making the
+  no-support-required plan rule (previous commit) actually reachable
+  through the visible UI, not only through the API.
+- `src/client/index.html`: homepage copy updated to describe shared-room
+  building, plans, marks and publication as implemented, replacing the
+  pre-multiplayer "in development" narrative.
+
+**Why.** The author's explicit scope change (accounts) plus the review's
+remaining numbered gaps: friend links not working as shared links, no
+friend/invitation UI beyond a raw id, attribution stored but not shown,
+no direct collect-to-collection action, publication policy undisclosed
+before joining, and stale homepage copy.
+
+**Who decided:** the agent, following the author's architecture-approval
+request (local accounts, explained and approved before implementation)
+and the review's explicit UI gaps.
+
+**Tests:** `pnpm check`: 94/94. `pnpm typecheck`: clean. Browser
+verification in the next commit.
+
+**Limitations:** no account-password recovery in this phase (stated in
+the registration form itself); no automatic merge of two already-worked-in
+identities when a migration conflict occurs, only the explicit warning
+and refusal to proceed without confirmation.
+
+### 2026-10-13 23:10 AEDT — [`44b2354`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/44b2354) Browser verification for the review fixes and the account system; evidence
+
+**Changes:**
+- New `scripts/review-fixes.ts`: two independent identities through
+  visible controls — opening the actual generated friend-request link URL
+  and completing accept/decline; stepping Higher past real heights to
+  propose a future roof with nothing supporting it, confirming Place is
+  refused there but Propose instead works; attribution shown for a
+  selected part before and after another member edits it; saving a
+  published version directly to a collection with no room created; the
+  public lobby disclosing the publication setting before joining.
+- New `scripts/accounts.ts`: registering preserves an existing anonymous
+  room unchanged; signing in from a genuinely independent browser context
+  (a fresh `BrowserContext`, never a shared cookie jar) reaches the same
+  rooms and construction; signing in while a different browser's
+  anonymous identity has its own work shows the conflict warning, never
+  switches silently, and that identity's room is neither deleted nor
+  reassigned afterward; sign-out deletes the session server-side (the old
+  cookie stops resolving, not merely cleared client-side); a wrong
+  password and a nonexistent username return the identical non-
+  enumerating response; the showcase loads with no account and no prior
+  cookie.
+- `scripts/invites.ts` updated to select the invited friend from the new
+  dropdown rather than filling a raw-id field that no longer exists.
+- `doc/evidence/shots/review-fixes/`: the account choose/register/signed-
+  in states and the friend-request link page.
+
+**Why.** The author's instruction to verify every fix and new feature
+through visible UI using independent identities, not API-only setup.
+
+**Who decided:** the agent.
+
+**Tests, run against a fresh local server (this commit's own evidence):**
+- `scripts/review-fixes.ts`: 14/14. `scripts/accounts.ts`: 13/13.
+- Full regression after all three commits: `pnpm check` 94/94, `pnpm
+  check:evidence` clean, `scripts/multiplayer.ts` 15/15 (reproduced after
+  one flaky rerun unrelated to this session's changes — a pre-existing
+  timing-sensitive check also present before this session),
+  `scripts/invites.ts` 7/7, `scripts/showcase.ts` 16/16,
+  `scripts/interaction.ts` 83/83, `scripts/placement.ts` 31/31 in both
+  Chrome and WebKit.
+
+**Limitations:** all verification ran locally, once per check (plus
+confirming reruns where a flake was suspected), in Chrome (and WebKit for
+`placement.ts`), on one machine; neither the deployed app nor a physical
+device was used, and nothing has been pushed or deployed.
