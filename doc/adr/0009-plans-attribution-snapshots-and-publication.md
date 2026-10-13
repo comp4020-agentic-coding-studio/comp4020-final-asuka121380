@@ -203,6 +203,55 @@ initial host-only recommendation)
   (author), matching ADR 0007's migration to `invite_only` rooms with
   `allow_publish = false`.
 
+## As built (agent; revises the plan above)
+
+- **Inherited credits are their own table, not folded into
+  `room_contributors`.** The first implementation seeded a continued room's
+  `room_contributors` directly from the source snapshot's contributors,
+  which — on reflection, before any UI was built on top of it — conflated
+  two things the brief keeps distinct: "credited from an earlier version"
+  and "actually placed a part in this room" (brief: "do not describe
+  inherited creators as people who joined the new room"). Fixed with two
+  new tables, `room_inherited_credits` and `snapshot_inherited_credits`
+  (`room_id`/`snapshot_id`, `visitor_id`, `first_contribution_at`),
+  populated only by `seedFromSnapshot`/`saveSnapshot` and never merged into
+  `room_contributors`/`snapshot_contributors`. `snapshotOf()` and
+  `getSnapshot()` return `contributors` and `inheritedCredits` as two
+  separate arrays; the client (`Collection.tsx`'s `Credits`) renders them
+  under two separate headings and never sums them into one count.
+- **A restricted snapshot cannot be laundered through a public derived
+  room either**, closing a second bypass found the same way: the first
+  `createRoom` let a continuer request `visibility: "public"` for a room
+  built from a non-publishable snapshot. A public room is listed in the
+  open lobby and joinable by any visitor while capacity allows (ADR 0007)
+  — a disclosure path independent of the showcase, and one the brief
+  explicitly names as something publication restriction must survive.
+  `createRoom` now reads the source snapshot's `allow_publish` and clamps
+  the new room to `invite_only`/`allowPublish: false` whenever it is
+  false, regardless of what was requested; the client's "Continue in a new
+  room" control detects the clamp in the server's response and tells the
+  continuer their choice was overridden rather than silently honouring
+  their request. `spec/snapshots-and-showcase.test.ts` covers both the
+  publish-attempt refusal and this room-visibility refusal (listing,
+  direct join, direct `GET`) as separate assertions.
+- **Collection, snapshot-viewer and showcase UI** (brief sections 8–10)
+  are lightweight-routed off `/build/` by query parameter
+  (`?snapshot=id`, `?showcase=id`, `?view=collection`, `?view=showcase`)
+  rather than adding a router dependency, consistent with the rest of the
+  lobby (ADR 0007). `SnapshotView.tsx` is a separate lazy-loaded chunk
+  (confirmed via the production build's output, not pulled into the base
+  lobby bundle) so the read-only viewer's three.js cost is paid only by a
+  visitor who actually opens one, matching the site-identity rule that the
+  homepage/lobby must not load three.js unnecessarily.
+- **Verification**: `scripts/showcase.ts` drives two independent browser
+  identities through the real UI — save, read-only view, continue into an
+  independent room (checking the source snapshot is provably unchanged by
+  reading it back over HTTP), publish, a second stranger continuing the
+  published version, and the credits distinguishing publisher/contributors/
+  inherited credits with working friend-request buttons — plus the two
+  negative cases above, 16 checks total, passing consistently across
+  multiple clean reruns.
+
 ## Consequences
 
 - Six new tables (`plans`, `plan_marks` [ephemeral, may be pruned
