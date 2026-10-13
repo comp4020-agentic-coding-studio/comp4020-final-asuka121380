@@ -180,16 +180,30 @@ something closer to Option A.
 ## Consequences
 
 - `commands` table gains nothing new for `place`; `remove`/`recolour`/
-  `rotate` envelopes change shape: `expectedRevision` (room-level) is kept
-  for backward compatibility with the snapshot shown to the client, but the
-  authoritative check for those three command types becomes
-  `expectedPartRevision` against the specific `placedId`.
-- The SSE push payload is a full snapshot on connect/reconnect and a
-  targeted delta (`{type: "part-added" | "part-removed" | "part-changed" |
-  "inventory-changed", ...}`) on each subsequent commit, so a client can
-  patch its local view without waiting for the next full reload.
-- `spec/realtime.test.ts` (new) is the testable half of this ADR: two
-  independent fetches joining the same room, one placing, the other
-  observing the SSE stream, asserting the event arrives well under the
-  roughly-one-second bar, and that two non-conflicting placements from two
-  clients both succeed without either reporting a conflict.
+  `rotate` envelopes gain an optional `expectedRev`: the targeted part's own
+  revision, checked against it instead of (or alongside) the whole room's.
+- **As built (agent; revises the plan above):** every push, on connect, on
+  reconnect and on every subsequent commit, is a full snapshot, not a
+  targeted delta. Rooms are small (`maxPlayers` 2 for Beach Houses, so a
+  snapshot is at most the kit's worth of parts and a couple of open plans)
+  and the course's machine is a single shared-cpu-1x instance, so the
+  simpler, always-consistent full push was judged not worth trading for a
+  delta protocol's extra surface at this scale. This is worth revisiting if
+  a future scene's room holds enough parts that a snapshot becomes
+  expensive to resend on every change.
+- Membership and presence changes push a snapshot too (`rooms.ts`'s `join`,
+  `leave` and presence sweep), not only command commits: a member list that
+  only updated on someone else's next placement would show an arrival late,
+  which the brief's "shows current members" requirement rules out. A
+  heartbeat call that merely confirms an already-active member is still
+  here never pushes, so the 10-second SSE keep-alive cannot spam a
+  snapshot to the whole room on its own.
+- `spec/realtime.test.ts` is the testable half of this ADR: two independent
+  fetches joining the same room, one placing, the other observing the SSE
+  stream, asserting the event arrives well under the roughly-one-second
+  bar, and that two non-conflicting placements from two clients both
+  succeed without either reporting a conflict. `scripts/multiplayer.ts`
+  repeats the propagation measurement through the real browser UI with two
+  independent identities (placements, recolours, removals and plan
+  realization all measured at 2–50 ms in practice), rather than only over
+  raw HTTP.

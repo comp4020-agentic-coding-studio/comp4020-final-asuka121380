@@ -235,6 +235,13 @@ Each entry gives, in proportion to the change:
   requires a checked server-side invitation; friendship never substitutes
   for one). The inventory is shared by the whole room; joining or leaving
   never creates, removes or carries away stock (ADR 0007).
+- **`/build/` is a room lobby, not the editor.** Build alone, start a room,
+  join by code, browse the public lobby, friends and invitations all live
+  there. The editor itself is `/build/room/:id`, a real route that a direct
+  link or reload re-opens. Loading a room (including on reload or
+  reconnect) rejoins it through the same check a fresh join uses, so an
+  invite-only room with no accepted invitation, or a full room, is refused
+  the same way every time, shown as its own full-page state (ADR 0007).
 - **The host has no runtime authority.** The server is sole authority for
   every command, exactly as C8. A room survives its host disconnecting.
 - **Realtime.** Server-sent events push committed changes to every open

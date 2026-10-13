@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildFor, parseEnvelope, roomSnapshot, runCommand, summaryFor } from "./builds.ts";
 import { openDatabase } from "./db.ts";
@@ -7,7 +7,22 @@ import { createRecoveryCode, createSession, findVisitor, recoveryRateLimited, re
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
 import { markPlan, subscribe } from "./realtime.ts";
-import { createRoom, defaultRoomFor, findRoom, isMember, join as joinRoom, leave as leaveRoom, markActive, publicLobby, snapshotOf, sweepPresence } from "./rooms.ts";
+import {
+  createRoom,
+  defaultRoomFor,
+  findRoom,
+  inviteToRoom,
+  isMember,
+  join as joinRoom,
+  leave as leaveRoom,
+  markActive,
+  pendingInvitesFor,
+  publicLobby,
+  respondToInvite,
+  roomsFor,
+  snapshotOf,
+  sweepPresence,
+} from "./rooms.ts";
 import { getSnapshot, publishSnapshot, saveSnapshot, showcaseEntry, showcaseList, snapshotsSavedBy } from "./snapshots.ts";
 
 // One same-origin service: the built client (the homepage at / and the
@@ -81,6 +96,12 @@ app.get("/api/summary", (req, res) => {
   res.json(summaryFor(db, () => findVisitor(db, readCookie(req))));
 });
 
+// who the server resolves this request's cookie to; the lobby UI uses this
+// to mark "you" in a member list without the server trusting a client-sent id
+app.get("/api/me", (req, res) => {
+  res.json({ visitorId: identify(req, res) });
+});
+
 app.post("/api/identity/recovery-code", (req, res) => {
   const visitorId = identify(req, res);
   res.json({ code: createRecoveryCode(db, visitorId) });
@@ -134,6 +155,48 @@ app.post("/api/rooms/:id/leave", (req, res) => {
   const visitorId = identify(req, res);
   leaveRoom(db, req.params.id, visitorId);
   res.json({ ok: true });
+});
+
+// this visitor's own rooms: the default solo room plus any shared room
+// they've joined, so the editor can offer "resume a room" (ADR 0007)
+app.get("/api/my/rooms", (req, res) => {
+  const visitorId = identify(req, res);
+  res.json(roomsFor(db, visitorId));
+});
+
+app.get("/api/my/invites", (req, res) => {
+  const visitorId = identify(req, res);
+  res.json(pendingInvitesFor(db, visitorId));
+});
+
+// only the host invites, and only a friend: friendship is required so an
+// invite-only room's access still traces back to an accepted relationship,
+// even though friendship alone is never sufficient to join (ADR 0007)
+app.post("/api/rooms/:id/invite", (req, res) => {
+  const visitorId = identify(req, res);
+  const to = typeof req.body?.to === "string" ? req.body.to : "";
+  if (!to || !areFriends(db, visitorId, to)) {
+    res.status(400).json({ ok: false, message: "You can only invite a friend." });
+    return;
+  }
+  const outcome = inviteToRoom(db, req.params.id, visitorId, to);
+  if (!outcome.ok) {
+    res.status(outcome.code === "not_found" ? 404 : outcome.code === "forbidden" ? 403 : 409).json({ ok: false, code: outcome.code });
+    return;
+  }
+  res.json({ ok: true, inviteId: outcome.id });
+});
+
+app.post("/api/invites/:id/respond", (req, res) => {
+  const visitorId = identify(req, res);
+  const accept = req.body?.accept === true;
+  const outcome = respondToInvite(db, req.params.id, visitorId, accept);
+  if (!outcome.ok) {
+    const status = outcome.code === "not_found" ? 404 : outcome.code === "room_full" ? 409 : 403;
+    res.status(status).json({ ok: false, code: outcome.code });
+    return;
+  }
+  res.json(outcome);
 });
 
 app.get("/api/rooms/:id", (req, res) => {
@@ -365,6 +428,13 @@ app.get("/readme/", (req, res) => {
 app.use("/readme/docs", express.static(join(ROOT, "docs")));
 
 if (existsSync(CLIENT)) {
+  // /build/room/:id is the one editor bundle, client-routed by pathname (no
+  // separate server page for each room): a direct link or reload must still
+  // serve it. Registered before express.static, which would otherwise match
+  // /build/room/:id/ as a request for the build/room/ directory's own index.
+  app.get(/^\/build\/room\/[^/]+\/?$/, (_req, res) => {
+    res.type("html").send(readFileSync(join(CLIENT, "build/room/index.html"), "utf8"));
+  });
   app.use(
     express.static(CLIENT, {
       index: "index.html",

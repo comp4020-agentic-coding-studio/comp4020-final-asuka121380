@@ -112,12 +112,69 @@ invite-only room.
   `visitor_id`) and that attribution now distinguishes "who placed this"
   from "who is in the room" (ADR 0009).
 
+### The lobby, and reaching a room (agent; added once the first implementation
+left the editor only ever opening one visitor's default room)
+
+A working server is not a usable feature if nothing in the interface reaches
+it. `/build/` is now a room lobby, not the editor directly:
+
+- **"Build on your own"** opens the visitor's existing default room (the
+  same one `/api/build` always served) in one click — the brief's "solo
+  building remains meaningful and immediately usable" holds exactly as
+  before, just one click further from `/`.
+- **"Start a room"** creates a room with a chosen visibility and publish
+  setting and opens it immediately.
+- **"Join a room by its code"** and the **public lobby list** (live
+  occupancy, polled every 4s, never fabricated) both join through the same
+  `POST /api/rooms/:id/join` the public lobby card's own Join button uses.
+- **Room invitations** and **friends** (requests, a personal link,
+  acceptance) are both reachable from the same page.
+- The editor itself lives at `/build/room/:id`, a real route (a direct link
+  or reload re-renders the editor, not the lobby); `main.tsx` reads the id
+  from the path and opens that room's transport.
+- **Loading a room's data now also (re)joins it.** A direct link, a reload,
+  or the browser's own EventSource auto-reconnect all go through the same
+  join check as clicking Join, so "restores the correct room and
+  authoritative state" (the brief's requirement) holds uniformly: an
+  invite-only room with no accepted invitation refuses a reload exactly as
+  it refuses a first visit, and a full room reports that too, each as its
+  own full-page state (`AccessScreen` in `App.tsx`) rather than a broken
+  3D view behind an error chip.
+- **Membership changes are pushed live, not only the next build command.**
+  The first cut only emitted an SSE event from `runCommand`, so a member
+  joining produced no event: everyone already connected saw the arrival
+  only once someone placed something. `rooms.ts`'s `join`, `leave` and the
+  presence sweep now push a snapshot on any real transition (an away
+  member reconnecting counts; the SSE keep-alive's own heartbeat does not,
+  so it never spams a snapshot to the whole room every 10 seconds).
+- **Accepting an invitation joins the room in the same step.** The first
+  cut only flipped the invitation's status, leaving the person with no way
+  to actually reach the room they'd just said yes to; `respondToInvite`
+  now admits them as a member atomically (still capacity-checked), and the
+  lobby takes them straight there.
+- **In the editor, a Room panel** (current members vs. permanent
+  contributors, kept visibly distinct per the brief; invite a friend by id;
+  save a copy; leave) is reachable from the header, in the same chip
+  family as Help and the view controls — no new visual language.
+
+Verified end to end with two independent browser contexts (never two tabs
+sharing one identity) driving only visible controls: creating a room,
+discovering and joining it from the public lobby, both members placing,
+recolouring and removing real bricks with propagation measured at 2–50 ms
+(`scripts/multiplayer.ts`), and the full friend-link → accept → invite →
+accept-and-join path for an invite-only room, including the refusals for an
+uninvited friend and an uninvited stranger (`scripts/invites.ts`).
+
 ## What's still out of scope for this phase
 
 - A full room-management UI (renaming, transferring host, kicking a
   member) beyond what's needed to create, join, invite and leave.
 - Per-scene capacity beyond the one number; no per-room override of a
   scene's configured maximum.
+- Collection, snapshot viewing/continuation and showcase interfaces in the
+  editor itself: the server endpoints exist (ADR 0009) and "Save a copy" is
+  reachable from the Room panel, but there is no UI yet to browse, continue
+  or publish a saved snapshot.
 
 ## Consequences
 

@@ -227,13 +227,20 @@ describe("the homepage's summary", () => {
   });
 });
 
-describe("the two pages", () => {
-  it("serves the homepage at / and the editor at /build/, with /build redirecting", async () => {
+describe("the three pages (ADR 0007: a room lobby sits between home and the editor)", () => {
+  it("serves the homepage at /, the room lobby at /build/, and a room's editor at /build/room/:id", async () => {
     const home = await fetch(new URL("/", baseUrl));
     expect(home.status).toBe(200);
-    const editor = await fetch(new URL("/build/", baseUrl));
+
+    const lobby = await fetch(new URL("/build/", baseUrl));
+    expect(lobby.status).toBe(200);
+    expect(await lobby.text()).toContain('id="root"');
+
+    const { cookie, build } = await newVisitor();
+    const editor = await fetch(new URL(`/build/room/${build.roomId}/`, baseUrl), { headers: { cookie } });
     expect(editor.status).toBe(200);
     expect(await editor.text()).toContain('id="root"');
+
     const bare = await fetch(new URL("/build", baseUrl), { redirect: "manual" });
     expect([301, 302, 308]).toContain(bare.status);
     expect(bare.headers.get("location")).toMatch(/\/build\/$/);
