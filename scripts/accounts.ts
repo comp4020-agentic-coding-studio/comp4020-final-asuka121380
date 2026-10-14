@@ -108,7 +108,12 @@ check("signing in while this browser already has its own anonymous work shows th
 const notYetSwitched = await pageC.evaluate(async () => (await (await fetch("/api/me")).json()).account);
 check("viewing the warning never silently switches the browser yet", notYetSwitched === null, notYetSwitched);
 
-await pageC.getByRole("button", { name: "I understand, continue signing in" }).click();
+// the confirm button's label now varies: "Continue without saving a
+// recovery code" if the player skipped generating one, or "I've saved my
+// code — continue signing in" once they have (section 4's preservation
+// path) — match either, since this check is about completing the switch,
+// not about which path was taken
+await pageC.getByRole("button", { name: /continue signing in|continue without saving/i }).click();
 await pageC.waitForSelector("text=Signed in as");
 const switchedAccount = await pageC.evaluate(async () => (await (await fetch("/api/me")).json()).account?.username);
 check("confirming completes the sign-in", switchedAccount === username, switchedAccount);

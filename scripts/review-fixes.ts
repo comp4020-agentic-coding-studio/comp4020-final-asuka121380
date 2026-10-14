@@ -120,6 +120,9 @@ const roomUrl = pageA.url();
 await pageB.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
 const roomId = roomUrl.match(/\/build\/room\/([^/?]+)/)![1];
 await pageB.goto(`${base}/build/room/${roomId}?debug`, { waitUntil: "domcontentloaded" });
+// a first-time visit to a direct room link now shows the pre-join
+// confirmation screen (section 3's fix); confirm it before the editor loads
+await pageB.getByRole("button", { name: /^Join this room/ }).click();
 await pageB.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
 await pageB.mouse.move(clickAt.x, clickAt.y, { steps: 3 });
 await pageB.waitForTimeout(100);

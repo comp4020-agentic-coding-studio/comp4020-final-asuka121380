@@ -69,6 +69,73 @@ describe("identity recovery", () => {
   });
 });
 
+describe("guest recovery cannot bypass a password-protected account (regression, 14 Oct 2026)", () => {
+  async function register(cookie: string, username: string, password: string): Promise<void> {
+    const res = await fetch(new URL("/api/account/register", baseUrl), {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ username, password, displayName: username }),
+    });
+    expect(res.status, await res.text()).toBe(200);
+  }
+
+  // one registration shared by two of the three tests below — register()
+  // itself signs in the registering cookie, so "a browser already signed in
+  // to an account" (what both tests need) is exactly what this is, without
+  // a second call against the real, intentionally-not-weakened per-source-
+  // IP rate limit every spec file touching these endpoints shares
+  let signedInVictim: { cookie: string } = { cookie: "" };
+
+  it("refuses to GENERATE a recovery code for a visitor currently signed in to an account", async () => {
+    signedInVictim = await freshVisitor();
+    await register(signedInVictim.cookie, `vg${Date.now() % 1_000_000}`, "a-victim-password-1");
+
+    const res = await fetch(new URL("/api/identity/recovery-code", baseUrl), { method: "POST", headers: { cookie: signedInVictim.cookie } });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+  });
+
+  it("refuses to REDEEM a code that (even if generated earlier) now resolves to an account-linked visitor, so it can never grant account access with no password", async () => {
+    const victim = await freshVisitor();
+    // generate the code BEFORE registering, simulating a code that existed
+    // first and the account was only linked afterward
+    const codeRes = await fetch(new URL("/api/identity/recovery-code", baseUrl), { method: "POST", headers: { cookie: victim.cookie } });
+    const { code } = await codeRes.json();
+    await register(victim.cookie, `vr${Date.now() % 1_000_000}`, "a-victim-password-2");
+
+    const attacker = await freshVisitor();
+    const res = await fetch(new URL("/api/identity/recover", baseUrl), {
+      method: "POST",
+      headers: { cookie: attacker.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    expect(res.status).toBe(400);
+    const me = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie: attacker.cookie } })).json();
+    expect(me.account).toBeNull(); // the attacker's browser never became the victim's account
+  });
+
+  it("refuses to redeem ANY code while the requesting browser is itself signed in to an account (no silent switch-away)", async () => {
+    const guest = await freshVisitor();
+    const codeRes = await fetch(new URL("/api/identity/recovery-code", baseUrl), { method: "POST", headers: { cookie: guest.cookie } });
+    const { code } = await codeRes.json();
+
+    // reuses the account the first test in this block already registered
+    const before = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie: signedInVictim.cookie } })).json();
+    expect(before.account).not.toBeNull();
+
+    const res = await fetch(new URL("/api/identity/recover", baseUrl), {
+      method: "POST",
+      headers: { cookie: signedInVictim.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    expect(res.status).toBe(400);
+
+    const after = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie: signedInVictim.cookie } })).json();
+    expect(after.account?.id).toBe(before.account.id); // still the same account, never silently switched to the guest
+  });
+});
+
 describe("friendship", () => {
   it("a direct request requires acceptance before either side is friends", async () => {
     const a = await freshVisitor();
