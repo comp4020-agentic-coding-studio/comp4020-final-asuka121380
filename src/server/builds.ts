@@ -4,7 +4,7 @@ import { rotatedPlacement, validateCommand, type BuildState, type PlacedPart } f
 import { STREET_SCENE } from "../domain/scene.ts";
 import { transaction, type Db } from "./db.ts";
 import { emitRoomEvent } from "./realtime.ts";
-import { defaultRoomFor, findRoom, snapshotOf, type RoomRow } from "./rooms.ts";
+import { defaultRoomFor, findRoom, isActiveMember, snapshotOf, type RoomRow } from "./rooms.ts";
 
 // The authoritative command path. Every durable change is: find the room's
 // build, check the command against the shared rules, then write the part,
@@ -115,9 +115,16 @@ export function runCommand(db: Db, visitorId: string, roomId: string, envelope: 
     if (!room) {
       return { outcome: "no-build", result: { ok: false, code: "not_found", message: "There's no room to change; reload the page." } };
     }
-    const member = db.prepare("SELECT 1 FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId);
-    if (!member) {
-      return { outcome: "forbidden", roomId, result: { ok: false, code: "bad_request", message: "You're not a member of this room." } };
+    // `isActiveMember`, not a bare room_members row check: a visitor who
+    // left, disconnected past the grace period, or was capacity-refused a
+    // rejoin after being replaced, has historical membership but no longer
+    // holds a live slot — and must not be able to mutate the room by
+    // sending a command directly, even though the UI itself would never
+    // offer them the controls (found by an independent review: B correctly
+    // got 409 room_full rejoining, but could still place a part by posting
+    // the command straight to the API).
+    if (!isActiveMember(db, roomId, visitorId)) {
+      return { outcome: "forbidden", roomId, result: { ok: false, code: "bad_request", message: "You're not currently admitted to this room; rejoin to continue." } };
     }
 
     // a retry of a command that already committed: report the current state, change nothing

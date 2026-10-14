@@ -12,6 +12,9 @@ import type { Db } from "./db.ts";
 const hash = (token: string): string => createHash("sha256").update(token).digest("hex");
 const now = (): string => new Date().toISOString();
 
+/** The same hash `sessions.token_hash` stores, exposed so a session's live SSE connections can be found and closed by it on sign-out (realtime.ts), without ever handling or storing the raw token itself. */
+export const hashToken = hash;
+
 export interface Visitor {
   id: string;
   /** Set only when a new visitor was created: the cookie value to hand back. */

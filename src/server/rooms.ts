@@ -199,8 +199,34 @@ function seedFromSnapshot(db: Db, roomId: string, snapshotId: string): void {
 
 // ---- membership and capacity ------------------------------------------------
 
+/** Historical membership: a room_members row exists at all, active or not. Read-only visibility checks use this (ADR 0007: an invite-only room is unlisted/404 to a non-member, but a former member keeps seeing it exists). */
 export function isMember(db: Db, roomId: string, visitorId: string): boolean {
   return !!db.prepare("SELECT 1 FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId);
+}
+
+/**
+ * Currently admitted: this visitor holds one of the room's live slots right
+ * now, not merely a historical row. This is the one check every MUTATING
+ * action (a command, a plan mark) must use — `isMember` alone is not
+ * authorization to edit, only to be found in the member list at all.
+ *
+ * The one deliberate exception: the solo/default room created by
+ * `defaultRoomFor` (`is_default = 1`) never flips its host to `active = 1`
+ * at all (nothing ever calls `join`/`markActive` on the back-compat
+ * `/api/build`+`/api/command` path — there is no lobby, invitation or SSE
+ * concept for a one-person room). Requiring `active = 1` there would lock
+ * every solo builder out of their own build. A default room's host is
+ * therefore always treated as actively admitted; every shared room (not
+ * `is_default`) requires a genuine, capacity-checked active row.
+ */
+export function isActiveMember(db: Db, roomId: string, visitorId: string): boolean {
+  const row = db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId) as
+    | { active: number }
+    | undefined;
+  if (!row) return false;
+  if (row.active) return true;
+  const isDefault = db.prepare("SELECT 1 FROM rooms WHERE id = ? AND is_default = 1").get(roomId);
+  return !!isDefault;
 }
 
 export type JoinOutcome = { ok: true } | { ok: false; code: "room_full" | "not_found" | "forbidden" };
@@ -345,16 +371,29 @@ export interface RoomInvite {
   createdAt: string;
   /** Shown before accepting (brief: disclose publication policy before admission). */
   allowPublish: boolean;
+  /** Real, server-counted current occupancy — the invitation can go stale (room_full) between being sent and accepted; shown so that isn't a surprise. */
+  occupancy: number;
+  capacity: number;
 }
 
 export function pendingInvitesFor(db: Db, visitorId: string): RoomInvite[] {
   const rows = db
     .prepare(
-      `SELECT i.id, i.room_id, r.scene_id, r.label, i.invited_by, i.created_at, r.allow_publish
+      `SELECT i.id, i.room_id, r.scene_id, r.label, i.invited_by, i.created_at, r.allow_publish,
+              (SELECT count(*) FROM room_members m WHERE m.room_id = r.id AND m.active = 1) AS occupancy
        FROM room_invites i JOIN rooms r ON r.id = i.room_id
        WHERE i.invited_visitor_id = ? AND i.status = 'pending' ORDER BY i.created_at`,
     )
-    .all(visitorId) as { id: string; room_id: string; scene_id: string; label: string | null; invited_by: string; created_at: string; allow_publish: number }[];
+    .all(visitorId) as {
+    id: string;
+    room_id: string;
+    scene_id: string;
+    label: string | null;
+    invited_by: string;
+    created_at: string;
+    allow_publish: number;
+    occupancy: number;
+  }[];
   return rows.map((r) => ({
     id: r.id,
     roomId: r.room_id,
@@ -363,6 +402,8 @@ export function pendingInvitesFor(db: Db, visitorId: string): RoomInvite[] {
     invitedBy: r.invited_by,
     createdAt: r.created_at,
     allowPublish: !!r.allow_publish,
+    occupancy: r.occupancy,
+    capacity: scene.maxPlayers,
   }));
 }
 
@@ -444,6 +485,71 @@ export function publicLobby(db: Db): LobbyRoom[] {
     )
     .all() as { id: string; scene_id: string; label: string | null; allow_publish: number; occupancy: number }[];
   return rows.map((r) => ({ id: r.id, sceneId: r.scene_id, label: r.label, occupancy: r.occupancy, capacity: scene.maxPlayers, allowPublish: !!r.allow_publish }));
+}
+
+// ---- pre-join admission preview --------------------------------------------
+
+export interface AdmissionPreview {
+  id: string;
+  sceneId: string;
+  label: string | null;
+  visibility: "public" | "invite_only";
+  allowPublish: boolean;
+  occupancy: number;
+  capacity: number;
+  /** Whether THIS visitor could actually join right now (standing + room), re-checked server-side at the moment of admission regardless of what this said. */
+  canJoin: boolean;
+  /** Why `canJoin` is false, for an understandable pre-join screen. Absent when `canJoin` is true. */
+  reason?: "forbidden" | "room_full";
+  /** Historical membership: a returning/reconnecting player who has been here before never needs the first-time pre-join confirmation screen again. */
+  alreadyMember: boolean;
+}
+
+/**
+ * Everything a pre-join confirmation screen needs to show BEFORE admitting
+ * anyone (brief: "a first-time join through a direct URL must show a
+ * pre-join screen... show room name, scene, capacity, visibility, and
+ * whether members may publish"), for a direct room id/link. Read-only:
+ * never joins, reserves a slot, or creates a `room_members` row — it only
+ * reports what `join` would currently decide, which `join` itself
+ * re-checks atomically at the actual moment of admission (a preview a few
+ * seconds stale from a race against someone else filling the last slot is
+ * refused there, never trusted from this snapshot).
+ *
+ * An invite-only room a stranger has no standing in returns `undefined`
+ * (not an object with every field blank), so the caller shows exactly the
+ * same "doesn't exist, isn't accessible, or isn't valid" state a 404
+ * already would — this never discloses anything about a room's existence,
+ * contents or settings to someone with no invitation (ADR 0007: an
+ * invite-only room is unlisted and unreadable by a non-member).
+ */
+export function admissionPreview(db: Db, roomId: string, visitorId: string): AdmissionPreview | undefined {
+  const room = findRoom(db, roomId);
+  if (!room) return undefined;
+  const alreadyMember = isMember(db, room.id, visitorId);
+  if (room.visibility === "invite_only" && room.host_id !== visitorId && !alreadyMember) {
+    const invite = db
+      .prepare("SELECT 1 FROM room_invites WHERE room_id = ? AND invited_visitor_id = ? AND status = 'accepted'")
+      .get(roomId, visitorId);
+    if (!invite) return undefined; // nothing to disclose to someone with no standing at all
+  }
+  const { n: occupancy } = db.prepare("SELECT count(*) AS n FROM room_members WHERE room_id = ? AND active = 1").get(room.id) as { n: number };
+  const { active } = (db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(room.id, visitorId) as
+    | { active: number }
+    | undefined) ?? { active: 0 };
+  const canJoin = !!active || occupancy < scene.maxPlayers;
+  return {
+    id: room.id,
+    sceneId: room.scene_id,
+    label: room.label,
+    visibility: room.visibility,
+    allowPublish: !!room.allow_publish,
+    occupancy,
+    capacity: scene.maxPlayers,
+    canJoin,
+    reason: canJoin ? undefined : "room_full",
+    alreadyMember,
+  };
 }
 
 // ---- snapshot assembly (the live room, for a command result or SSE push) --

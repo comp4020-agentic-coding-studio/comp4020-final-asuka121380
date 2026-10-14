@@ -4,15 +4,17 @@ import { join } from "node:path";
 import { accountForVisitor, authRateLimited, confirmSignIn, displayNamesFor, register, signOut, verifyCredentials, visitorHasOwnWork } from "./accounts.ts";
 import { buildFor, parseEnvelope, roomSnapshot, runCommand, summaryFor } from "./builds.ts";
 import { openDatabase } from "./db.ts";
-import { createRecoveryCode, createSession, deleteSession, findVisitor, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
+import { createRecoveryCode, createSession, deleteSession, findVisitor, hashToken, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
-import { markPlan, subscribe } from "./realtime.ts";
+import { markPlan, registerConnection, revokeSession, subscribe } from "./realtime.ts";
 import {
+  admissionPreview,
   createRoom,
   defaultRoomFor,
   findRoom,
   inviteToRoom,
+  isActiveMember,
   isMember,
   join as joinRoom,
   leave as leaveRoom,
@@ -56,11 +58,23 @@ function setCookie(req: Request, res: Response, token: string): void {
   res.setHeader("Set-Cookie", `${COOKIE}=${token}; Path=/; Max-Age=${YEAR}; HttpOnly; SameSite=Lax${secure}`);
 }
 
+/** Reads back the raw token from a Set-Cookie header `setCookie` just wrote on this same response (used only when a request arrived with no cookie of its own, so there is nothing else to key a new SSE connection's session on). */
+function newCookieToken(res: Response): string {
+  const header = res.getHeader("Set-Cookie");
+  const value = Array.isArray(header) ? header[0] : (header as string | undefined);
+  return value?.match(new RegExp(`${COOKIE}=([^;]+)`))?.[1] ?? "";
+}
+
 /** Resolves the caller's visitor id from the cookie, creating one if needed, and keeps the response's cookie in sync. */
 function identify(req: Request, res: Response): string {
   const visitor = visitorFor(db, readCookie(req));
   if (visitor.newToken) setCookie(req, res, visitor.newToken);
   return visitor.id;
+}
+
+/** After revoking a session's SSE connections, flips presence off for any (room, visitor) pair whose last live connection was just closed — reusing `leave`'s own active=0 + SSE-push logic, so other members see the departure immediately rather than waiting out the 30s presence sweep. */
+function clearPresence(cleared: { roomId: string; visitorId: string }[]): void {
+  for (const { roomId, visitorId } of cleared) leaveRoom(db, roomId, visitorId);
 }
 
 // One line per command: who (an opaque prefix), which room, what, and how it
@@ -151,8 +165,28 @@ app.get("/api/me", (req, res) => {
   res.json({ visitorId, account: account ?? null });
 });
 
+// Regression (independent review, 14 Oct 2026): a recovery code is meant
+// to re-link a BROWSER to an anonymous GUEST identity that was never
+// password-protected — ADR 0006 explicitly frames it as "no password, no
+// email, nothing the project depends on besides its own database." But
+// `createRecoveryCode` took only a visitor id, with no check on whether
+// that visitor had since been linked to an account (ADR 0010): a visitor
+// signed in to a password-protected account could still generate a
+// recovery code for THEMSELVES, and redeeming it from any other browser
+// granted full account access with no password at all — a strictly
+// weaker path into the exact account the password exists to protect.
+// Refused outright here, in both directions: generating one for an
+// account-linked visitor, and redeeming one that (even if generated
+// before the account existed) now resolves to an account-linked visitor.
 app.post("/api/identity/recovery-code", (req, res) => {
   const visitorId = identify(req, res);
+  if (accountForVisitor(db, visitorId)) {
+    res.status(400).json({
+      ok: false,
+      message: "This identity is signed in to an account; use the account's own username and password to reach it from another device.",
+    });
+    return;
+  }
   res.json({ code: createRecoveryCode(db, visitorId) });
 });
 
@@ -161,10 +195,37 @@ app.post("/api/identity/recover", (req, res) => {
     res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
     return;
   }
+  // If THIS browser is currently signed in to an account, redeeming a
+  // guest code here would silently switch the browser's cookie away from
+  // that account — the exact "silent switch away from an identity" the
+  // account system otherwise always gates behind an explicit, re-verified
+  // confirmation (ADR 0010's two-step sign-in). Recovery was never meant
+  // to be a second, unconfirmed way to do that; refused before even
+  // checking the code, so this never consumes a still-valid one by mistake.
+  const priorVisitorId = findVisitor(db, readCookie(req));
+  if (priorVisitorId && accountForVisitor(db, priorVisitorId)) {
+    res.status(400).json({
+      ok: false,
+      message: "This browser is signed in to an account; sign out first if you want to switch to a guest identity.",
+    });
+    return;
+  }
   const code = typeof req.body?.code === "string" ? req.body.code : "";
   const visitorId = code && redeemRecoveryCode(db, code);
   if (!visitorId) {
     res.status(400).json({ ok: false, message: "That code is invalid or has already been used." });
+    return;
+  }
+  if (accountForVisitor(db, visitorId)) {
+    // the code is already consumed (redeemRecoveryCode deletes it on read)
+    // and deliberately not reinstated: a code reaching this point is either
+    // a bug elsewhere or an attempt to replay one generated before the
+    // account existed, and letting it be tried again changes nothing about
+    // the risk, only the convenience of trying again
+    res.status(400).json({
+      ok: false,
+      message: "This identity is signed in to an account; recovery codes can't be used to reach a password-protected account.",
+    });
     return;
   }
   // a new session for the existing visitor, alongside any others they hold,
@@ -254,6 +315,17 @@ app.post("/api/account/sign-in/confirm", (req, res) => {
     res.status(401).json({ ok: false, message: "Incorrect username or password." });
     return;
   }
+  // This browser's PRIOR session, if any, is about to stop being the one
+  // this cookie resolves to — so any room stream it opened must stop
+  // receiving that room's private updates under the old identity right
+  // now, not whenever its socket happens to close on its own (the
+  // account-switch half of the review's regression: "account switching
+  // must not leave the previous identity's stream or room state
+  // attached"). Revoking it also clears that visitor's presence in any
+  // room whose last live connection this was, rather than letting a
+  // now-dead stream's own keep-alive keep renewing it.
+  const priorToken = readCookie(req);
+  if (priorToken) clearPresence(revokeSession(hashToken(priorToken)));
   const session = confirmSignIn(db, outcome.visitorId);
   setCookie(req, res, session);
   res.json({ ok: true, account: outcome.account });
@@ -261,7 +333,14 @@ app.post("/api/account/sign-in/confirm", (req, res) => {
 
 app.post("/api/account/sign-out", (req, res) => {
   const token = readCookie(req);
-  if (token) signOut(db, token);
+  if (token) {
+    signOut(db, token);
+    // Close every SSE stream this specific session opened: logging out in
+    // one tab must stop that tab's room stream immediately, not merely
+    // once its socket eventually drops — "a stale stream must not keep
+    // renewing the old identity's active presence" in the meantime.
+    clearPresence(revokeSession(hashToken(token)));
+  }
   // a signed-out visit still needs an identity to act as (an anonymous one,
   // exactly like a brand-new visit); identify() issues a fresh cookie here
   identify(req, res);
@@ -363,6 +442,23 @@ app.get("/api/rooms/:id", (req, res) => {
   res.json(snapshotOf(db, room));
 });
 
+// Pre-join admission preview (the brief: "a first-time join through a
+// direct URL must show a pre-join screen before joining... show room name,
+// scene, capacity, visibility, and whether members may publish"). Never
+// joins, never reserves a slot — `join` re-checks everything itself,
+// atomically, at the moment admission actually happens, so a preview that
+// went stale (someone else took the last slot a moment later) is refused
+// there regardless of what this said a moment earlier.
+app.get("/api/rooms/:id/preview", (req, res) => {
+  const visitorId = identify(req, res);
+  const preview = admissionPreview(db, req.params.id, visitorId);
+  if (!preview) {
+    res.status(404).json({ ok: false, message: "No such room." });
+    return;
+  }
+  res.json(preview);
+});
+
 // Realtime: server-sent events, one connection per open session per room
 // (ADR 0008). Writes still only ever happen through POST /api/command.
 //
@@ -375,8 +471,15 @@ app.get("/api/rooms/:id", (req, res) => {
 // the stream and only afterward discovering the room is already full at
 // capacity would both reject the viewer's own events and still have opened
 // a never-torn-down SSE handle, so the check happens first.
+//
+// Registered by the SESSION TOKEN that opened it (`registerConnection`,
+// realtime.ts), so that signing that specific session out (or an account
+// switch that supersedes it) can revoke exactly this stream without
+// touching a different, still-valid session the same visitor might hold
+// elsewhere (ADR 0006/0010) — see `revokeSession`'s callers below.
 app.get("/api/rooms/:id/events", (req, res) => {
-  const visitorId = identify(req, res);
+  const incomingToken = readCookie(req);
+  const visitorId = identify(req, res); // may issue a fresh cookie if `incomingToken` was absent/invalid
   const room = findRoom(db, req.params.id);
   if (!room || !isMember(db, room.id, visitorId)) {
     res.status(404).json({ ok: false, message: "No such room." });
@@ -387,11 +490,28 @@ app.get("/api/rooms/:id/events", (req, res) => {
     res.status(409).json({ ok: false, code: admitted.code, message: "This room is already at capacity." });
     return;
   }
+  // The session token this connection is authorized under: the one that
+  // was already in the cookie, or (a brand-new visitor's very first
+  // request) the fresh one `identify` just issued. Either way this
+  // connection is now tied to one real, revocable session row.
+  const sessionToken = incomingToken ?? newCookieToken(res);
+  const tokenHash = hashToken(sessionToken);
   const unsubscribe = subscribe(room.id, res, snapshotOf(db, room));
   const keepAlive = setInterval(() => markActive(db, room.id, visitorId), 10_000);
+  const deregister = registerConnection({
+    tokenHash,
+    roomId: room.id,
+    visitorId,
+    kill: () => {
+      clearInterval(keepAlive);
+      unsubscribe();
+      res.end();
+    },
+  });
   req.on("close", () => {
     clearInterval(keepAlive);
     unsubscribe();
+    deregister();
   });
 });
 
@@ -399,7 +519,11 @@ app.post("/api/rooms/:id/mark", (req, res) => {
   const visitorId = identify(req, res);
   const room = findRoom(db, req.params.id);
   const planId = typeof req.body?.planId === "string" ? req.body.planId : "";
-  if (!room || !isMember(db, room.id, visitorId) || !planId) {
+  // A mark is a live, room-visible action, not a read: an inactive former
+  // member (left, replaced, or refused a rejoin) must not be able to push a
+  // "look here" to people currently in the room — the same
+  // currently-admitted check every other mutation now uses.
+  if (!room || !isActiveMember(db, room.id, visitorId) || !planId) {
     res.status(404).json({ ok: false, message: "No such room or plan." });
     return;
   }
