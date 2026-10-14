@@ -1638,3 +1638,257 @@ through visible UI using independent identities, not API-only setup.
 confirming reruns where a flake was suspected), in Chrome (and WebKit for
 `placement.ts`), on one machine; neither the deployed app nor a physical
 device was used, and nothing has been pushed or deployed.
+
+### 2026-10-14 12:07 AEDT — [`14311c6`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/14311c6) Fix mutation-authorization bypass and SSE session leakage; add pre-join preview endpoint
+
+**Changes:**
+- `src/server/rooms.ts`: new `isActiveMember()` — currently admitted
+  (`active = 1`), not merely a historical `room_members` row — with one
+  deliberate exception for the solo/default room's host, which never
+  flips `active` at all since it never goes through `join`/`markActive`.
+  `isMember()` is kept, unchanged, for genuinely read-only checks (view
+  room, SSE connect's initial check, save-snapshot).
+- `src/server/builds.ts`: `runCommand`'s membership check switched from a
+  bare `room_members` row existence check to `isActiveMember()`.
+- `src/server/index.ts`: `POST /api/rooms/:id/mark` switched to
+  `isActiveMember()` the same way. New `GET /api/rooms/:id/preview`
+  (`admissionPreview()` in `rooms.ts`) returns room name, scene,
+  visibility, real occupancy/capacity, publication setting, and whether
+  this visitor could join right now, with no side effects.
+- `src/server/realtime.ts`: new session-token-keyed connection registry
+  (`registerConnection`/`revokeSession`) — every SSE connection is
+  registered by the hash of the exact session token that opened it
+  (`hashToken`, new export in `src/server/identity.ts`), never the
+  visitor id alone and never the raw token.
+- `src/server/index.ts`: `GET /api/rooms/:id/events` now registers/
+  deregisters by session token hash; `POST /api/account/sign-out` and
+  `POST /api/account/sign-in/confirm` both call `revokeSession()` on the
+  prior token before proceeding, closing every connection opened under
+  that specific session and clearing that visitor's active presence in
+  any room whose last live connection just closed.
+- `src/server/index.ts`: **critical fix**, found while directly verifying
+  the brief's instruction to "verify that guest recovery cannot become a
+  weaker bypass into a password-protected account" — `POST
+  /api/identity/recovery-code` previously had no check on whether the
+  requesting visitor was linked to an account, so a signed-in account
+  holder could generate a recovery code for themselves and have it
+  redeemed from any other browser for a full, password-free session on
+  that account. Reproduced directly with `curl`: register an account,
+  call `recovery-code` on the same signed-in cookie, redeem the code from
+  a fresh browser with no cookie, `GET /api/me` showed the full account.
+  Fixed with two checks: `recovery-code` now refuses to generate a code
+  for an account-linked visitor; `recover` refuses to redeem a code that
+  resolves to an account-linked visitor, and separately refuses to redeem
+  any code at all while the requester's own current cookie is itself
+  signed in (closing a second, related silent-switch gap).
+- `src/server/rooms.ts`: `pendingInvitesFor` now also returns live
+  `occupancy`/`capacity`, so an invitation can be shown as currently full
+  rather than only as a publication-flag line.
+
+**Why.** An independent review reproduced four distinct issues against
+the running multiplayer build (see the review brief, 14 Oct 2026): (1) a
+capacity-refused rejoin did not stop a direct mutation attempt from the
+same, now-inactive visitor; (2) a logged-out session's SSE stream kept
+receiving private-room updates indefinitely; (3) a direct room link
+joined before showing anything about the room, with a separate timing
+gap in the join-by-code preview; (4) guest-recovery and account-switching
+UX gaps, the most severe of which (above) was a genuine authentication
+bypass rather than a UX issue.
+
+**Who decided:** the agent, implementing the review's explicit
+requirements; the critical recovery-code/account bypass was an
+independently discovered vulnerability, not something the review
+predicted in that specific form — only instructed to be verified.
+
+**Tests:** a scratch reproduction file (`spec/server/_repro_mutation_bypass.test.ts`)
+confirmed the mutation bypass against an in-memory DB before the fix, then
+deleted. Full suite run in the next commits.
+
+**Limitations:** cross-tab notification of a session change is a UX
+nicety (next commit); server-side session/admission re-validation on
+every request remains the actual enforcement, so a tab that misses the
+notification (storage disabled, private browsing) is still refused
+server-side on its next mutation attempt, not silently allowed to
+continue.
+
+### 2026-10-14 12:11 AEDT — [`3a47ed9`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/3a47ed9) Client: pre-join confirmation screen, cross-tab identity sync, inline guest preservation
+
+**Changes:**
+- `src/client/PreJoin.tsx` (new): `PreJoinGate` — loading/ready/invalid
+  states; shows room label, scene, visibility, capacity and publication
+  terms; "Join this room" disabled until the preview says `canJoin`; an
+  already-admitted/returning player (`alreadyMember`) skips the screen
+  entirely and proceeds immediately.
+- `src/client/main.tsx`: a first-time direct room link now renders
+  `PreJoinGate` before calling the real `start()` (which performs the
+  actual, server-re-checked join); local/no-room-id routes are
+  unaffected.
+- `src/client/lobby/LobbyApp.tsx`: `JoinByCode` rewritten with an
+  explicit preview state machine (`idle|checking|ready|failed`) and a
+  race guard, so the Join button is disabled while the preview is
+  loading or after it fails — the previous version let the button be
+  clicked before the async preview had resolved. Pending invitations now
+  show live occupancy/capacity and disable Accept (with a tooltip) when
+  full. `IdentityPanel` now takes the current `accountName` and shows an
+  explanatory message instead of recovery-code generate/redeem controls
+  whenever the browser is signed in, rather than letting the action fail
+  server-side with no warning.
+- `src/client/state/session-events.ts` (new): `broadcastIdentityChange()`/
+  `onIdentityChangedElsewhere()` using `localStorage` + the browser's
+  native `storage` event (no new dependency) — fires in every OTHER open
+  tab of the same origin, never the tab that wrote it.
+- `src/client/state/store.ts`: `start()` registers a listener for
+  identity-change notifications; on notification it clears
+  `held`/`selectedId`/`selectedPlanId`/`deleting` and re-runs `start()`,
+  which re-resolves `selfId` and the join-on-load check, so a tab left
+  open under an identity that signed out elsewhere lands on the ordinary
+  access-denied screen if it's no longer entitled to that room.
+- `src/client/lobby/LobbyApp.tsx`: also listens for the same notification
+  to refresh its own account-name display.
+- `src/client/lobby/Account.tsx`: `MigrationWarning` now generates and
+  displays a recovery code for the CURRENT guest identity inline, on the
+  same screen, before a switch away from it — the confirm button's label
+  changes ("I've saved my code — continue signing in" vs. "Continue
+  without saving a recovery code") so skipping the step is a visible,
+  deliberate choice. The signed-in and guest states now show an explicit
+  "Signed in"/"Guest mode" tag; sign-out shows a plain-language
+  confirmation ("Signed out. This browser is back to its own guest
+  identity — no account's details are shown here anymore.").
+- `src/client/state/api.ts`: `previewRoom()` replaced with
+  `previewAdmission()` returning the full `AdmissionPreview` shape;
+  `RoomInvite` gained `occupancy`/`capacity`.
+
+**Why.** Directly implements the review's Issue 3 (disclose publication
+terms before admission, no join-before-preview timing gap) and the UX
+half of Issue 2/4 (cross-tab coherence is not itself the enforcement —
+server-side checks from the prior commit are — but a tab that doesn't
+notice a signed-out identity is a bad experience even when it's safely
+refused) and Issue 4 (a usable, inline preservation path before switching
+away from a guest identity with real work, and clear guest/account status
+throughout).
+
+**Who decided:** the agent, implementing the review's explicit UI
+requirements.
+
+**Tests:** typecheck clean. Full suite and browser verification run and
+reported in the next commit.
+
+**Limitations:** publication settings remain fixed at room creation for
+this phase (unchanged from ADR 0009); cross-tab sync depends on
+`localStorage`/the `storage` event being available (private browsing or
+disabled storage falls back to server-side enforcement only, with no
+client-side nicety).
+
+### 2026-10-14 12:16 AEDT — [`4bcbad1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/4bcbad1) Regression tests and browser verification for the three review fixes
+
+**Changes:**
+- New `spec/inactive-member-authorization.test.ts`: the exact A/B/C
+  sequence from the review (A and B join a 2-player room, B leaves, C
+  joins filling B's slot, B's rejoin is correctly refused, B's direct
+  mutation attempt is refused and changes nothing), plus coverage for
+  removal, rotation, recolouring, plan propose/withdraw/realize, plan
+  marking, the solo-room exception, and multiple tabs of the same
+  identity consuming no extra slot.
+- New `spec/session-revocation.test.ts`: sign-out revokes the signing-out
+  session's own SSE stream; account-switching (`sign-in/confirm`) revokes
+  the prior session the same way; a stale, revoked session's direct
+  mutation attempt is refused; SSE reconnection after revocation
+  re-validates session and room admission; a second, independently valid
+  session for the same visitor is left untouched.
+- New `spec/admission-preview.test.ts`: the preview endpoint causes no
+  side effects (member count unchanged after calling it), discloses the
+  right fields for public/invite-only/full/nonexistent rooms, and
+  reflects real-time occupancy.
+- `spec/friends-and-identity.test.ts`: three new cases for the recovery-
+  code/account-bypass fix — generating a code while signed in is refused;
+  redeeming a code that has since become account-linked is refused;
+  redeeming any code at all while the requester is signed in is refused.
+- New `scripts/inactive-member.ts`, `session-revocation.ts`,
+  `pre-join.ts`, `guest-preservation.ts`: browser-driven verification of
+  the same behaviours through visible controls, using genuinely
+  independent `BrowserContext`s (three identities for the inactive-member
+  sequence; two tabs of one context for cross-tab session revocation).
+- `scripts/review-fixes.ts`: updated to click through the new pre-join
+  gate (`.getByRole("button", { name: /^Join this room/ })`) before
+  proceeding, now that a first-time direct room link shows it.
+- `scripts/accounts.ts`: button selector widened to a regex matching
+  either of `MigrationWarning`'s two possible confirm-button labels.
+- `vitest.config.ts`: `fileParallelism: false` added to the `app`
+  project. The account/recovery endpoints share one real, intentional
+  per-source-IP rate limiter (10 attempts/min) across every spec file and
+  script hitting the same live server within a 60-second window; running
+  account-heavy spec files in parallel was intermittently tripping it.
+  Documented inline as explicit guidance for future test additions.
+
+**Why.** The brief's explicit per-issue process: a regression test
+demonstrating each defect before the fix, run against the existing suite,
+then verified through the browser. Never weakened or removed an existing
+check; redundant register/sign-in calls across spec files were
+consolidated via shared hoisted variables instead of raising the rate
+limiter.
+
+**Who decided:** the agent, following the review brief's explicit
+process requirement.
+
+**Tests, run against an isolated throwaway server
+(`DATA_DIR=/tmp/finalcheck2 PORT=8342`, never the persistent dev
+database):**
+- `pnpm vitest run` (full suite, `APP_URL=http://localhost:8342`):
+  **116/116 passed**, 14 test files.
+- `pnpm typecheck`: clean. `pnpm check:evidence`: clean.
+- `scripts/inactive-member.ts`: 6/6.
+- `scripts/session-revocation.ts`: 5/5.
+- `scripts/pre-join.ts`: 13/13.
+- `scripts/guest-preservation.ts`: 12/12.
+- `scripts/review-fixes.ts`: 14/14 (regression, confirming the pre-join
+  gate's new, correct behaviour change is handled by the updated script).
+- `scripts/accounts.ts`: 13/13 (one run hit a transient rate-limit/load
+  timing hiccup unrelated to any code change; an immediate rerun passed
+  cleanly 13/13).
+- `scripts/multiplayer.ts`: 14/15 on first run (one pre-existing,
+  timing-sensitive "simultaneous placement" check, present before this
+  session), 15/15 on immediate rerun — not a regression from this
+  session's changes.
+- `scripts/invites.ts`: 7/7.
+
+**Limitations:** the shared per-IP rate limiter across account-heavy spec
+files and scripts remains a structural test-infrastructure constraint
+(documented in `vitest.config.ts`); future account-endpoint-heavy tests
+should continue consolidating setup calls rather than relying on
+parallelism, or space out script runs by more than 60 seconds.
+
+### 2026-10-14 12:20 AEDT — [`768933d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/768933d) ADR 0007/0010 and CLAUDE.md: record the three review fixes as-built
+
+**Changes:**
+- `doc/adr/0007-rooms-shared-inventory-and-access.md`: two new "As built"
+  sections — mutation authorization now checks current admission via
+  `isActiveMember()`, not historical membership; the new pre-join
+  confirmation screen and its `admissionPreview()` endpoint.
+- `doc/adr/0010-explicit-accounts.md`: corrected the "Realtime on
+  identity change" Security bullet (previously described the
+  not-yet-fixed behaviour); three new "As built" sections — SSE
+  revocation scoped by session token with cross-tab coherence; the
+  critical guest-recovery-code/account-password-bypass vulnerability and
+  its fix; the inline guest-identity preservation path before an account
+  switch.
+- `CLAUDE.md`: four new entries in the "Never" list — mutation
+  authorization must check active admission, not historical membership;
+  a direct or code-based room join must show pre-join terms before
+  admitting; an SSE stream must be revoked when its session ends, without
+  affecting other valid sessions; a recovery code must never bypass a
+  password-protected account.
+
+**Why.** The project's standing convention: a behaviour change to
+authorization, session handling, or admission gets its ADR updated in the
+same pass that implements it, not deferred.
+
+**Who decided:** the agent, documenting decisions already made (above) in
+the standing ADR format.
+
+**Tests:** `pnpm check:evidence`: clean (citation check against this
+log). `pnpm typecheck`: clean.
+
+**Limitations:** none beyond those already stated in the ADRs themselves
+(no account-password recovery in this phase; no automatic merge of two
+already-worked identities on migration conflict; cross-tab sync is a UX
+nicety, not the enforcement).
