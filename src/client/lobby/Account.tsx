@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { confirmSignIn, migrationCheck, register, signIn, signOut, whoAmI, type Account, type RegisterCode } from "../state/api.ts";
+import { confirmSignIn, createRecoveryCode, migrationCheck, register, signIn, signOut, whoAmI, type Account, type RegisterCode } from "../state/api.ts";
+import { broadcastIdentityChange } from "../state/session-events.ts";
 
 // Explicit accounts (phase 2 corrective review, author-approved scope
 // change): a real, visible registration/sign-in flow, replacing browser
@@ -131,6 +132,81 @@ function SignInForm({ onDone, onBack }: { onDone: (username: string, password: s
   );
 }
 
+/**
+ * Shown before a sign-in would switch this browser away from a guest
+ * identity that has rooms, friendships or saved versions of its own (the
+ * brief: "before switching away from a guest identity with meaningful
+ * work, provide a usable preservation path using the existing recovery
+ * mechanism"). Generating the code is done right here, inline — not a
+ * pointer to go find the "Identity and another device" panel elsewhere —
+ * and the code stays visible on screen through the switch, since the
+ * player needs it on the OTHER device, not this one, to actually recover
+ * the guest identity later.
+ */
+function MigrationWarning({
+  pending,
+  confirmError,
+  onConfirm,
+  onCancel,
+}: {
+  pending: { username: string; password: string };
+  confirmError: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [code, setCode] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  const generate = async () => {
+    setGenerating(true);
+    const r = await createRecoveryCode();
+    setGenerating(false);
+    setCode(r.code);
+  };
+
+  return (
+    <div className="card lobby-card">
+      <h2>This browser has other work</h2>
+      <p className="lobby-hint">
+        This browser is currently a <strong>guest identity</strong> with rooms, friendships or saved versions of its own.
+        Signing in as <strong>{pending.username}</strong> will switch this browser to that account instead.
+      </p>
+      <p className="lobby-hint">
+        <strong>Nothing is deleted</strong> — that guest identity's work stays exactly where it is. But once you switch,{" "}
+        <strong>this browser will no longer reach it</strong>: having the data exist somewhere is not the same as this
+        browser being able to get back to it. The only way back is a one-time recovery code, generated for THIS guest
+        identity, entered on whichever browser you want to recover it on.
+      </p>
+      {!code ? (
+        <div className="context-actions">
+          <button className="btn" onClick={() => void generate()} aria-disabled={generating}>
+            {generating ? "Generating…" : "Generate a recovery code for this guest identity first"}
+          </button>
+        </div>
+      ) : (
+        <div className="field-row">
+          <input readOnly value={code} onFocus={(e) => e.currentTarget.select()} aria-label="Recovery code for this guest identity" />
+        </div>
+      )}
+      {code && (
+        <p className="lobby-hint fineprint">
+          Copy this somewhere safe now — it only works once, and it won't be shown again. Enter it from any browser's
+          "Identity and another device" panel to reach this guest identity's rooms, friends and saved versions again.
+        </p>
+      )}
+      {confirmError && <p className="lobby-error">{confirmError}</p>}
+      <div className="context-actions">
+        <button className="btn btn-red" onClick={onConfirm}>
+          {code ? "I've saved my code — continue signing in" : "Continue without saving a recovery code"}
+        </button>
+        <button className="btn" onClick={onCancel}>
+          Cancel and stay as I was
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AccountPage() {
   const [mode, setMode] = useState<Mode>("loading");
   const [account, setAccount] = useState<Account | null>(null);
@@ -170,6 +246,11 @@ export function AccountPage() {
     }
     setAccount(r.account);
     setMode("signed-in");
+    // this browser's identity just changed (this tab's own cookie is
+    // already up to date; every OTHER open tab needs to notice and refresh
+    // its own authentication state, stopping any stale editing under the
+    // identity that was just switched away from)
+    broadcastIdentityChange();
   };
 
   const afterSignIn = (username: string, password: string, priorHadOwnWork: boolean) => {
@@ -181,51 +262,29 @@ export function AccountPage() {
     void finishSignIn(username, password);
   };
 
+  const [justSignedOut, setJustSignedOut] = useState(false);
+
   const doSignOut = async () => {
     await signOut();
     setAccount(null);
     setPending(null);
+    setJustSignedOut(true);
+    broadcastIdentityChange();
     refresh();
   };
 
   if (mode === "loading") return <div className="card lobby-card"><p className="lobby-hint">Loading…</p></div>;
 
   if (mode === "migration-warning" && pending) {
-    return (
-      <div className="card lobby-card">
-        <h2>This browser has other work</h2>
-        <p className="lobby-hint">
-          This browser is currently reaching a different, anonymous identity with its own rooms, friendships or saved
-          versions. Signing in as <strong>{pending.username}</strong> will switch this browser to that account instead.
-        </p>
-        <p className="lobby-hint">
-          <strong>Nothing is deleted.</strong> That anonymous identity's work stays exactly where it is in the database —
-          this browser just won't have a cookie pointing at it anymore, unless you already generated (or now generate) a
-          recovery code for it from the "Identity and another device" panel, <em>before</em> continuing.
-        </p>
-        {confirmError && <p className="lobby-error">{confirmError}</p>}
-        <div className="context-actions">
-          <button className="btn btn-red" onClick={() => void finishSignIn(pending.username, pending.password)}>
-            I understand, continue signing in
-          </button>
-          <button
-            className="btn"
-            onClick={() => {
-              setPending(null);
-              setMode("choose");
-            }}
-          >
-            Cancel and stay as I was
-          </button>
-        </div>
-      </div>
-    );
+    return <MigrationWarning pending={pending} confirmError={confirmError} onConfirm={() => void finishSignIn(pending.username, pending.password)} onCancel={() => { setPending(null); setMode("choose"); }} />;
   }
 
   if (mode === "signed-in" && account) {
     return (
       <div className="card lobby-card">
-        <h2>Account</h2>
+        <h2>
+          Account <span className="tag room-tag">Signed in</span>
+        </h2>
         <p className="lobby-hint">
           Signed in as <strong>{account.displayName}</strong> (<code>{account.username}</code>). Your rooms, friends and
           collection are reachable from here, and from anywhere else you sign in with this same account.
@@ -242,12 +301,19 @@ export function AccountPage() {
 
   return (
     <div className="card lobby-card">
-      <h2>Account</h2>
+      <h2>
+        Account <span className="tag room-tag room-tag-muted">Guest mode</span>
+      </h2>
+      {justSignedOut && (
+        <p className="lobby-hint" role="status">
+          Signed out. This browser is back to its own guest identity — no account's details are shown here anymore.
+        </p>
+      )}
       <p className="lobby-hint">
-        You don't need an account to build, save or publish — this browser already has its own identity
-        {migration?.hasOwnWork ? ", with rooms, friends or saved versions of its own" : ""}. An account just lets you reach
-        the same rooms, friends and collection from another browser or device, by signing in rather than copying a
-        recovery code.
+        You don't need an account to build, save or publish — this browser is a <strong>guest identity</strong>
+        {migration?.hasOwnWork ? " with rooms, friends or saved versions of its own" : ", with nothing saved yet"}. An
+        account just lets you reach the same rooms, friends and collection from another browser or device, by signing in
+        rather than copying a recovery code.
       </p>
       <div className="context-actions">
         <button className="btn btn-red" onClick={() => setMode("register")}>

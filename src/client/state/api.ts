@@ -30,6 +30,8 @@ export interface RoomInvite {
   createdAt: string;
   /** Disclosed before accepting. */
   allowPublish: boolean;
+  occupancy: number;
+  capacity: number;
 }
 
 export interface FriendRequest {
@@ -132,17 +134,33 @@ export async function joinRoom(roomId: string): Promise<JoinResult> {
   return { ok: false, code: body.code ?? "not_found" };
 }
 
+export interface AdmissionPreview {
+  id: string;
+  sceneId: string;
+  label: string | null;
+  visibility: "public" | "invite_only";
+  allowPublish: boolean;
+  occupancy: number;
+  capacity: number;
+  canJoin: boolean;
+  reason?: "forbidden" | "room_full";
+  alreadyMember: boolean;
+}
+
 /**
- * GET /api/rooms/:id already refuses an invite-only room with no standing
- * (404), same as a join would — so previewing it this way discloses nothing
- * a join attempt wouldn't also reveal. Used to show the publication setting
- * before someone commits to joining by a direct id/link (the brief).
+ * Everything a pre-join confirmation screen needs, read-only: it never
+ * joins, reserves a slot, or discloses a room's contents (the brief:
+ * "a preview must not reserve a slot, join the room, expose private build
+ * contents, or bypass invitation checks"). An invite-only room this
+ * visitor has no standing in returns null, the same as a 404 would —
+ * nothing about it is disclosed to a stranger. The caller still calls the
+ * real `joinRoom` to actually admit, which re-checks everything server-side
+ * at that moment regardless of what this said a moment earlier.
  */
-export async function previewRoom(roomId: string): Promise<{ allowPublish: boolean } | null> {
-  const res = await fetch(`/api/rooms/${roomId}`);
+export async function previewAdmission(roomId: string): Promise<AdmissionPreview | null> {
+  const res = await fetch(`/api/rooms/${roomId}/preview`);
   if (!res.ok) return null;
-  const body = (await res.json()) as { allowPublish: boolean };
-  return { allowPublish: body.allowPublish };
+  return (await res.json()) as AdmissionPreview;
 }
 
 export const leaveRoom = (roomId: string): Promise<void> => fetch(`/api/rooms/${roomId}/leave`, { method: "POST" }).then(() => undefined);

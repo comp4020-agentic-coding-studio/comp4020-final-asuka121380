@@ -5,6 +5,7 @@ import { brandMark } from "../ui/iso.ts";
 import { AccountPage } from "./Account.tsx";
 import { CollectionPage, ShowcasePage, SnapshotViewerPage } from "./Collection.tsx";
 import { useDisplayNames, who } from "../state/names.ts";
+import { onIdentityChangedElsewhere } from "../state/session-events.ts";
 import {
   createFriendLink,
   createRecoveryCode,
@@ -15,13 +16,14 @@ import {
   myInvites,
   myRooms,
   openFriendLink,
-  previewRoom,
+  previewAdmission,
   publicLobby,
   redeemRecoveryCode,
   respondToFriendRequest,
   respondToInvite,
   sendFriendRequest,
   whoAmI,
+  type AdmissionPreview,
   type FriendRequest,
   type JoinCode,
   type LobbyRoom,
@@ -127,29 +129,41 @@ function CreateRoom({ onCreated }: { onCreated: (roomId: string) => void }) {
   );
 }
 
+type PreviewState = { kind: "idle" } | { kind: "checking" } | { kind: "ready"; preview: AdmissionPreview } | { kind: "failed" };
+
+/**
+ * Joining by a pasted room id now shows the same pre-join terms a direct
+ * link does (room name, scene, capacity, visibility, publication) and
+ * requires an explicit confirm — the brief's "joining by code must wait
+ * for a successful preview; disable confirmation while loading or after
+ * failure" (a real timing gap existed before: the Join button worked the
+ * moment an id was typed, whether or not the async preview fetch — fired
+ * on blur — had actually resolved yet).
+ */
 function JoinByCode({ onJoined }: { onJoined: (roomId: string) => void }) {
   const [id, setId] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // disclosed before admission whenever it CAN be (a public room, or one
-  // this visitor already has a pending invitation to): a direct link to an
-  // invite-only room the visitor has no standing with correctly reveals
-  // nothing here, same as its 404 from GET — there is nothing to disclose
-  // to someone the server won't yet say exists
-  const [preview, setPreview] = useState<{ allowPublish: boolean } | null | undefined>(undefined);
+  const [preview, setPreview] = useState<PreviewState>({ kind: "idle" });
+  // guards against a stale response landing after the input changed again
+  const [checkedFor, setCheckedFor] = useState("");
 
   const check = async () => {
     const roomId = id.trim();
     if (!roomId) {
-      setPreview(undefined);
+      setPreview({ kind: "idle" });
       return;
     }
-    setPreview(await previewRoom(roomId));
+    setPreview({ kind: "checking" });
+    const result = await previewAdmission(roomId);
+    if (id.trim() !== roomId) return; // the field changed again while this was in flight
+    setCheckedFor(roomId);
+    setPreview(result ? { kind: "ready", preview: result } : { kind: "failed" });
   };
 
   const submit = async () => {
     const roomId = id.trim();
-    if (!roomId) return;
+    if (!roomId || preview.kind !== "ready" || checkedFor !== roomId) return;
     setBusy(true);
     setStatus(null);
     const result = await joinRoom(roomId);
@@ -157,6 +171,8 @@ function JoinByCode({ onJoined }: { onJoined: (roomId: string) => void }) {
     if (result.ok) onJoined(roomId);
     else setStatus(JOIN_MESSAGE[result.code]);
   };
+
+  const canConfirm = !busy && preview.kind === "ready" && preview.preview.canJoin && checkedFor === id.trim();
 
   return (
     <div className="card lobby-card">
@@ -167,18 +183,30 @@ function JoinByCode({ onJoined }: { onJoined: (roomId: string) => void }) {
           value={id}
           onChange={(e) => {
             setId(e.target.value);
-            setPreview(undefined);
+            setPreview({ kind: "idle" });
           }}
           onBlur={() => void check()}
           placeholder="Room id"
           aria-label="Room id"
         />
-        <button className="btn btn-red" onClick={() => void submit()} aria-disabled={busy || !id.trim()}>
-          Join
+        <button className="btn btn-red" onClick={() => void submit()} aria-disabled={!canConfirm}>
+          {busy ? "Joining…" : "Join"}
         </button>
       </div>
-      {preview && (
-        <p className="lobby-hint">{preview.allowPublish ? "This room lets members publish saved versions." : "This room doesn't allow publishing saved versions."}</p>
+      {preview.kind === "checking" && <p className="lobby-hint">Checking this room…</p>}
+      {preview.kind === "failed" && <p className="lobby-error">That room doesn't exist, or you don't have an accepted invitation to it.</p>}
+      {preview.kind === "ready" && (
+        <p className="lobby-hint">
+          <strong>{preview.preview.label || `Room ${short(preview.preview.id)}`}</strong> ·{" "}
+          {preview.preview.visibility === "public" ? "Public" : "Invite-only"} · {preview.preview.occupancy}/{preview.preview.capacity} here ·{" "}
+          {preview.preview.allowPublish ? "members may publish a saved version" : "publishing not allowed"}
+          {!preview.preview.canJoin && (
+            <>
+              {" — "}
+              <strong>{preview.preview.reason === "room_full" ? "full right now" : "not open to you"}</strong>
+            </>
+          )}
+        </p>
       )}
       {status && <p className="lobby-error" role="status">{status}</p>}
     </div>
@@ -296,22 +324,29 @@ function Invites({ onJoined, selfId }: { onJoined: (roomId: string) => void; sel
       <h2>Room invitations</h2>
       {status && <p className="lobby-error" role="status">{status}</p>}
       <ul className="room-list">
-        {invites.map((i) => (
-          <li key={i.id} className="room-row">
-            <span className="room-name">
-              {i.label || `Room ${short(i.roomId)}`} from {who(i.invitedBy, selfId, names)}
-              <span className="tag room-tag room-tag-muted">{i.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
-            </span>
-            <span className="field-row">
-              <button className="btn btn-small btn-red" onClick={() => void respond(i.id, i.roomId, true)}>
-                Accept
-              </button>
-              <button className="btn btn-small btn-danger danger" onClick={() => void respond(i.id, i.roomId, false)}>
-                Decline
-              </button>
-            </span>
-          </li>
-        ))}
+        {invites.map((i) => {
+          const full = i.occupancy >= i.capacity;
+          return (
+            <li key={i.id} className="room-row">
+              <span className="room-name">
+                {i.label || `Room ${short(i.roomId)}`} from {who(i.invitedBy, selfId, names)}
+                <span className="tag room-tag room-tag-muted">
+                  {i.occupancy}/{i.capacity} here
+                </span>
+                <span className="tag room-tag room-tag-muted">{i.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
+                {full && <span className="tag room-tag room-tag-muted">full right now</span>}
+              </span>
+              <span className="field-row">
+                <button className="btn btn-small btn-red" onClick={() => void respond(i.id, i.roomId, true)} aria-disabled={full} title={full ? "This room is full right now, but you can still try — a slot may free up" : undefined}>
+                  Accept
+                </button>
+                <button className="btn btn-small btn-danger danger" onClick={() => void respond(i.id, i.roomId, false)}>
+                  Decline
+                </button>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -491,7 +526,16 @@ function Friends({ selfId }: { selfId: string | null }) {
   );
 }
 
-function IdentityPanel() {
+/**
+ * Guest-identity recovery codes are specifically for an anonymous guest
+ * identity that was never password-protected (ADR 0006) — not a weaker,
+ * password-free side door into an account (ADR 0010). When this browser is
+ * currently signed in to an account, "Generate" is hidden rather than left
+ * to fail server-side with a message the player would have to read first;
+ * the server refuses it either way (defense in depth), but the UI should
+ * not even offer an action that can't do what it would appear to promise.
+ */
+function IdentityPanel({ accountName }: { accountName: string | null }) {
   const [code, setCode] = useState<string | null>(null);
   const [redeem, setRedeem] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -510,22 +554,32 @@ function IdentityPanel() {
   return (
     <details className="card lobby-card">
       <summary>Identity and another device</summary>
-      <p className="lobby-hint">
-        You don't need an account to build. If you want to reach the same rooms and friends from a second device, generate
-        a one-time code here and enter it there — it only works once.
-      </p>
-      <div className="field-row">
-        <button className="btn btn-small" onClick={() => void generate()}>
-          Generate a recovery code
-        </button>
-        {code && <input readOnly value={code} onFocus={(e) => e.currentTarget.select()} aria-label="Your recovery code" />}
-      </div>
-      <div className="field-row">
-        <input value={redeem} onChange={(e) => setRedeem(e.target.value)} placeholder="Enter a code from another device" aria-label="Recovery code to redeem" />
-        <button className="btn btn-small" onClick={() => void recover()} aria-disabled={!redeem.trim()}>
-          Use it here
-        </button>
-      </div>
+      {accountName ? (
+        <p className="lobby-hint">
+          You're signed in as <strong>{accountName}</strong>. Reach this account from another device by signing in there
+          with its username and password — recovery codes are only for an anonymous guest identity, never a shortcut into
+          a password-protected account. Sign out first if you want to switch this browser to a guest identity by code.
+        </p>
+      ) : (
+        <>
+          <p className="lobby-hint">
+            You don't need an account to build. If you want to reach the same rooms and friends from a second device,
+            generate a one-time code here and enter it there — it only works once.
+          </p>
+          <div className="field-row">
+            <button className="btn btn-small" onClick={() => void generate()}>
+              Generate a recovery code
+            </button>
+            {code && <input readOnly value={code} onFocus={(e) => e.currentTarget.select()} aria-label="Your recovery code" />}
+          </div>
+          <div className="field-row">
+            <input value={redeem} onChange={(e) => setRedeem(e.target.value)} placeholder="Enter a code from another device" aria-label="Recovery code to redeem" />
+            <button className="btn btn-small" onClick={() => void recover()} aria-disabled={!redeem.trim()}>
+              Use it here
+            </button>
+          </div>
+        </>
+      )}
       {status && <p className="lobby-hint" role="status">{status}</p>}
     </details>
   );
@@ -534,14 +588,15 @@ function IdentityPanel() {
 export function LobbyApp() {
   const [selfId, setSelfId] = useState<string | null>(null);
   const [accountName, setAccountName] = useState<string | null>(null);
-  useEffect(
-    () =>
-      void whoAmI().then((r) => {
-        setSelfId(r.visitorId);
-        setAccountName(r.account?.displayName ?? null);
-      }),
-    [],
-  );
+  const refreshWho = () =>
+    void whoAmI().then((r) => {
+      setSelfId(r.visitorId);
+      setAccountName(r.account?.displayName ?? null);
+    });
+  useEffect(refreshWho, []);
+  // a sign-out or account switch completed in another tab: refresh who
+  // this tab is now, so a stale "Sign in" / display name never lingers
+  useEffect(() => onIdentityChangedElsewhere(refreshWho), []);
 
   const goTo = (roomId: string) => {
     // the browser test harness's ?debug flag (and any future query param)
@@ -586,7 +641,7 @@ export function LobbyApp() {
         </p>
         <p className="lobby-hint">
           <a href="/build/?view=collection">Your collection</a> · <a href="/build/?view=showcase">Public showcase</a> ·{" "}
-          <a href="/build/?view=account">{accountName ? accountName : "Sign in"}</a>
+          <a href="/build/?view=account">{accountName ? `Signed in as ${accountName}` : "Guest — sign in"}</a>
         </p>
       </header>
       <main className="lobby-grid">
@@ -597,7 +652,7 @@ export function LobbyApp() {
         <JoinByCode onJoined={goTo} />
         <PublicLobbyList onJoined={goTo} />
         <Friends selfId={selfId} />
-        <IdentityPanel />
+        <IdentityPanel accountName={accountName} />
       </main>
     </div>
   );

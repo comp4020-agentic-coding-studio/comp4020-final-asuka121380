@@ -14,6 +14,7 @@ import {
   type Rejection,
 } from "../../domain/rules.ts";
 import { STREET_SCENE } from "../../domain/scene.ts";
+import { onIdentityChangedElsewhere } from "./session-events.ts";
 import { AccessError, NetworkError, RoomFullError, type Transport } from "./transport.ts";
 import { screenToGrid } from "./view.ts";
 
@@ -134,6 +135,7 @@ const say = (text: string, kind: "info" | "error" = "info"): void => set({ notic
 
 let transport: Transport;
 let pending: CommandEnvelope | null = null;
+let stopIdentityWatch: (() => void) | null = null;
 
 export async function start(t: Transport): Promise<void> {
   transport = t;
@@ -155,6 +157,25 @@ export async function start(t: Transport): Promise<void> {
     set({
       save: { status: "load-failed", message: e instanceof Error ? e.message : String(e), code },
       connection: "offline",
+    });
+  }
+  // Regression (independent review): a tab left open through a sign-out or
+  // account switch that happened in ANOTHER tab must stop stale editing and
+  // refresh its own authentication state, not keep acting as the identity
+  // it no longer has a session for. `broadcastIdentityChange` (another
+  // tab's Account.tsx) notifies this one; the server would refuse any
+  // further mutation anyway (every command re-checks current admission),
+  // but waiting for a refused command to find out is a worse experience
+  // than reloading this room's access/state proactively the moment the
+  // identity underneath it might have changed.
+  stopIdentityWatch?.();
+  if (t.durable) {
+    stopIdentityWatch = onIdentityChangedElsewhere(() => {
+      putDown();
+      select(null);
+      selectPlan(null);
+      toggleDelete(false);
+      void start(t); // reload: re-resolves selfId, re-joins (re-checking admission), reconnects SSE
     });
   }
 }
