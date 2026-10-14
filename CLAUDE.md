@@ -153,6 +153,29 @@ Each entry gives, in proportion to the change:
   `scrypt` hash, or let checking credentials alone (without an explicit
   confirmation step) switch a browser away from an anonymous identity that
   already has rooms, friendships or saved work of its own (ADR 0010).
+- Let a visitor's historical room membership (a `room_members` row existing
+  at all) authorize MUTATING the room, as opposed to merely being listed as
+  having been there. Every command, and every plan mark, checks `active = 1`
+  (or the solo default room's host-exception), not just that a row exists
+  (ADR 0007, corrected 14 Oct 2026 after an independent review found a
+  replaced, no-longer-active member could still place/edit/remove parts and
+  mark plans directly).
+- Admit anyone through a direct room link, or by a pasted room id, before
+  showing room name, scene, capacity, visibility and the publication
+  setting and getting an explicit confirmation — except for an
+  already-admitted/returning player, who skips straight through (ADR 0007,
+  corrected 14 Oct 2026).
+- Let an already-open SSE connection keep streaming a room's private
+  updates after the session that authorized it has signed out or been
+  superseded by an account switch, and never revoke a DIFFERENT,
+  independently valid session for the same visitor when one specific
+  session ends (ADR 0010, corrected 14 Oct 2026).
+- Let a recovery code generated for (or redeemed into) a visitor linked to
+  an account grant access to that account, or let redeeming any code at
+  all while the requesting browser is itself signed in to an account
+  silently switch it away with no confirmation (ADR 0006/0010, corrected
+  14 Oct 2026 after an independent review found recovery could fully
+  bypass a password with the right sequence of calls).
 
 ## Shape of the code
 

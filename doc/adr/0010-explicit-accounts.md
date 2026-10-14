@@ -124,11 +124,10 @@ limitation rather than solved.
 - **Non-enumerating errors**: a wrong password and a nonexistent username
   return the identical `401` with the identical message, verified by
   `scripts/accounts.ts`.
-- **Realtime on identity change**: an in-progress SSE connection or an
-  already-joined room is unaffected by signing in/out mid-session — only a
-  fresh page load picks up the new identity, since `roomTransport`'s own
-  join-on-load (ADR 0007) already re-resolves the acting visitor from the
-  current cookie on every load.
+- **Realtime on identity change**: corrected 14 Oct 2026 — see "As built,
+  corrected" below. An in-progress SSE connection IS now actively revoked
+  the moment its authorizing session ends, rather than being left to find
+  out only on its own next reload.
 
 ## Display names
 
@@ -150,6 +149,118 @@ create a visitor by browsing" rule (`/api/me` is only even called from the
 homepage's account-nav link when a visitor cookie already exists). Signing
 in is offered purely as a way to make an *already-usable* identity also
 reachable from another device, never as a gate in front of a feature.
+
+## As built, corrected (independent review, 14 Oct 2026): a session's SSE streams are revoked when it ends
+
+The original implementation deleted a session's row on sign-out
+(`deleteSession`), which correctly stops any FUTURE request from
+authenticating with that cookie — but an already-open SSE connection
+(`GET /api/rooms/:id/events`) was never told anything had changed. The
+review reproduced this directly: account A opens a private room's stream;
+a second session signs into the same account; the first session signs
+out; the second session's edit still arrives on the first, now-logged-out
+session's open connection, indefinitely.
+
+Fixed with a session-keyed connection registry (`registerConnection`/
+`revokeSession`, `src/server/realtime.ts`): every SSE connection is
+registered by the hash of the exact session token that opened it (never
+the visitor id alone, and never the raw token), and `sign-out` and
+`sign-in/confirm` (an account switch) both call `revokeSession()` on the
+PRIOR token before proceeding, which closes every connection opened under
+that specific session and ends its HTTP response outright. A different,
+still-valid session for the same visitor (ADR 0006: one visitor, several
+sessions) is untouched, since it's keyed by a different token hash — "do
+not revoke other independently valid sessions unnecessarily" holds by
+construction, not by a separate check. Revoking also clears that visitor's
+active presence in any room whose last live connection was just closed
+(reusing `leave()`'s own logic), so a stale stream can't keep renewing
+presence via its own 10s keep-alive in the meantime, and reconnecting
+afterward goes through the same `isMember` + capacity-checked
+`markActive()` path a fresh connection always has.
+
+**Cross-tab coherence** (client, `src/client/state/session-events.ts`): a
+`localStorage` write on sign-out/account-switch fires the browser's native
+`storage` event in every OTHER open tab of the same origin (never the tab
+that wrote it) — no new dependency, no server round trip. The editor
+(`store.ts`'s `start()`) and the lobby (`LobbyApp.tsx`) both listen, and
+on notification the editor clears any held/selected tool and reloads the
+room through the normal `start()` path, which re-resolves `selfId` and
+re-runs the join-on-load check (ADR 0007) — so a tab left open under an
+identity that just signed out somewhere else lands on the ordinary
+access-denied screen if it's no longer entitled to that room, rather than
+continuing to show (or let the player edit) state that belonged to the
+identity it no longer has a session for. This is a UX nicety, not the
+enforcement: a tab that misses the notification (storage disabled, private
+browsing) is still refused server-side the next time it tries to mutate
+anything, by the exact same session check every other request goes
+through.
+
+`spec/session-revocation.test.ts` covers sign-out, account-switching, a
+stale session's direct mutation attempt, SSE reconnection, and a second
+valid session remaining unaffected; `scripts/session-revocation.ts`
+verifies the cross-tab behaviour through two real tabs of one browser
+context.
+
+## As built, corrected (independent review, 14 Oct 2026): guest recovery cannot bypass a password-protected account
+
+A genuinely critical gap, found while checking the brief's explicit
+instruction to "verify that guest recovery cannot become a weaker bypass
+into a password-protected account": `createRecoveryCode` took only a
+visitor id, with no check on whether that visitor was linked to an
+account. A visitor signed in to a password-protected account could
+generate a recovery code for THEMSELVES (the code mechanism has no notion
+of accounts at all — by design, ADR 0006 — so nothing stopped this), and
+redeeming that code from any other browser granted a full, authenticated
+session for that visitor — and therefore full access to the account — with
+**no password check whatsoever**. Reproduced directly: register an
+account, call `POST /api/identity/recovery-code` on the same
+already-signed-in cookie, redeem the returned code from a fresh browser
+with no cookie at all, and `GET /api/me` on the result showed the full
+account.
+
+Fixed with two checks in `src/server/index.ts` (the only place both
+`accounts.ts` and `identity.ts` are both visible, keeping the two modules'
+clean separation intact rather than teaching `identity.ts` about
+accounts):
+- `POST /api/identity/recovery-code` refuses outright to generate a code
+  for a visitor currently linked to an account.
+- `POST /api/identity/recover` refuses to redeem a code that (even if it
+  was generated before the account existed) resolves to an account-linked
+  visitor, and separately refuses to redeem ANY code at all while the
+  requesting browser's own current cookie is itself signed in to an
+  account — closing a second, related gap: redeeming a guest code while
+  signed in silently switched the browser's cookie away from the account
+  with no sign-out, no migration-conflict warning, and no confirmation,
+  exactly the kind of silent identity switch the two-step sign-in
+  (above) exists to prevent.
+
+The client (`LobbyApp.tsx`'s `IdentityPanel`) now shows a different,
+explanatory message instead of the generate/redeem controls whenever the
+browser is signed in, rather than letting the action fail server-side with
+no warning first. `spec/friends-and-identity.test.ts` covers generating
+while signed in, redeeming a now-account-linked code, and redeeming any
+code while signed in; `scripts/guest-preservation.ts` verifies the fixed
+Identity panel's copy and controls through a real browser.
+
+## As built, added (independent review, 14 Oct 2026): an inline guest-identity preservation path before switching accounts
+
+Section 4 of the review asked for "a usable preservation path using the
+existing recovery mechanism" before a guest identity with real work is
+switched away from — the original migration-conflict screen explained the
+risk but only pointed at the separate "Identity and another device" panel
+to do anything about it. `MigrationWarning`
+(`src/client/lobby/Account.tsx`) now generates and displays a recovery
+code for the CURRENT guest identity inline, on the same screen, before the
+switch — the confirm button's own label changes ("I've saved my code —
+continue signing in" vs. "Continue without saving a recovery code") so
+skipping the step is a visible, deliberate choice rather than silent.
+Sign-out and the account page explicitly confirm the return to guest mode
+in words ("Signed out. This browser is back to its own guest identity"),
+and both the account page and the lobby header now say "Guest mode"/
+"Guest — sign in" rather than a bare "Sign in" with no stated current
+status. `scripts/guest-preservation.ts` verifies the generated code
+genuinely recovers the original guest identity's room on a separate
+browser context afterward, end to end.
 
 ## Consequences
 

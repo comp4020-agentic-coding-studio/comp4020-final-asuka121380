@@ -196,6 +196,67 @@ room), multiple tabs for one active identity, an accepted invitation
 re-admitting past capacity, an SSE reconnect for a returning member, and
 concurrent join attempts for the last slot.
 
+## As built, corrected (independent review, 14 Oct 2026): mutation authorization checks CURRENT admission, not historical membership
+
+The 13 Oct capacity fix (above) corrected every path that ADMITS a visitor
+to an active slot. It missed a parallel gap on the path that lets an
+already-admitted-then-removed visitor keep MUTATING the room they're no
+longer active in: `runCommand` (`src/server/builds.ts`) and the plan-mark
+endpoint (`POST /api/rooms/:id/mark`) both authorized on a bare
+`room_members` row existing at all — historical membership — not on
+`active = 1`. The review reproduced this precisely: A and B join a
+2-player room; B leaves; C joins, filling B's slot; B's own rejoin is
+correctly refused (409 `room_full`, the 13 Oct fix working as intended);
+but B could still place a part directly, consuming stock, bumping the
+revision, and recording B as a contributor in a room B was no longer an
+active member of at all.
+
+Fixed with `isActiveMember()` (`src/server/rooms.ts`), the one function
+every mutation path now calls: active now, or (the deliberate exception)
+the solo/default room's host, which never goes through `join`/`markActive`
+at all on the back-compat `/api/build`+`/api/command` path and would
+otherwise be locked out of their own build. `isMember()` (historical
+membership) is kept, unchanged, for genuinely read-only checks that were
+always meant to stay permissive — viewing a room (`GET /api/rooms/:id`),
+the SSE connect's initial room-exists check (capacity is still
+re-enforced separately by `markActive`), and saving a snapshot (ADR 0009:
+"any member may save a private snapshot... any time"). A rejected mutation
+changes nothing: no part, no stock, no plan, no revision bump, no emitted
+SSE event — verified by reading the room's state immediately before and
+after the refused attempt. The permanent contributor record from when B
+WAS active is untouched; only further mutation while inactive is refused.
+`spec/inactive-member-authorization.test.ts` covers placement, removal,
+rotation, recolouring, plan propose/withdraw/realize, and marking, plus
+the solo-room exception and the "multiple tabs, same identity, no extra
+slot consumed" case; `scripts/inactive-member.ts` reproduces the exact
+reported sequence through visible browser controls with three independent
+identities.
+
+## As built, added (independent review, 14 Oct 2026): a pre-join confirmation screen before any admission
+
+A direct room link previously joined before showing anything about the
+room — the publication setting (added 13 Oct) was disclosed only in the
+public lobby LIST and the pending-invitation list, never for someone
+arriving by a direct URL, who was admitted first and informed, if at all,
+only after. New `GET /api/rooms/:id/preview` (`admissionPreview()` in
+`rooms.ts`) is a read-only admission preview: room name, scene,
+visibility, real occupancy/capacity, the publication setting, and whether
+this visitor could join right now — it never joins, reserves a slot, or
+discloses anything about an invite-only room's contents to a visitor with
+no standing in it (returning nothing at all there, the same as a 404
+would, rather than a half-populated object). The client
+(`src/client/PreJoin.tsx`) gates `main.tsx`'s real `start()` (which
+performs the actual, server-re-checked join) behind this screen and an
+explicit "Join this room" click, for a first-time direct link; an
+already-admitted/returning player (`alreadyMember`) skips it entirely, so
+reload/reconnect stays exactly as immediate as before. The same preview
+also now backs the lobby's "join by room id" flow (previously a timing
+gap existed: the Join button was clickable the instant an id was typed,
+whether or not the async preview had actually resolved) and the
+invitation list (now also showing live occupancy, not only the
+publication flag). `spec/admission-preview.test.ts` and
+`scripts/pre-join.ts` cover both.
+
 ## What's still out of scope for this phase
 
 - A full room-management UI (renaming, transferring host, kicking a
