@@ -1892,3 +1892,13 @@ log). `pnpm typecheck`: clean.
 (no account-password recovery in this phase; no automatic merge of two
 already-worked identities on migration conflict; cross-tab sync is a UX
 nicety, not the enforcement).
+
+### 2026-10-14 12:42 AEDT — [`c7e73ba`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c7e73ba) C9 process and reflection
+
+**Changes:** Rewrote `PROCESS.md` as the current C9 account, retaining C8 context while explaining shared inventory, spatial communication, concurrency, provenance, corrective review and the v7 deployment. Added `reflections/crit-9.md` (296 words including headings), answering both standing prompts through the author's stated breakthrough: narrative and original intention should guide feature selection.
+
+**Who decided:** The author supplied the design reasoning and reflection, requested assisted drafting, reviewed the summaries, and explicitly authorized this commit and push. No product code changed.
+
+**Verification:** `git diff --check` passed before committing; all 13 PROCESS commit references resolved locally. The reflection's filename and two headings match `reflections/README.md`. No application tests were rerun for this documentation-only change.
+
+**Limitations:** PROCESS records the remaining account-switch/recovery-session issues and distinguishes automated checks from human multiplayer testing. Its statement that multiplayer commits were not yet pushed describes the drafting-time state; the author subsequently authorized pushing this branch together with these documents. This entry does not claim a C9 tag or ship workflow has been completed.
