@@ -9,6 +9,7 @@ import {
   rotate,
   stepLevel,
   toggleDelete,
+  toggleMode,
   withdrawPlan,
 } from "./state/store.ts";
 
@@ -77,6 +78,11 @@ function handle(e: KeyboardEvent): boolean {
       return true;
     case "]":
       if (once) cycle(1);
+      return true;
+    // Build ⇄ Plan (ADR 0011); never fires while typing, like every letter key here
+    case "p":
+    case "P":
+      if (once) toggleMode();
       return true;
     case "t":
     case "T":

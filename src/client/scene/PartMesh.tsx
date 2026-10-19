@@ -39,7 +39,8 @@ export function partTransform(p: Placement): { position: [number, number, number
 
 interface Props {
   placement: Placement;
-  ghost?: "valid" | "invalid";
+  /** A preview (valid/invalid), an existing plan, or the Plan-mode preview of one (ADR 0011). */
+  ghost?: "valid" | "invalid" | "plan" | "plan-preview";
   /** Selected (amber), the delete tool's target (red), or a plan (blue): an outline plus a tint over the part. */
   highlight?: "select" | "delete" | "plan" | "marked";
   castShadow?: boolean;
@@ -68,9 +69,10 @@ export function PartMesh({ placement, ghost, highlight, castShadow = true, inert
       new THREE.MeshStandardMaterial({
         color: colourHex(placement.colour),
         transparent: true,
-        opacity: ghost === "invalid" ? 0.3 : 0.78,
-        emissive: ghost === "invalid" ? "#7a1d14" : "#ffffff",
-        emissiveIntensity: ghost === "invalid" ? 0.5 : 0.18,
+        // plans read as glassier than a real-part preview, with a blue cast
+        opacity: ghost === "invalid" ? 0.3 : ghost === "plan" ? 0.42 : ghost === "plan-preview" ? 0.55 : 0.78,
+        emissive: ghost === "invalid" ? "#7a1d14" : ghost === "valid" ? "#ffffff" : "#1a5bb0",
+        emissiveIntensity: ghost === "invalid" ? 0.5 : ghost === "valid" ? 0.18 : 0.35,
         depthWrite: false,
       }),
     [ghost, placement.colour],
@@ -112,7 +114,7 @@ export function PartMesh({ placement, ghost, highlight, castShadow = true, inert
                 ? "#c0392b"
                 : highlight === "select"
                   ? "#e08a00"
-                  : highlight === "plan" || highlight === "marked"
+                  : highlight === "plan" || highlight === "marked" || ghost === "plan" || ghost === "plan-preview"
                     ? "#1a5bb0"
                     : "#1b1b1b"
             }

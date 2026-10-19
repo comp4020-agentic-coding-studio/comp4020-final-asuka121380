@@ -8,17 +8,18 @@ import { pictures, type Pictures } from "./scene/thumbnails.ts";
 import { inviteToRoom, leaveRoom, myFriends, saveRoom, sendFriendRequest } from "./state/api.ts";
 import { useDisplayNames, who as whoName } from "./state/names.ts";
 import {
+  canStepHigher,
   catalog,
   choosePart,
+  commitHeld,
   cycle,
   ensureAnchor,
   getRoomId,
   getState,
   markPlanForEveryone,
   moveOnScreen,
-  placeHeld,
+  plannedCounts,
   preview,
-  proposeHeld,
   putDown,
   realizePlan,
   recolourSelected,
@@ -30,6 +31,7 @@ import {
   select,
   selectPlan,
   setColour,
+  setMode,
   stepLevel,
   toggleDelete,
   useApp,
@@ -112,14 +114,15 @@ function Swatches({ value, onPick, label }: { value: string; onPick: (id: string
  * The preview's height, and the buttons that step it through the heights
  * that fit here: how a lower spot under an overhang is reached (ADR 0005).
  */
-function Height({ y, fits, planFits }: { y: number; fits: number[]; planFits: number[] }) {
+function Height({ pv }: { pv: NonNullable<ReturnType<typeof preview>> }) {
+  const mode = useApp((s) => s.mode);
+  const { fits } = pv;
+  const y = pv.placement.y;
   const i = fits.indexOf(y);
   const where = y === 0 ? "on the plot" : `${y} plate${y === 1 ? "" : "s"} up`;
-  // Higher can also climb into positions only a plan could occupy (no real
-  // support yet), one level at a time, past the topmost real height — so
-  // it's enabled whenever either a further real height OR the next bare
-  // level up is reachable, not just when a real height is above (store.ts).
-  const higherReachable = fits.some((f) => f > y) || planFits.includes(y + 1);
+  // in Plan mode Higher can also climb past the topmost real height, into
+  // positions nothing supports yet (store.ts, ADR 0011)
+  const higherReachable = canStepHigher(pv, mode);
   return (
     <div className="height" role="group" aria-label="Height">
       <button className="btn btn-small" onClick={() => stepLevel(-1)} aria-label="Lower: the next height down that fits" disabled={!fits.some((f) => f < y)}>
@@ -133,6 +136,21 @@ function Height({ y, fits, planFits }: { y: number; fits: number[]; planFits: nu
         ▲ Higher <kbd>PgUp</kbd>
       </button>
     </div>
+  );
+}
+
+/** The same screen-relative steps as the arrow keys (ADR 0005). */
+function Nudge() {
+  return (
+    <details className="nudge">
+      <summary>Move</summary>
+      <div className="nudge-pad">
+        <button className="btn btn-small" onClick={() => moveOnScreen(-1, 0)} aria-label="Move preview left on screen" title="Left">←</button>
+        <button className="btn btn-small" onClick={() => moveOnScreen(0, 1)} aria-label="Move preview away from you" title="Away">↑</button>
+        <button className="btn btn-small" onClick={() => moveOnScreen(0, -1)} aria-label="Move preview towards you" title="Towards you">↓</button>
+        <button className="btn btn-small" onClick={() => moveOnScreen(1, 0)} aria-label="Move preview right on screen" title="Right">→</button>
+      </div>
+    </details>
   );
 }
 
@@ -150,9 +168,44 @@ function Step() {
   );
 }
 
+/** Build or Plan (ADR 0011): what a click with a held part commits. Text and pressed state, not colour alone. */
+function ModeSwitch() {
+  const mode = useApp((s) => s.mode);
+  return (
+    <div className="mode-switch" role="group" aria-label="Construction mode" aria-describedby="mode-help">
+      <span id="mode-help" className="visually-hidden">
+        Build places real parts from the room's shared kit. Plan proposes transparent suggestions that cost no stock. P switches between them.
+      </span>
+      <button className={`btn btn-small mode-build${mode === "build" ? " on" : ""}`} aria-pressed={mode === "build"} aria-label="Build mode" onClick={() => setMode("build")} title="Build: a click places a real part">
+        <span aria-hidden="true">■</span> Build
+      </button>
+      <button className={`btn btn-small mode-plan${mode === "plan" ? " on" : ""}`} aria-pressed={mode === "plan"} aria-label="Plan mode" onClick={() => setMode("plan")} title="Plan: a click proposes a transparent plan, costing no stock (P)">
+        <span aria-hidden="true">◇</span> Plan <kbd>P</kbd>
+      </button>
+    </div>
+  );
+}
+
+/** The held part's two counts in Plan mode, each named for what it is (ADR 0011). */
+function PlanCounts({ partId }: { partId: string }) {
+  const real = useApp((s) => s.snapshot?.inventory[partId] ?? 0);
+  const planned = useApp((s) => plannedCounts(s)[partId] ?? 0);
+  const open = real - planned;
+  return (
+    <span className="plan-counts" aria-live="polite">
+      Real kit <strong>{real}</strong> · plans <strong>{open}</strong> ·{" "}
+      <span className={`plan-left${planned < 0 ? " short" : ""}`}>
+        planned left <strong>{planned}</strong>
+      </span>
+      {planned < 0 && <span className="plan-short"> ({-planned} short)</span>}
+    </span>
+  );
+}
+
 /** The dock's top row: what a click does right now, and the controls for it. */
 function Context() {
   const held = useApp((s) => s.held);
+  const mode = useApp((s) => s.mode);
   const colour = useApp((s) => s.colour);
   const snapshot = useApp((s) => s.snapshot);
   const selected = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.selectedId));
@@ -192,6 +245,47 @@ function Context() {
     );
   }
 
+  if (held && mode === "plan") {
+    const def = partDef(held.partId)!;
+    const pv = held.anchor && snapshot ? preview(getState()) : null;
+    return (
+      <div className="context">
+        <strong className="context-title">
+          <span className="tag plan-tag">Plan</span>
+          {def.name} <span className="code">{def.code}</span>
+        </strong>
+        <Swatches value={colour} onPick={setColour} label={`Suggested colour${def.colourRegion ? ` of the ${def.colourRegion}` : ""}`} />
+        <span className={`context-hint${pv?.planRejection ? " bad" : ""}`} aria-live="polite">
+          {!pv
+            ? coarse
+              ? "Tap the plot to preview a plan."
+              : "Point where it should go."
+            : pv.planRejection
+              ? `✕ ${pv.planRejection.message}`
+              : `◇ ${coarse ? "Tap it" : "Click"} to propose it. No stock used.`}
+        </span>
+        <div className="context-actions">
+          <button
+            className="btn btn-small btn-plan primary place-button"
+            aria-disabled={!pv || !!pv.planRejection || saving}
+            onClick={() => !saving && void commitHeld()}
+          >
+            Propose plan <kbd>Enter</kbd>
+          </button>
+          <button className="btn btn-small" onClick={() => void rotate()} disabled={def.rotations.length < 2}>
+            Rotate <kbd>R</kbd>
+          </button>
+          <button className="btn btn-small" onClick={putDown}>
+            Cancel <kbd>Esc</kbd>
+          </button>
+        </div>
+        {pv && <Height pv={pv} />}
+        <Nudge />
+        <PlanCounts partId={def.id} />
+      </div>
+    );
+  }
+
   if (held) {
     const def = partDef(held.partId)!;
     const pv = held.anchor && snapshot ? preview(getState()) : null;
@@ -217,7 +311,7 @@ function Context() {
           <button
             className="btn btn-small btn-red primary place-button"
             aria-disabled={!pv || !!pv.rejection || saving}
-            onClick={() => !saving && void placeHeld()}
+            onClick={() => !saving && void commitHeld()}
           >
             Place <kbd>Enter</kbd>
           </button>
@@ -228,39 +322,13 @@ function Context() {
             Cancel <kbd>Esc</kbd>
           </button>
         </div>
-        {/*
-         * A plan costs no stock and never blocks real construction, and —
-         * unlike Place — never requires structural support: proposing a
-         * future roof before its walls exist is explicitly allowed (ADR
-         * 0009). Its own, looser check (`planRejection`) decides whether
-         * this button is enabled, never `rejection` (Place's check, which
-         * does require support), so a spot refused for Place can still be a
-         * valid plan.
-         */}
-        <button
-          className="btn btn-small"
-          aria-disabled={!pv || !!pv.planRejection || saving}
-          onClick={() => !saving && void proposeHeld()}
-          title="Show others a transparent suggestion, without placing it or spending stock — even somewhere nothing is built yet to hold it up"
-        >
-          Propose instead
-        </button>
-        {pv?.rejection?.code === "unsupported" && !pv.planRejection && (
+        {(pv?.rejection?.code === "unsupported" || pv?.rejection?.code === "out_of_stock") && (
           <span className="context-hint" aria-live="polite">
-            Can't place that for real yet — nothing's built underneath. You can still propose it as a plan for later.
+            {pv.rejection.code === "unsupported" ? "Nothing's built underneath yet." : "None left in the room's kit."} Switch to Plan (P) to propose it for later.
           </span>
         )}
-        {pv && <Height y={pv.placement.y} fits={pv.fits} planFits={pv.planFits} />}
-        <details className="nudge">
-          <summary>Move</summary>
-          {/* the same screen-relative steps as the arrow keys (ADR 0005) */}
-          <div className="nudge-pad">
-            <button className="btn btn-small" onClick={() => moveOnScreen(-1, 0)} aria-label="Move preview left on screen" title="Left">←</button>
-            <button className="btn btn-small" onClick={() => moveOnScreen(0, 1)} aria-label="Move preview away from you" title="Away">↑</button>
-            <button className="btn btn-small" onClick={() => moveOnScreen(0, -1)} aria-label="Move preview towards you" title="Towards you">↓</button>
-            <button className="btn btn-small" onClick={() => moveOnScreen(1, 0)} aria-label="Move preview right on screen" title="Right">→</button>
-          </div>
-        </details>
+        {pv && <Height pv={pv} />}
+        <Nudge />
       </div>
     );
   }
@@ -344,6 +412,18 @@ function Context() {
     );
   }
 
+  if (mode === "plan") {
+    return (
+      <div className="context">
+        <span className="context-hint">
+          <span className="tag plan-tag">Plan mode</span>{" "}
+          <span className="wide-only">Choose a part below to propose it as a transparent plan. Plans cost no stock, even when none are left.</span>
+          <span className="narrow-only">Pick a part to propose it.</span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="context">
       <span className="context-hint">
@@ -358,25 +438,39 @@ function Tray({ pics }: { pics: Pictures | null }) {
   const [group, setGroup] = useState<(typeof GROUPS)[number]["id"]>("all");
   const held = useApp((s) => s.held?.partId);
   const inventory = useApp((s) => s.snapshot?.inventory);
+  const mode = useApp((s) => s.mode);
+  const snapshot = useApp((s) => s.snapshot);
+  const planned = snapshot ? plannedCounts(getState()) : {};
+  const planning = mode === "plan";
   const shown = catalog.filter((d) => group === "all" || d.group === group);
   return (
     <>
-      <div className="tabs" role="tablist" aria-label="Part groups">
-        {GROUPS.map((g) => (
-          <button key={g.id} role="tab" aria-selected={group === g.id} onClick={() => setGroup(g.id)}>
-            {g.label}
-          </button>
-        ))}
+      <div className="tray-bar">
+        <div className="tabs" role="tablist" aria-label="Part groups">
+          {GROUPS.map((g) => (
+            <button key={g.id} role="tab" aria-selected={group === g.id} onClick={() => setGroup(g.id)}>
+              {g.label}
+            </button>
+          ))}
+        </div>
+        <ModeSwitch />
       </div>
-      <ul className="tray" aria-label="Parts in your kit">
+      {planning && (
+        <p className="visually-hidden" id="plan-legend">
+          In Plan mode each part shows its planned remaining: the room's real stock minus everyone's open plans. It can go below
+          zero, and real building still uses the real count.
+        </p>
+      )}
+      <ul className={`tray${planning ? " planning" : ""}`} aria-label={planning ? "Parts to plan with" : "Parts in the room's kit"} aria-describedby={planning ? "plan-legend" : undefined}>
         {shown.map((def) => {
           const left = inventory?.[def.id] ?? 0;
+          const after = planned[def.id] ?? left;
           return (
             <li key={def.id}>
               <button
-                className={`tile part${held === def.id ? " held" : ""}${left === 0 ? " empty" : ""}`}
+                className={`tile part${held === def.id ? " held" : ""}${left === 0 && !planning ? " empty" : ""}`}
                 aria-pressed={held === def.id}
-                aria-label={`${def.name}, ${left} left`}
+                aria-label={planning ? `${def.name}, planned remaining ${after}; ${left} real left` : `${def.name}, ${left} left`}
                 title={`${def.name} (${def.code})`}
                 onClick={(e) => {
                   choosePart(def.id);
@@ -389,7 +483,13 @@ function Tray({ pics }: { pics: Pictures | null }) {
                 }}
               >
                 {pics ? <img src={pics.parts[def.id]} alt="" width={64} height={64} /> : <span className="thumb-wait" />}
-                <span className="count">×{left}</span>
+                {planning ? (
+                  <span className={`count planned${after < 0 ? " short" : ""}`} title={`Planned remaining ${after} (real stock ${left})`}>
+                    ◇ {after}
+                  </span>
+                ) : (
+                  <span className="count">×{left}</span>
+                )}
                 <span className="name">{def.name}</span>
               </button>
             </li>
@@ -462,8 +562,10 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             <dd>raise / lower it</dd>
             <dt>R</dt>
             <dd>rotate the preview or the selected part</dd>
+            <dt>P</dt>
+            <dd>switch between Build and Plan</dd>
             <dt>Enter</dt>
-            <dd>place, or remove the delete target</dd>
+            <dd>place (or propose, in Plan mode), or remove the delete target</dd>
             <dt>Esc</dt>
             <dd>cancel, deselect, leave the delete tool</dd>
             <dt>[ / ]</dt>
@@ -477,8 +579,14 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
           </dl>
           <h3>Plans and marks</h3>
           <p>
-            Propose instead of placing to show a transparent suggestion that costs no stock. Anyone can build a plan, or
-            mark it for everyone, which briefly highlights it for other people in the room.
+            Switch to Plan (P) and a click proposes a transparent suggestion instead of placing a real part. Plans cost no
+            stock, needn't be buildable yet, and stay in Plan mode until you switch back to Build. Anyone can build a
+            plan, withdraw it, or mark it for everyone, which briefly highlights it for other people in the room.
+          </p>
+          <p>
+            In Plan mode the tray shows each part's planned remaining: the room's real stock minus everyone's open
+            plans. It can go below zero, which means the plans need more pieces than the room has. Building for real
+            always uses the real count.
           </p>
           <p className="fineprint">
             Your build is saved on the server against this browser. Clearing this site's cookies starts afresh unless
@@ -689,6 +797,7 @@ function AccessScreen({ code, message }: { code?: "access_denied" | "room_full";
 
 export function App() {
   const deleting = useApp((s) => s.deleting);
+  const mode = useApp((s) => s.mode);
   const placed = useApp((s) => s.snapshot?.parts.length ?? 0);
   const save = useApp((s) => s.save);
   const [pics, setPics] = useState<Pictures | null>(null);
@@ -763,9 +872,11 @@ export function App() {
 
       <Notice />
 
-      <section ref={dockRef} className={`dock${trayOpen ? "" : " folded"}`} aria-label="Building controls">
+      <section ref={dockRef} className={`dock${trayOpen ? "" : " folded"}${mode === "plan" ? " planning" : ""}`} aria-label="Building controls">
         <div className="dock-top">
           <Context />
+          {/* one switch, wherever there's room for it: beside the tabs, or here with the tray folded */}
+          {!trayOpen && <ModeSwitch />}
           <div className="dock-tools">
             <button className={`btn btn-small delete-tool${deleting ? " on" : ""}`} aria-pressed={deleting} aria-label="Delete tool" onClick={() => toggleDelete()}>
               <span aria-hidden="true">⌫</span> <span className="label">Delete tool</span> <kbd>D</kbd>

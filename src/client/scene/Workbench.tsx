@@ -6,9 +6,9 @@ import { partDef } from "../../domain/catalog.ts";
 import { footprint } from "../../domain/rules.ts";
 import {
   aimAt,
+  commitHeld,
   getState,
   onFootprint,
-  placeHeld,
   preview,
   remove,
   scene,
@@ -201,7 +201,9 @@ function aimOf(e: ThreeEvent<PointerEvent | MouseEvent>): Aim | null {
   const side = normal.y <= 0.5;
   if (!side) {
     p.addScaledVector(normal, -0.01);
-    const placed = getState().snapshot?.parts.find((q) => q.id === placedIdOf(e));
+    const s = getState().snapshot;
+    // a plan's top is a surface too, but only Plan mode ever aims at one (onMove/onClick)
+    const placed = s?.parts.find((q) => q.id === placedIdOf(e)) ?? s?.plans.find((q) => q.id === planIdOf(e));
     level = placed ? placed.y + partDef(placed.partId)!.h : 0;
   } else {
     p.addScaledVector(normal, 0.5);
@@ -215,9 +217,21 @@ function aimOf(e: ThreeEvent<PointerEvent | MouseEvent>): Aim | null {
 
 const aimKey = (a: Aim): string => `${a.cell.x},${a.cell.z},${a.level}`;
 
+/**
+ * While holding a part in Build mode, the pointer looks through plans to the
+ * real surface behind them: a plan never blocks real building (ADR 0009). In
+ * Plan mode a plan's surface is aimable, so a roof can be planned on a
+ * planned wall (ADR 0011).
+ */
+const seeThroughPlan = (e: ThreeEvent<PointerEvent | MouseEvent>): boolean => {
+  const s = getState();
+  return !!s.held && s.mode === "build" && !!planIdOf(e);
+};
+
 function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const snapshot = useApp((s) => s.snapshot);
   const held = useApp((s) => s.held);
+  const mode = useApp((s) => s.mode);
   const colour = useApp((s) => s.colour);
   const selectedId = useApp((s) => s.selectedId);
   const selectedPlanId = useApp((s) => s.selectedPlanId);
@@ -233,7 +247,8 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const deleting = useApp((s) => s.deleting);
   const targetId = useApp((s) => s.targetId);
   // preview() reads only these
-  const pv = useMemo(() => preview(getState()), [held, colour, snapshot]);
+  const pv = useMemo(() => preview(getState()), [held, colour, snapshot, mode]);
+  const planning = mode === "plan";
   // the last surface the mouse aimed at: the preview only re-aims when the
   // pointer moves to another one, so jiggling the mouse never undoes a
   // height chosen with Higher/Lower
@@ -263,7 +278,7 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
     if (e.pointerType !== "mouse") return;
     // hover looks through the preview itself and through faded parts: without
     // stopPropagation, the next thing along the ray gets this event
-    if (e.object.userData.ghost || e.object.userData.faded) return;
+    if (e.object.userData.ghost || e.object.userData.faded || seeThroughPlan(e)) return;
     e.stopPropagation();
     const s = getState();
     if (s.held) {
@@ -278,25 +293,27 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   };
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
+    if (seeThroughPlan(e)) return; // the next surface along the ray gets this click
     e.stopPropagation();
     if (isDrag(e.nativeEvent)) return;
     const s = getState();
     const touch = (e.nativeEvent as PointerEvent).pointerType !== "mouse";
     if (s.held) {
       // A click or tap inside the preview's footprint commits exactly the
-      // preview on screen, never re-aimed (ADR 0005). Anywhere else it only
-      // aims. With a mouse, hover has already put the preview under the
-      // pointer, so one click places; a finger has no hover, so its first
-      // tap previews and a second tap on the preview places.
+      // preview on screen, never re-aimed (ADR 0005): a real part in Build
+      // mode, a plan in Plan mode (ADR 0011). Anywhere else it only aims.
+      // With a mouse, hover has already put the preview under the pointer,
+      // so one click commits; a finger has no hover, so its first tap
+      // previews and a second tap on the preview commits.
       if (e.object.userData.ghost) {
-        void placeHeld();
+        void commitHeld();
         return;
       }
       const aim = aimOf(e);
       if (!aim) return;
       const shown = preview(s)?.placement;
       if (shown && onFootprint(shown, aim.cell)) {
-        void placeHeld();
+        void commitHeld();
         return;
       }
       lastAim.current = aimKey(aim);
@@ -341,7 +358,7 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
           <PartMesh
             key={plan.id}
             placement={plan}
-            ghost="valid"
+            ghost="plan"
             highlight={recentlyMarked ? "marked" : !held && !deleting && plan.id === selectedPlanId ? "plan" : undefined}
             userData={{ planId: plan.id }}
           />
@@ -349,22 +366,26 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
       })}
       {pv && (
         <>
-          <PartMesh placement={pv.placement} ghost={pv.rejection ? "invalid" : "valid"} userData={{ ghost: true }} />
-          <GhostLabel placement={pv.placement} ok={!pv.rejection} />
+          <PartMesh
+            placement={pv.placement}
+            ghost={planning ? (pv.planRejection ? "invalid" : "plan-preview") : pv.rejection ? "invalid" : "valid"}
+            userData={{ ghost: true }}
+          />
+          <GhostLabel placement={pv.placement} ok={planning ? !pv.planRejection : !pv.rejection} plan={planning} />
         </>
       )}
     </group>
   );
 }
 
-// A label over the preview, so fit / no fit is said in words, not just colour.
-function GhostLabel({ placement: p, ok }: { placement: { partId: string; x: number; y: number; z: number; rot: number }; ok: boolean }) {
+// A label over the preview, so fit / no fit, and plan / real, are said in words, not just colour.
+function GhostLabel({ placement: p, ok, plan }: { placement: { partId: string; x: number; y: number; z: number; rot: number }; ok: boolean; plan: boolean }) {
   const def = partDef(p.partId)!;
   const w = p.rot % 2 === 0 ? def.w : def.d;
   const d = p.rot % 2 === 0 ? def.d : def.w;
   return (
     <Html position={[p.x + w / 2, (p.y + def.h) * PLATE + 0.7, p.z + d / 2]} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
-      <span className={`ghost-label${ok ? "" : " bad"}`}>{ok ? "✓ Fits" : "✕ Can't place"}</span>
+      <span className={`ghost-label${ok ? (plan ? " plan" : "") : " bad"}`}>{plan ? (ok ? "◇ Plan here" : "✕ Can't plan") : ok ? "✓ Fits" : "✕ Can't place"}</span>
     </Html>
   );
 }

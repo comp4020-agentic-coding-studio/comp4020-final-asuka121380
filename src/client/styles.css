@@ -350,6 +350,88 @@ kbd {
   padding: 0;
 }
 
+.tray-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.tray-bar .tabs {
+  min-width: 0;
+}
+
+/* ---- Build / Plan (ADR 0011): words, an icon and pressed state, not colour alone */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.mode-switch {
+  display: inline-flex;
+  flex: none;
+  border-radius: var(--radius);
+}
+.mode-switch .btn {
+  border-radius: 0;
+}
+.mode-switch .btn:first-of-type {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.mode-switch .btn:last-of-type {
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin-left: -2px;
+}
+.mode-switch .btn[aria-pressed="true"] {
+  --face: var(--ink);
+  --edge: #000;
+  --text: var(--white);
+}
+.mode-switch .mode-plan[aria-pressed="true"] {
+  --face: var(--blue);
+  --edge: #0f3a73;
+}
+.btn-plan {
+  --face: var(--white);
+  --edge: var(--blue);
+  --text: var(--blue);
+  border-style: dashed;
+}
+.plan-tag {
+  background: var(--white);
+  color: var(--blue);
+  border: 2px dashed var(--blue);
+}
+/* the dock's top edge turns dashed blue while planning */
+.dock.planning {
+  border-top: 4px dashed var(--blue);
+}
+.plan-counts {
+  font: 600 0.82rem var(--font-body);
+  color: var(--ink-soft);
+}
+.plan-left.short,
+.plan-short {
+  color: var(--danger);
+}
+.tile .count.planned {
+  background: var(--white);
+  color: var(--blue);
+  border: 1.5px dashed var(--blue);
+  border-radius: 5px;
+  padding: 0 0.3rem;
+  font: 800 0.72rem/1.35 var(--font-body);
+}
+.tile .count.planned.short {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.ghost-label.plan {
+  background: var(--blue);
+}
+
 .height {
   display: flex;
   align-items: center;
@@ -520,6 +602,19 @@ kbd {
     top: 0;
     right: 0;
   }
+  /* Build/Plan gets its own full-width row above the tabs on a phone */
+  .tray-bar {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .tray-bar .mode-switch {
+    margin-top: 0.35rem;
+  }
+  .mode-switch .btn {
+    min-height: 40px;
+    min-width: 5.5rem;
+  }
+
   .delete-tool .label {
     display: none;
   }

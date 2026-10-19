@@ -7,6 +7,7 @@ import {
   footprint,
   nextRotation,
   planHeights,
+  plannedRemaining,
   validateCommand,
   validatePlacement,
   validatePlan,
@@ -20,11 +21,16 @@ import { screenToGrid } from "./view.ts";
 
 // Client state. The snapshot is the server's, replaced wholesale on every
 // answer. Everything else is local and never saved: which part is held, the
-// preview, the selection and the delete tool. There are no modes. What a
-// click means follows from those (ADR 0003):
-//   holding a part  → the click places it
-//   delete tool on  → the click removes the part under it
-//   otherwise       → the click selects a placed part, or clears selection
+// preview, the selection, the delete tool and the construction mode. What a
+// click means follows from those (ADR 0003, ADR 0011):
+//   holding a part, Build mode → the click places it for real
+//   holding a part, Plan mode  → the click proposes it as a transparent plan
+//   delete tool on             → the click removes the part under it
+//   otherwise                  → the click selects a part or plan, or clears selection
+// The mode is this browser's alone: another member's mode never changes it.
+
+/** What committing a held part does (ADR 0011). */
+export type Mode = "build" | "plan";
 
 export interface Held {
   partId: string;
@@ -61,6 +67,8 @@ export interface AppState {
   snapshot: Snapshot | null;
   durable: boolean;
   held: Held | null;
+  /** Build places real parts; Plan proposes transparent plans. Local, and stable until switched explicitly. */
+  mode: Mode;
   /** The colour the next part is placed in; kept across part choices. */
   colour: string;
   selectedId: string | null;
@@ -103,6 +111,7 @@ let state: AppState = {
   snapshot: null,
   durable: true,
   held: null,
+  mode: "build",
   colour: "pale-mint",
   selectedId: null,
   selectedPlanId: null,
@@ -238,7 +247,37 @@ export function choosePart(partId: string): void {
     deleting: false,
     targetId: null,
   });
-  if ((state.snapshot?.inventory[partId] ?? 0) === 0) say(`No ${def.name} left in your kit.`, "error");
+  // a plan may describe pieces the room doesn't have yet (ADR 0011)
+  if (state.mode === "build" && (state.snapshot?.inventory[partId] ?? 0) === 0) say(`No ${def.name} left in your kit.`, "error");
+}
+
+/**
+ * Switch between Build and Plan (ADR 0011). The held part, its preview and
+ * its chosen height all stay put, so the same spot can be looked at either
+ * way; only what the next click commits changes. Entering Plan leaves the
+ * delete tool, as choosing a part does.
+ */
+export function setMode(mode: Mode): void {
+  if (state.mode === mode) return;
+  set({ mode, ...(mode === "plan" && state.deleting ? { deleting: false, targetId: null } : {}) });
+  if (mode === "plan") {
+    say(coarsePointer() ? "Plan mode: plans cost no stock." : "Plan mode: a click proposes a transparent plan. It costs no stock. Press P or Build to go back.");
+  } else {
+    const held = state.held && partDef(state.held.partId);
+    const none = held && (state.snapshot?.inventory[held.id] ?? 0) === 0;
+    say(none ? `Build mode: a click places real parts. No ${held.name} left in the kit.` : "Build mode: a click places real parts.", none ? "error" : "info");
+  }
+}
+
+export function toggleMode(): void {
+  setMode(state.mode === "plan" ? "build" : "plan");
+}
+
+const coarsePointer = (): boolean => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+
+/** Real stock minus the room's open plans, by part type: planning demand, never stock (ADR 0011). */
+export function plannedCounts(s: AppState = state): Record<string, number> {
+  return s.snapshot ? plannedRemaining(s.snapshot) : {};
 }
 
 export function putDown(): void {
@@ -282,19 +321,21 @@ export function moveOnScreen(right: number, up: number): void {
   moveAnchor(dx, dz);
 }
 
+/** Whether Higher has somewhere to go: a real height above, or (Plan mode only) the next bare level up. */
+export function canStepHigher(p: Preview, mode: Mode): boolean {
+  const y = p.placement.y;
+  return p.fits.some((f) => f > y) || (mode === "plan" && p.planFits.includes(y + 1));
+}
+
 /**
  * Higher (+1) or Lower (−1): the next height above or below that's
- * reachable here. Lower is unchanged from ADR 0005: it steps between the
- * real, supported heights (`fits`) exactly as before. Higher does too,
- * UNLESS it has run past the topmost real height — only then does it climb
+ * reachable here. In Build mode both step between the real, supported
+ * heights (`fits`) exactly as ADR 0005 describes. In Plan mode Higher does
+ * too, until it runs past the topmost real height; only then does it climb
  * one level at a time through positions only a plan could occupy
- * (`planFits`, a superset of `fits`: no collision, but not necessarily
- * support). This is the one, explicit way to steer the preview onto a
- * future position (a roof before its walls) so it can be proposed there;
- * Place still separately refuses it at any such height (`rejection` stays
- * set). Lower, from such a speculative height, jumps straight back to the
- * nearest real support below — the same "find the plot" behavior as
- * always, not required to retrace the speculative climb level by level.
+ * (`planFits`: no collision, but not necessarily support), which is how a
+ * future roof before its walls is reached (ADR 0009/0011). Lower, from such
+ * a height, jumps straight back to the nearest real support below.
  */
 export function stepLevel(dir: 1 | -1): void {
   const p = preview();
@@ -310,7 +351,7 @@ export function stepLevel(dir: 1 | -1): void {
       return;
     }
     const above = y + 1;
-    if (p.planFits.includes(above)) {
+    if (state.mode === "plan" && p.planFits.includes(above)) {
       setHeld({ level: above, snap: false });
       return;
     }
@@ -357,7 +398,7 @@ export function preview(s: AppState = state): Preview | null {
   const z = Math.min(scene.bounds.d - d, Math.max(0, held.anchor.z - Math.floor((d - 1) / 2)));
   const fits = fitHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
   const planFits = planHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
-  const y = chooseLevel(held, fits);
+  const y = chooseLevel(held, s.mode === "plan" ? planFits : fits, fits);
   const placement: Placement = { partId: def.id, x, y, z, rot: held.rot, colour: s.colour };
   return {
     placement,
@@ -368,11 +409,12 @@ export function preview(s: AppState = state): Preview | null {
   };
 }
 
-function chooseLevel(held: Held, fits: number[]): number {
-  if (held.level === null) return fits[0] ?? 0;
-  if (!held.snap || fits.includes(held.level)) return held.level;
+/** `reachable` is what a side-face aim may drop to: real heights in Build mode, plan heights in Plan mode. */
+function chooseLevel(held: Held, reachable: number[], fits: number[]): number {
+  if (held.level === null) return fits[0] ?? reachable[0] ?? 0;
+  if (!held.snap || reachable.includes(held.level)) return held.level;
   // an approximate level from a side face: the nearest that fits at or below it
-  return [...fits].reverse().find((f) => f <= held.level!) ?? held.level;
+  return [...reachable].reverse().find((f) => f <= held.level!) ?? held.level;
 }
 
 /** Where a placement's footprint is, for "is this tap on the preview?". */
@@ -535,9 +577,19 @@ export async function recolourSelected(colour: string): Promise<void> {
   await submit({ type: "recolour", placedId: part.id, colour, expectedRev: part.rev }, `Recoloured ${nameOf(part.id)}.`);
 }
 
-/** Enter: place the held part, remove the delete tool's target, or build a selected plan. */
+/**
+ * Commit exactly the preview on screen, as the current mode says: a real
+ * part in Build mode, a plan in Plan mode (ADR 0011). The one entry point
+ * for a click on the scene, Enter, and the dock's commit button, so none of
+ * them can commit the other kind of object.
+ */
+export function commitHeld(): Promise<void> {
+  return state.mode === "plan" ? proposeHeld() : placeHeld();
+}
+
+/** Enter: commit the held part, remove the delete tool's target, or build a selected plan. */
 export function confirm(): void {
-  if (state.held) void placeHeld();
+  if (state.held) void commitHeld();
   else if (state.deleting && state.targetId) void remove(state.targetId);
   else if (state.selectedPlanId) void realizePlan(state.selectedPlanId);
 }
@@ -549,15 +601,21 @@ export function confirm(): void {
 // pushed to every member the same way, but `validatePlan` (not
 // `validatePlacement`) is what the server and this preview check it against.
 
-/** Propose the currently previewed part as a transparent plan, instead of placing it for real. */
-export async function proposeHeld(): Promise<void> {
+/** Propose the previewed part as a transparent plan; it stays held for the next one. */
+async function proposeHeld(): Promise<void> {
   const p = preview();
   if (!p || !state.snapshot) {
     say("Point at the plot first, or move the preview with the arrow keys.", "error");
     return;
   }
+  if (p.planRejection) {
+    say(`Can't plan there: ${p.planRejection.message}`, "error");
+    return;
+  }
   const def = partDef(p.placement.partId)!;
-  await submit({ type: "propose-plan", plan: p.placement }, `Proposed a ${def.name}.`);
+  const ok = await submit({ type: "propose-plan", plan: p.placement }, `Proposed a ${def.name} as a plan.`);
+  // as with a real part, the next one previews on top of this one
+  if (ok) setHeld({ level: p.placement.y + def.h, snap: false });
 }
 
 export async function withdrawPlan(planId: string): Promise<void> {
