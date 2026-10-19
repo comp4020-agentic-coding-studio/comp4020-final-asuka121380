@@ -1902,3 +1902,120 @@ nicety, not the enforcement).
 **Verification:** `git diff --check` passed before committing; all 13 PROCESS commit references resolved locally. The reflection's filename and two headings match `reflections/README.md`. No application tests were rerun for this documentation-only change.
 
 **Limitations:** PROCESS records the remaining account-switch/recovery-session issues and distinguishes automated checks from human multiplayer testing. Its statement that multiplayer commits were not yet pushed describes the drafting-time state; the author subsequently authorized pushing this branch together with these documents. This entry does not claim a C9 tag or ship workflow has been completed.
+
+### 2026-10-19 14:32 AEDT — [`db4ce01`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/db4ce01) Domain: derive planning demand (real stock minus open plans)
+
+**Changes:**
+- `src/domain/rules.ts`: new pure `plannedRemaining(state)` returns
+  `inventory[part]` minus the number of `open` plans of each part type.
+  Withdrawn and realized plans don't count. Nothing stores it and no
+  validation calls it.
+- `spec/domain/planned-remaining.test.ts` (new, 4 tests): five plans against
+  three in stock gives −2 with real stock unchanged; withdraw raises demand;
+  realize spends real stock once and drops the plan's demand; negative
+  demand never blocks a real placement while stock remains; realizing with
+  zero real stock is `out_of_stock` with the plan still open.
+
+**Why.** The author asked for a Plan-mode count showing whether the room's
+open plans fit its real stock, without a second stock table or any
+subtraction from real inventory (ADR 0011).
+
+**Who decided:** the author set the formula and the "derived, may be
+negative, never authoritative" rule. Putting it in the domain module as a
+pure helper was the agent's choice.
+
+**Tests:** `pnpm vitest run --project domain`: 36/36 passed (4 domain files).
+
+### 2026-10-19 14:32 AEDT — [`c7ad154`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c7ad154) Client: explicit Build/Plan mode; a click in Plan mode proposes the preview
+
+**Changes:**
+- `src/client/state/store.ts`:
+  - new local `mode: "build" | "plan"`, with `setMode`, `toggleMode`,
+    `plannedCounts` and `canStepHigher`
+  - `commitHeld()` is the single mode-checked commit path for scene click,
+    Enter and the dock button
+  - `proposeHeld()` made private; it now refuses locally on `planRejection`
+    and keeps the next preview on top of the new plan
+  - `stepLevel` climbs into unsupported heights only in Plan mode
+  - `chooseLevel` drops a side-face aim to plan heights in Plan mode
+  - `choosePart` no longer warns "none left" in Plan mode
+- `src/client/App.tsx`:
+  - `ModeSwitch` segmented control: aria-pressed, labels "Build mode" and
+    "Plan mode", a hidden description, and P shown on the Plan button
+  - a separate Plan-mode context row: "Plan" tag, `Propose plan` button,
+    `PlanCounts` reading "Real kit · plans · planned left"
+  - the `Propose instead` button is removed
+  - Build mode hints "Switch to Plan (P)" when a spot is unsupported or out
+    of stock
+  - Plan-mode tray badges `◇ N` with accessible names giving both counts
+  - Help text updated; `Height` takes the preview and the mode
+  - the mode switch sits on the tray's tab row (top row when folded)
+- `src/client/keyboard.ts`: `P` toggles the mode, behind the existing
+  editable-field guard.
+- `src/client/scene/Workbench.tsx`:
+  - a scene click goes through `commitHeld`
+  - in Build mode the pointer looks through plans; in Plan mode a plan's
+    top face can be aimed at
+  - Plan-mode preview material, and a "◇ Plan here" / "✕ Can't plan" label
+- `src/client/scene/PartMesh.tsx`: `plan` and `plan-preview` ghost
+  variants (more transparent, blue cast, blue outline).
+- `src/client/styles.css`: mode switch, plan tag and badges, dashed dock
+  edge in Plan mode, phone layout, and a `.visually-hidden` utility.
+
+**Why.** Moving the pointer to `Propose instead` re-aimed the preview, so a
+plan could not reliably be made at the position on screen. The author asked
+for Plan mode to be a real spatial tool (ADR 0011).
+
+**Who decided:** the author set the two modes, P, click-to-propose, mode
+stability, explicit return to Build, and the planned count's meaning. The
+agent chose: Escape not leaving Plan mode; Build-mode Higher no longer
+climbing into unsupported space; Build-mode pointer looking through plans;
+aiming at plan tops in Plan mode; where the switch sits; and the compact
+wording.
+
+**Tests:** see the next entry. A first layout made the dock taller in both
+modes; that was caught by a browser script and fixed before this commit
+(evidence 0007, "Dock height").
+
+### 2026-10-19 14:33 AEDT — [`81c1b2c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/81c1b2c) Tests and two-context browser verification for Plan mode; evidence 0007
+
+**Changes:**
+- `spec/plans-and-attribution.test.ts`: new "planning demand" block
+  (5 tests): more plans than stock (demand −2, stock unchanged); proposing
+  with zero real stock; negative demand never blocking another member's
+  real placement; withdraw +1 and realize spending stock once; realizing
+  with no stock refused `out_of_stock` with the plan open.
+- `spec/realtime.test.ts`: a proposed plan reaches B's SSE stream in under
+  1 s with real stock unchanged.
+- `scripts/plan-mode.ts` (new, 37 checks): two independent contexts plus a
+  touch-emulated 390×844 phone.
+- `scripts/multiplayer.ts`: the plan is created by a Plan-mode click and
+  compared with the preview; B's Plan-mode tray shows the demand.
+- `scripts/review-fixes.ts`: the future roof is proposed through Plan mode
+  and `Propose plan`.
+- `scripts/interaction.ts`: P and the mode buttons; `p` in a text field is
+  not a shortcut.
+- `doc/evidence/0007-plan-mode.md` and `doc/evidence/shots/plan-mode/`
+  (screenshots, `results.json`).
+
+**Who decided:** the agent, covering the author's verification list.
+
+**Tests run, against an isolated server** (`DATA_DIR=/tmp/bc-plan2
+PORT=8352`, fresh database, final build):
+- `APP_URL=http://localhost:8352 pnpm check`: typecheck clean, 126/126
+  passed in 15 files (116 before).
+- `pnpm check:evidence`: clean.
+- `scripts/plan-mode.ts` 37/37; `scripts/multiplayer.ts` 17/17;
+  `scripts/review-fixes.ts` 14/14; `scripts/interaction.ts` 84/84.
+- Comparison: a HEAD (`9625f82`) build on a separate throwaway server ran
+  `scripts/review-fixes.ts` 14/14 and gave the Build-mode dock baseline used
+  in evidence 0007.
+
+**Observed:** the plan created equals the preview read before the click;
+B received plans in 2–5 ms; planned remaining reached −2 on both screens;
+realization with no real stock was refused and the plan stayed open.
+
+**Limitations:** Chrome only (no Safari/WebKit); touch was emulated, not
+on a physical phone; two contexts on one machine, not two people; nothing
+pushed or deployed. In Plan mode the dock is one row taller than in Build
+mode.

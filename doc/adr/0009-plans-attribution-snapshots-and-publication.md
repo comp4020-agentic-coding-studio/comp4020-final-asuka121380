@@ -26,7 +26,8 @@ publication policy depends on how snapshots carry lineage.
 - New table `plans`: `id`, `room_id`, `part_id` (catalog id), `x, y, z,
   rot`, `suggested_colour`, `proposed_by` (visitor id), `created_at`,
   `status` (`open` | `realized` | `withdrawn`).
-- A plan is validated against **bounds and the supported-component rule
+- *(Superseded on support by the 13 Oct correction below: plans never
+  require support.)* A plan is validated against **bounds and the supported-component rule
   only** (author: "must still obey reasonable scene bounds and supported
   component rules"), not against current occupancy or stock: it may
   describe a position real construction can't reach yet (a roof over a
@@ -242,6 +243,11 @@ if a client somehow constructed the right command. `scripts/review-fixes.ts`
 verifies exactly this path end to end (stepping Higher past the real
 heights, confirming Place is refused there but Propose instead is
 enabled, and that clicking it actually creates the plan).
+
+*Superseded in the UI by ADR 0011 (19 Oct 2026):* the `Propose instead`
+button is gone. Plans are created by clicking the scene in an explicit
+Plan mode, and Higher climbs past the real heights only in Plan mode. The
+server-side rules in this section are unchanged.
 
 ## As built (agent; revises the plan above)
 

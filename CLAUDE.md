@@ -143,6 +143,9 @@ Each entry gives, in proportion to the change:
   SSE reconnect — goes through the one capacity-checking path regardless of
   prior membership (ADR 0007, corrected 13 Oct 2026 after an independent
   review demonstrated a returning member exceeding a room's capacity).
+- Subtract plans from real inventory, store a second ("planned") stock, or
+  let planning demand affect whether anyone may place or realize a real part
+  (author, 19 Oct 2026; ADR 0011).
 - Require real or planned structural support for a PLAN (as opposed to a
   real placement, which still requires it). A plan may describe a position
   nothing yet built supports — a future roof before its walls — and is
@@ -241,7 +244,7 @@ Each entry gives, in proportion to the change:
   - working Top view and Reset view controls
 - A drag that moves the camera never places, selects or deletes on release.
 
-## Interaction (author, 6 Oct 2026; supersedes the Build/Select modes)
+## Interaction (author, 6 Oct 2026; supersedes the Build/Select modes; one Build/Plan mode re-added 19 Oct 2026, ADR 0011)
 
 - **Nothing held:** click a placed part to select it; click empty space to
   clear. Scenery can't be selected.
@@ -261,7 +264,22 @@ Each entry gives, in proportion to the change:
   - Mouse, keyboard, visible buttons and touch give the same placement
     results. Collision, bounds, stock and support rules are unchanged.
   - A click places the part, and the part stays held while stock lasts.
-  - Esc, or choosing the same tray item again, puts it down.
+  - Esc, or choosing the same tray item again, puts it down. Esc never
+    changes the construction mode.
+- **Build and Plan modes (author, 19 Oct 2026; ADR 0011).** The one mode in
+  the editor. It is local to each browser, shown with words, pressed state
+  and an icon (never colour alone), toggled by visible buttons and **P**.
+  - In Plan mode the same aiming, rotation, nudges and Higher/Lower apply,
+    and a click (or Enter, or the dock button) proposes exactly the
+    displayed preview as a plan. In Build mode it places a real part. All
+    of them go through one mode-checked commit path, so neither can create
+    the other kind of object.
+  - The mode stays as chosen while proposing; returning to Build is always
+    explicit.
+  - Only Plan mode's Higher climbs into unsupported positions, and only in
+    Plan mode can the pointer aim at a plan's surface. In Build mode the
+    pointer looks through plans.
+  - There is no separate "propose" button that needs pointer travel.
   - Clicking existing parts while holding one goes through the placement
     rules.
 - **Selected part:** compact controls to identify, recolour, rotate (90° steps,
@@ -318,7 +336,12 @@ Each entry gives, in proportion to the change:
   revision, so an unrelated change elsewhere in the room never rejects it
   (ADR 0008).
 - **Plans are proposals, not orders.** A transparent plan costs no stock and
-  never blocks real construction. Any member may realize one (atomically
+  never blocks real construction. **Planning demand** (ADR 0011) is derived
+  on each client as real stock minus the room's open plans, per part type,
+  counting every member's plans. It is shown only in Plan mode, beside the
+  real count and never as owned stock. It may be negative, is never stored,
+  and is never consulted by any rule. Real placement and realization are
+  decided by real stock alone, on the server. Any member may realize one (atomically
   consuming stock and creating the real part) or mark one for everyone
   (a restrained, fading, non-forcing visual cue naming who marked it).
   Marks are transient and are never written into permanent activity history

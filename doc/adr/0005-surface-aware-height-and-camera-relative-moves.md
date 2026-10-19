@@ -97,6 +97,14 @@ the screen.
 - The arrow keys and the visible direction buttons call the same function
   (`moveOnScreen`).
 
+## Later change (ADR 0011, 19 Oct 2026)
+
+These rules now hold in both construction modes. In Plan mode a commit
+proposes the displayed preview as a plan instead of placing it. Higher also
+climbs past the topmost fitting height into positions nothing supports yet
+(plans never need support, ADR 0009), and a plan's top face is a surface
+you can aim at. In Build mode everything above is unchanged.
+
 ## Alternatives considered
 
 - **Keep "tallest + manual lift" and stop resetting lift.** That still makes
