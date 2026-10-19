@@ -103,6 +103,53 @@ kbd {
   border-color: var(--ink);
   box-shadow: 0 3px 0 var(--ink);
 }
+/* camera tools (ADR 0012): a pressed tool reads as on, with words, not colour alone */
+.chip-group {
+  display: inline-flex;
+}
+.chip-group .chip-button:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.chip-group .chip-button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin-left: -2px;
+}
+.chip-button[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--white);
+  box-shadow: 0 3px 0 #000;
+}
+.chip-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.navigating .stage {
+  cursor: grab;
+}
+.navigating .stage:active {
+  cursor: grabbing;
+}
+.camera-hint {
+  position: absolute;
+  left: 0.75rem;
+  top: 7.4rem;
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.85);
+  color: var(--ink-soft);
+  font: 700 0.74rem var(--font-body);
+  z-index: 2;
+  pointer-events: none;
+}
+.camera-hint.on {
+  background: var(--ink);
+  color: var(--white);
+}
+.plan-fit-bad {
+  color: var(--danger);
+}
 .chip-ok {
   color: var(--ok);
 }
@@ -560,6 +607,15 @@ kbd {
   .overlay-right {
     right: 0.5rem;
     max-width: 62vw;
+  }
+  .wide-only-flex {
+    display: none;
+  }
+  .camera-hint {
+    left: 0.5rem;
+    top: 6.4rem;
+    max-width: calc(100vw - 1rem);
+    font-size: 0.7rem;
   }
   .chip,
   .chip-button {

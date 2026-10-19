@@ -3,19 +3,24 @@ import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import * as THREE from "three";
 import { partDef } from "../../domain/catalog.ts";
+import { rotatedSize } from "../../domain/grid.ts";
 import { footprint } from "../../domain/rules.ts";
 import {
   aimAt,
   commitHeld,
+  focusTarget,
   getState,
   onFootprint,
+  planFitsNow,
   preview,
   remove,
   scene,
   select,
   selectPlan,
+  restoreHeld,
   setTarget,
   useApp,
+  type Held,
 } from "../state/store.ts";
 import { setViewAzimuth } from "../state/view.ts";
 import { PLATE } from "./geometry.ts";
@@ -27,20 +32,22 @@ import { Plot } from "./Plot.tsx";
 // The 3D workbench: camera, light, the street and the player's parts, and the
 // pointer path into the same store actions the dock and the keyboard use.
 //
-// Camera (ADR 0003): perspective, free 360° orbit, down to a near top view,
-// never below ground, zoom and pan bounded around the plot.
-// Gestures: mouse left-drag orbits, right-drag or shift-drag pans, wheel
-// zooms; on a trackpad click-drag orbits and two-finger scroll zooms; on
-// touch one finger orbits, two fingers pinch and pan. A press that moves more
-// than a few pixels is a camera drag and never edits on release.
+// Camera (ADR 0003, remapped by ADR 0012): perspective, free 360° orbit about
+// a movable observation centre, down to a near top view, never below ground,
+// zoom and pan bounded around the plot. Mouse: left is building only; right
+// drag orbits, Shift+right or middle drag pans, the wheel zooms towards the
+// centre. The Orbit/Pan tools give a left drag those jobs instead. Touch:
+// one finger orbits, two fingers pan and pinch. A press that moves more than
+// a few pixels is a camera drag and never edits on release.
 
 const PLOT_CENTRE = new THREE.Vector3(scene.bounds.w / 2, 4, scene.bounds.d / 2);
-const PAN_MIN = new THREE.Vector3(-6, 0, -5);
-const PAN_MAX = new THREE.Vector3(scene.bounds.w + 6, 8, scene.bounds.d + 6);
+// the observation centre may go a margin past the plot and up the tallest build
+const PAN_MIN = new THREE.Vector3(-4, 0, -4);
+const PAN_MAX = new THREE.Vector3(scene.bounds.w + 4, (scene.bounds.h * 0.4) + 2, scene.bounds.d + 4);
 // low enough that a strip of horizon shows above the street
 const DEFAULT_POLAR = 1.32;
 const DEFAULT_AZIMUTH = 0.2;
-const MIN_DISTANCE = 14;
+const MIN_DISTANCE = 6;
 const MAX_DISTANCE = 95;
 // where the orbit target sits in the screen above the dock, from the top:
 // below the middle, leaving headroom for roofs and the horizon
@@ -77,6 +84,7 @@ function CameraRig({ dock }: { dock: number }) {
   const { camera, size } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const request = useApp((s) => s.camera);
+  const navTool = useApp((s) => s.navTool);
 
   // put the target in the part of the screen the dock doesn't cover, by
   // shifting the lens; the lens itself stays the same size
@@ -98,6 +106,20 @@ function CameraRig({ dock }: { dock: number }) {
     if (request.kind === "reset") {
       c.target.copy(PLOT_CENTRE);
       cam.position.copy(PLOT_CENTRE).add(new THREE.Vector3().setFromSphericalCoords(dist, DEFAULT_POLAR, DEFAULT_AZIMUTH));
+    } else if (request.kind === "focus") {
+      // frame the selection from the current heading and pitch, a little
+      // tighter than the part's size needs, and make it the new centre
+      const p = focusTarget();
+      if (!p) return;
+      const def = partDef(p.partId)!;
+      const sz = rotatedSize(def, p.rot);
+      const centre = new THREE.Vector3(p.x + sz.w / 2, (p.y + def.h / 2) * PLATE, p.z + sz.d / 2).clamp(PAN_MIN, PAN_MAX);
+      const radius = Math.max(sz.w, sz.d, def.h * PLATE);
+      const near = THREE.MathUtils.clamp(radius * 3.2 + 6, MIN_DISTANCE + 1, 30);
+      const from = new THREE.Spherical().setFromVector3(cam.position.clone().sub(c.target));
+      c.target.copy(centre);
+      cam.position.copy(centre).add(new THREE.Vector3().setFromSphericalCoords(near, THREE.MathUtils.clamp(from.phi, 0.35, 1.25), from.theta));
+      keepCameraOutside(cam.position, c.target);
     } else {
       // straight down over whatever the camera is looking at, keeping the
       // heading, so "up" on screen means the same as before (ADR 0005); the
@@ -141,6 +163,10 @@ function CameraRig({ dock }: { dock: number }) {
       const v = new THREE.Vector3(x, y, z).project(camera);
       return { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height };
     };
+    // let the damping settle at once, so a test can read the camera right after a gesture
+    (window as unknown as { __settleCamera: () => void }).__settleCamera = () => {
+      for (let i = 0; i < 60; i++) controls.current?.update();
+    };
   }, [camera, dock, size.width, size.height]);
 
   // pan stays near the plot: move target and camera together back inside;
@@ -159,6 +185,13 @@ function CameraRig({ dock }: { dock: number }) {
     keepCameraOutside(camera.position, c.target);
   };
 
+  // left is the builder's button unless a navigation tool claims it
+  const mouseButtons = {
+    LEFT: navTool === "orbit" ? THREE.MOUSE.ROTATE : navTool === "pan" ? THREE.MOUSE.PAN : (-1 as THREE.MOUSE),
+    MIDDLE: THREE.MOUSE.PAN,
+    RIGHT: THREE.MOUSE.ROTATE, // Shift+right pans: OrbitControls swaps ROTATE to PAN under Shift
+  };
+
   return (
     <OrbitControls
       ref={controls}
@@ -170,7 +203,10 @@ function CameraRig({ dock }: { dock: number }) {
       maxPolarAngle={1.36}
       minDistance={MIN_DISTANCE}
       maxDistance={MAX_DISTANCE}
-      screenSpacePanning={false}
+      // pans across the ground and up/down with the view, so taller builds can be inspected
+      screenSpacePanning
+      mouseButtons={mouseButtons}
+      touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       onChange={clampPan}
     />
   );
@@ -228,8 +264,14 @@ const seeThroughPlan = (e: ThreeEvent<PointerEvent | MouseEvent>): boolean => {
   return !!s.held && s.mode === "build" && !!planIdOf(e);
 };
 
-function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
+/** A pointer that stays within REST_PX of where it aimed for REST_MS has paused there deliberately. */
+const REST_MS = 120;
+const REST_PX = 6;
+
+function Build({ isDrag, pressed }: { isDrag: (e: MouseEvent) => boolean; pressed: () => boolean }) {
   const snapshot = useApp((s) => s.snapshot);
+  const drops = useApp((s) => s.drops);
+  const navTool = useApp((s) => s.navTool);
   const held = useApp((s) => s.held);
   const mode = useApp((s) => s.mode);
   const colour = useApp((s) => s.colour);
@@ -248,6 +290,7 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const targetId = useApp((s) => s.targetId);
   // preview() reads only these
   const pv = useMemo(() => preview(getState()), [held, colour, snapshot, mode]);
+  const fits = useMemo(() => planFitsNow(getState()), [snapshot]);
   const planning = mode === "plan";
   // the last surface the mouse aimed at: the preview only re-aims when the
   // pointer moves to another one, so jiggling the mouse never undoes a
@@ -256,7 +299,59 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const heldPart = held?.partId;
   useEffect(() => {
     lastAim.current = null;
-  }, [heldPart]);
+  }, [heldPart, navTool]);
+
+  // Where the hovering preview has been, with times. Reaching for a dock or
+  // header control crosses the exposed scene, which re-aims the preview on
+  // the way; when the pointer arrives on a control, the preview goes back to
+  // where it last rested, so the control acts on what the player was
+  // looking at, not on wherever the pointer happened to cross.
+  // Where the hovering preview has been. Reaching for a dock or header
+  // control usually sweeps across the exposed scene, re-aiming the preview
+  // on the way. When the pointer arrives on a control, the preview goes back
+  // to the last spot the pointer actually paused on (or to where it stood
+  // before the hover began), so the control acts on what the player was
+  // looking at. A spot counts as paused on once the pointer stayed within
+  // REST_PX of it for REST_MS; a sweep never does.
+  // `seed`: the preview as set by keys, buttons, a commit or an earlier trip.
+  type Spot = { held: Held; x: number; y: number; at: number; leftAt: number | null; seed?: boolean };
+  const trail = useRef<Spot[]>([]);
+  const fromHover = useRef<Held | null>(null);
+  const seed = (h: Held | null): void => {
+    trail.current = h?.anchor ? [{ held: h, x: NaN, y: NaN, at: performance.now(), leftAt: null, seed: true }] : [];
+  };
+  useEffect(() => {
+    if (!held || held === fromHover.current) return;
+    seed(held);
+  }, [held]);
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const last = trail.current[trail.current.length - 1];
+      if (last && !last.seed && last.leftAt === null && Math.hypot(e.clientX - last.x, e.clientY - last.y) > REST_PX) last.leftAt = performance.now();
+    };
+    const paused = (s: Spot, now: number) => s.seed || (s.leftAt ?? now) - s.at >= REST_MS;
+    const onOver = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || !(e.target instanceof Element) || !e.target.closest(".dock, .overlay, .help")) return;
+      const t = trail.current;
+      const now = performance.now();
+      if (t.length >= 2 && !paused(t[t.length - 1], now)) {
+        for (let i = t.length - 2; i >= 0; i--) {
+          if (paused(t[i], now)) {
+            restoreHeld(t[i].held);
+            break;
+          }
+        }
+      }
+      seed(getState().held);
+      lastAim.current = null;
+    };
+    window.addEventListener("pointermove", onMove, true);
+    document.addEventListener("pointerover", onOver);
+    return () => {
+      window.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerover", onOver);
+    };
+  }, []);
 
   // parts above a low preview are faded, and hover looks through them to the
   // surfaces beneath; nothing about them changes (ADR 0005)
@@ -281,11 +376,17 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
     if (e.object.userData.ghost || e.object.userData.faded || seeThroughPlan(e)) return;
     e.stopPropagation();
     const s = getState();
+    // a camera drag (any button held, or a navigation tool) freezes the preview in the world
+    if (pressed() || s.navTool) return;
     if (s.held) {
       const aim = aimOf(e);
       if (aim && aimKey(aim) !== lastAim.current) {
         lastAim.current = aimKey(aim);
         aimAt(aim.cell, aim.level, aim.snap);
+        const now = getState().held;
+        fromHover.current = now;
+        const ne = e.nativeEvent as PointerEvent;
+        if (now) trail.current = [...trail.current.slice(-20), { held: now, x: ne.clientX, y: ne.clientY, at: performance.now(), leftAt: null }];
       }
     } else if (s.deleting) {
       setTarget(placedIdOf(e));
@@ -295,7 +396,8 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (seeThroughPlan(e)) return; // the next surface along the ray gets this click
     e.stopPropagation();
-    if (isDrag(e.nativeEvent)) return;
+    // only a plain left click edits; a camera drag, or any click with a navigation tool on, never does
+    if (isDrag(e.nativeEvent) || (e.nativeEvent as MouseEvent).button !== 0 || getState().navTool) return;
     const s = getState();
     const touch = (e.nativeEvent as PointerEvent).pointerType !== "mouse";
     if (s.held) {
@@ -345,6 +447,7 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
           placement={p}
           highlight={deleting && p.id === targetId ? "delete" : !held && !deleting && p.id === selectedId ? "select" : undefined}
           faded={faded.has(p.id)}
+          dropAt={drops[p.id]}
           userData={{ placedId: p.id, faded: faded.has(p.id) }}
         />
       ))}
@@ -354,24 +457,22 @@ function Build({ isDrag }: { isDrag: (e: MouseEvent) => boolean }) {
       {snapshot?.plans.map((plan) => {
         const mark = marks[plan.id];
         const recentlyMarked = mark && Date.now() - mark.at < 6000; // a restrained, fading pulse
+        const selected = !held && !deleting && plan.id === selectedPlanId;
         return (
           <PartMesh
             key={plan.id}
             placement={plan}
-            ghost="plan"
-            highlight={recentlyMarked ? "marked" : !held && !deleting && plan.id === selectedPlanId ? "plan" : undefined}
+            ghost={fits.get(plan.id) === "standing" ? "plan" : "plan-bad"}
+            // selection wins over a mark, so the plan you're acting on is never ambiguous
+            highlight={selected ? "plan" : recentlyMarked ? "marked" : undefined}
             userData={{ planId: plan.id }}
           />
         );
       })}
       {pv && (
         <>
-          <PartMesh
-            placement={pv.placement}
-            ghost={planning ? (pv.planRejection ? "invalid" : "plan-preview") : pv.rejection ? "invalid" : "valid"}
-            userData={{ ghost: true }}
-          />
-          <GhostLabel placement={pv.placement} ok={planning ? !pv.planRejection : !pv.rejection} plan={planning} />
+          <PartMesh placement={pv.placement} ghost={pv.modeRejection ? "invalid" : planning ? "plan-preview" : "valid"} userData={{ ghost: true }} />
+          <GhostLabel placement={pv.placement} ok={!pv.modeRejection} plan={planning} />
         </>
       )}
     </group>
@@ -402,6 +503,20 @@ function Surroundings() {
 
 export function Workbench({ dock }: { dock: number }) {
   const down = useRef<{ x: number; y: number; type: string } | null>(null);
+  const buttons = useRef(0);
+  useEffect(() => {
+    // whether any button is down right now, from anywhere: the drag may leave the canvas
+    const track = (e: PointerEvent) => (buttons.current = e.buttons);
+    window.addEventListener("pointerdown", track, true);
+    window.addEventListener("pointerup", track, true);
+    window.addEventListener("pointermove", track, true);
+    return () => {
+      window.removeEventListener("pointerdown", track, true);
+      window.removeEventListener("pointerup", track, true);
+      window.removeEventListener("pointermove", track, true);
+    };
+  }, []);
+  const pressed = () => buttons.current !== 0;
   const isDrag = (e: MouseEvent): boolean => {
     const d = down.current;
     if (!d) return false;
@@ -424,12 +539,14 @@ export function Workbench({ dock }: { dock: number }) {
       onPointerLeave={(e) => e.pointerType === "mouse" && getState().deleting && setTarget(null)}
       onPointerMissed={(e) => {
         const s = getState();
-        if (!isDrag(e) && !s.held && !s.deleting) select(null);
+        if (!isDrag(e) && e.button === 0 && !s.navTool && !s.held && !s.deleting) select(null);
       }}
+      // the right button orbits; the browser's own menu would interrupt it
+      onContextMenu={(e) => e.preventDefault()}
     >
       <CameraRig dock={dock} />
       <Surroundings />
-      <Build isDrag={isDrag} />
+      <Build isDrag={isDrag} pressed={pressed} />
     </Canvas>
   );
 }

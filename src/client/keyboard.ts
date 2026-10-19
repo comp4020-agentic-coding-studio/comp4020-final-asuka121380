@@ -2,6 +2,7 @@ import {
   confirm,
   cycle,
   escape,
+  focusSelected,
   getState,
   moveOnScreen,
   remove,
@@ -83,6 +84,10 @@ function handle(e: KeyboardEvent): boolean {
     case "p":
     case "P":
       if (once) toggleMode();
+      return true;
+    case "f":
+    case "F":
+      if (once) focusSelected();
       return true;
     case "t":
     case "T":

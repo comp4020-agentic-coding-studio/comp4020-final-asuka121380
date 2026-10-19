@@ -6,12 +6,14 @@ import {
   fitHeights,
   footprint,
   nextRotation,
-  planHeights,
   plannedRemaining,
+  plannedStructure,
+  planFits as planFitsOf,
   validateCommand,
   validatePlacement,
   validatePlan,
   type Placement,
+  type PlanFit,
   type Rejection,
 } from "../../domain/rules.ts";
 import { STREET_SCENE } from "../../domain/scene.ts";
@@ -54,7 +56,9 @@ export interface Held {
 }
 
 export type SaveStatus = "loading" | "load-failed" | "saved" | "saving" | "failed";
-export type CameraRequest = { kind: "top" | "reset"; n: number };
+export type CameraRequest = { kind: "top" | "reset" | "focus"; n: number };
+/** A left-drag navigation tool (ADR 0012), for anyone without a convenient right or middle button. */
+export type NavTool = "orbit" | "pan" | null;
 /**
  * The realtime stream's own state (ADR 0008), separate from `save`: a
  * command can still be sent and answered over plain HTTP while the live
@@ -83,6 +87,14 @@ export interface AppState {
   /** The last thing worth saying out loud, mirrored to an aria-live region. */
   notice: { text: string; kind: "info" | "error"; at: number } | null;
   camera: CameraRequest;
+  /** While set, a left drag moves the camera and a left click edits nothing. */
+  navTool: NavTool;
+  /**
+   * Parts committed while this page watched, by id → performance.now() at
+   * arrival, so the scene can play a short drop into place once (ADR 0012).
+   * Never filled from an initial load or a reconnect's catch-up snapshot.
+   */
+  drops: Record<string, number>;
   /**
    * Live "look here" marks pushed over SSE, by plan id (ADR 0009). A mark is
    * never forced on anyone's camera; the UI reads this to draw a restrained,
@@ -121,6 +133,8 @@ let state: AppState = {
   connection: "connecting",
   notice: null,
   camera: { kind: "reset", n: 0 },
+  navTool: null,
+  drops: {},
   marks: {},
   selfId: null,
 };
@@ -141,6 +155,36 @@ export function useApp<T>(select: (s: AppState) => T): T {
 }
 
 const say = (text: string, kind: "info" | "error" = "info"): void => set({ notice: { text, kind, at: Date.now() } });
+
+const reducedMotion = (): boolean => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Adopt a newer authoritative snapshot that arrived live (a command's own
+ * answer, or a pushed change after the stream's catch-up). Real parts whose
+ * ids this page hasn't seen yet just arrived, so they get one drop; a part
+ * already known — a repeated snapshot, a duplicate answer, the same change
+ * seen over both HTTP and SSE — never replays it.
+ */
+function adoptLive(next: Snapshot): void {
+  const prev = state.snapshot;
+  if (prev && prev.roomId === next.roomId && next.revision < prev.revision) return; // a stale answer overtaken by a push
+  if (!prev || prev.roomId !== next.roomId || reducedMotion()) {
+    set({ snapshot: next });
+    return;
+  }
+  const known = new Set(prev.parts.map((p) => p.id));
+  const now = performance.now();
+  const drops: Record<string, number> = {};
+  for (const [id, at] of Object.entries(state.drops)) if (now - at < 1000) drops[id] = at;
+  let added = false;
+  for (const p of next.parts) {
+    if (!known.has(p.id) && !(p.id in state.drops)) {
+      drops[p.id] = now;
+      added = true;
+    }
+  }
+  set(added || Object.keys(drops).length !== Object.keys(state.drops).length ? { snapshot: next, drops } : { snapshot: next });
+}
 
 let transport: Transport;
 let pending: CommandEnvelope | null = null;
@@ -203,12 +247,20 @@ function connectRealtime(roomId: string): void {
   eventSource?.close();
   const es = new EventSource(`/api/rooms/${roomId}/events`);
   eventSource = es;
-  es.onopen = () => set({ connection: "connected" });
+  // every (re)connection's first snapshot is a catch-up (realtime.ts): it is
+  // adopted as-is, without animating whatever was built while away
+  let caughtUp = false;
+  es.onopen = () => {
+    caughtUp = false;
+    set({ connection: "connected" });
+  };
   es.onmessage = (ev) => {
     set({ connection: "connected" }); // any event proves the stream is live, open or not
     const event = JSON.parse(ev.data) as { type: "snapshot"; snapshot: Snapshot } | { type: "plan-marked"; planId: string; markedBy: string };
     if (event.type === "snapshot") {
-      set({ snapshot: event.snapshot });
+      if (caughtUp) adoptLive(event.snapshot);
+      else set({ snapshot: event.snapshot });
+      caughtUp = true;
     } else {
       set({ marks: { ...state.marks, [event.planId]: { markedBy: event.markedBy, at: Date.now() } } });
     }
@@ -246,20 +298,25 @@ export function choosePart(partId: string): void {
     selectedPlanId: null,
     deleting: false,
     targetId: null,
+    navTool: null,
   });
   // a plan may describe pieces the room doesn't have yet (ADR 0011)
   if (state.mode === "build" && (state.snapshot?.inventory[partId] ?? 0) === 0) say(`No ${def.name} left in your kit.`, "error");
 }
 
 /**
- * Switch between Build and Plan (ADR 0011). The held part, its preview and
- * its chosen height all stay put, so the same spot can be looked at either
- * way; only what the next click commits changes. Entering Plan leaves the
- * delete tool, as choosing a part does.
+ * Switch between Build and Plan (ADR 0011). The preview on screen stays
+ * exactly where it is — position, height, rotation, part and colour — and
+ * only what a commit does changes (ADR 0012). The shown height is pinned as
+ * an exact level first, so the other mode's height list can never move it;
+ * if it isn't valid in the new mode, the preview says so and commits are
+ * refused there. Entering Plan leaves the delete tool, as choosing a part does.
  */
 export function setMode(mode: Mode): void {
   if (state.mode === mode) return;
-  set({ mode, ...(mode === "plan" && state.deleting ? { deleting: false, targetId: null } : {}) });
+  const shown = preview();
+  const held = state.held && shown ? { ...state.held, level: shown.placement.y, snap: false } : state.held;
+  set({ mode, held, ...(mode === "plan" && state.deleting ? { deleting: false, targetId: null } : {}) });
   if (mode === "plan") {
     say(coarsePointer() ? "Plan mode: plans cost no stock." : "Plan mode: a click proposes a transparent plan. It costs no stock. Press P or Build to go back.");
   } else {
@@ -292,6 +349,11 @@ function setHeld(patch: Partial<Held>): void {
   if (state.held) set({ held: { ...state.held, ...patch } });
 }
 
+/** Put the preview back where it was (Workbench: the pointer passed over the scene on its way to a control). Same part only. */
+export function restoreHeld(prev: Held): void {
+  if (state.held && state.held.partId === prev.partId) setHeld({ anchor: prev.anchor, level: prev.level, snap: prev.snap, rot: state.held.rot });
+}
+
 /** Aim the preview where the pointer is: a cell, the level of the surface it hit, and whether that level is approximate. */
 export function aimAt(anchor: Cell, level: number, snap = false): void {
   setHeld({ anchor, level, snap });
@@ -321,21 +383,11 @@ export function moveOnScreen(right: number, up: number): void {
   moveAnchor(dx, dz);
 }
 
-/** Whether Higher has somewhere to go: a real height above, or (Plan mode only) the next bare level up. */
-export function canStepHigher(p: Preview, mode: Mode): boolean {
-  const y = p.placement.y;
-  return p.fits.some((f) => f > y) || (mode === "plan" && p.planFits.includes(y + 1));
-}
-
 /**
- * Higher (+1) or Lower (−1): the next height above or below that's
- * reachable here. In Build mode both step between the real, supported
- * heights (`fits`) exactly as ADR 0005 describes. In Plan mode Higher does
- * too, until it runs past the topmost real height; only then does it climb
- * one level at a time through positions only a plan could occupy
- * (`planFits`: no collision, but not necessarily support), which is how a
- * future roof before its walls is reached (ADR 0009/0011). Lower, from such
- * a height, jumps straight back to the nearest real support below.
+ * Higher (+1) or Lower (−1): the next height above or below that fits here
+ * for the current mode (ADR 0005, 0012): clear and supported by real parts
+ * in Build mode, by real parts and standing plans in Plan mode. Occupied
+ * heights are skipped and every lower spot that fits stays reachable.
  */
 export function stepLevel(dir: 1 | -1): void {
   const p = preview();
@@ -344,45 +396,25 @@ export function stepLevel(dir: 1 | -1): void {
     return;
   }
   const y = p.placement.y;
-  if (dir === 1) {
-    const nextReal = p.fits.find((f) => f > y);
-    if (nextReal !== undefined) {
-      setHeld({ level: nextReal, snap: false });
-      return;
-    }
-    const above = y + 1;
-    if (state.mode === "plan" && p.planFits.includes(above)) {
-      setHeld({ level: above, snap: false });
-      return;
-    }
-    say("Nothing fits any higher here.", "error");
+  const next = dir === 1 ? p.fits.find((f) => f > y) : [...p.fits].reverse().find((f) => f < y);
+  if (next === undefined) {
+    say(dir === 1 ? "Nothing fits any higher here." : "Nothing fits any lower here.", "error");
     return;
   }
-  const prevReal = [...p.fits].reverse().find((f) => f < y);
-  if (prevReal === undefined) {
-    say("Nothing fits any lower here.", "error");
-    return;
-  }
-  setHeld({ level: prevReal, snap: false });
+  setHeld({ level: next, snap: false });
 }
 
-/** The heights that fit, and where the preview sits among them. */
+/** The preview, whether each kind of commit would be accepted there, and the heights that fit for the current mode. */
 export interface Preview {
   placement: Placement;
-  /** Whether a REAL placement would be accepted here (includes the support rule). */
+  /** Whether a REAL placement would be accepted here: real stock, real collision, real support. */
   rejection: Rejection | null;
-  /** Whether a PLAN could be proposed here instead (never requires support: ADR 0009/the brief's "future roof"). */
+  /** Whether a PLAN would be accepted here: bounds, collision and support against real parts plus standing plans (ADR 0012). */
   planRejection: Rejection | null;
-  /** Every height a REAL placement fits at, lowest first (ADR 0005, unchanged): in bounds, clear, and supported. */
+  /** The current mode's rejection: what a commit right now would meet. */
+  modeRejection: Rejection | null;
+  /** Heights that fit here for the current mode, lowest first: what Higher/Lower step through. */
   fits: number[];
-  /**
-   * Every height a PLAN could be proposed at, lowest first: a superset of
-   * `fits` that also includes unsupported future positions. Higher/Lower
-   * step through this, not `fits`, so a plan can be steered onto a
-   * position Place would refuse; Place itself still separately checks
-   * `rejection` at wherever the preview ends up.
-   */
-  planFits: number[];
 }
 
 /** The previewed placement, and whether a real placement or a plan would be accepted there. */
@@ -396,25 +428,26 @@ export function preview(s: AppState = state): Preview | null {
   // centre the footprint on the anchor, then keep it inside the plot
   const x = Math.min(scene.bounds.w - w, Math.max(0, held.anchor.x - Math.floor((w - 1) / 2)));
   const z = Math.min(scene.bounds.d - d, Math.max(0, held.anchor.z - Math.floor((d - 1) / 2)));
-  const fits = fitHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
-  const planFits = planHeights(scene, def, { x, z, rot: held.rot }, snapshot.parts);
-  const y = chooseLevel(held, s.mode === "plan" ? planFits : fits, fits);
+  // the same structure the server checks against (rules.ts), so heights, verdict and command agree
+  const structure = s.mode === "plan" ? plannedStructure(snapshot) : snapshot.parts;
+  const fits = fitHeights(scene, def, { x, z, rot: held.rot }, structure);
+  const y = chooseLevel(held, fits);
   const placement: Placement = { partId: def.id, x, y, z, rot: held.rot, colour: s.colour };
-  return {
-    placement,
-    rejection: validatePlacement(scene, snapshot, placement),
-    planRejection: validatePlan(scene, snapshot, placement),
-    fits,
-    planFits,
-  };
+  const rejection = validatePlacement(scene, snapshot, placement);
+  const planRejection = validatePlan(scene, snapshot, placement);
+  return { placement, rejection, planRejection, modeRejection: s.mode === "plan" ? planRejection : rejection, fits };
 }
 
-/** `reachable` is what a side-face aim may drop to: real heights in Build mode, plan heights in Plan mode. */
-function chooseLevel(held: Held, reachable: number[], fits: number[]): number {
-  if (held.level === null) return fits[0] ?? reachable[0] ?? 0;
-  if (!held.snap || reachable.includes(held.level)) return held.level;
+function chooseLevel(held: Held, fits: number[]): number {
+  if (held.level === null) return fits[0] ?? 0;
+  if (!held.snap || fits.includes(held.level)) return held.level;
   // an approximate level from a side face: the nearest that fits at or below it
-  return [...reachable].reverse().find((f) => f <= held.level!) ?? held.level;
+  return [...fits].reverse().find((f) => f <= held.level!) ?? held.level;
+}
+
+/** Each open plan's fit against the current construction (ADR 0012), for drawing and the selected-plan panel. */
+export function planFitsNow(s: AppState = state): Map<string, PlanFit> {
+  return s.snapshot ? planFitsOf(s.snapshot) : new Map();
 }
 
 /** Where a placement's footprint is, for "is this tap on the preview?". */
@@ -445,7 +478,7 @@ export function selectPlan(id: string | null): void {
 }
 
 export function toggleDelete(on = !state.deleting): void {
-  set({ deleting: on, held: on ? null : state.held, selectedId: null, selectedPlanId: null, targetId: null });
+  set({ deleting: on, held: on ? null : state.held, selectedId: null, selectedPlanId: null, targetId: null, ...(on ? { navTool: null } : {}) });
   say(on ? "Delete tool on: choose a part to remove it." : "Delete tool off.");
 }
 
@@ -468,9 +501,10 @@ export function cycle(step: 1 | -1): void {
   }
 }
 
-/** Escape: leave the delete tool, else put the held part down, else clear the selection. */
+/** Escape: leave the delete tool, else the navigation tool, else put the held part down, else clear the selection. Never changes Build/Plan. */
 export function escape(): void {
   if (state.deleting) toggleDelete(false);
+  else if (state.navTool) setNavTool(null);
   else if (state.held) putDown();
   else if (state.selectedId) select(null);
   else if (state.selectedPlanId) selectPlan(null);
@@ -478,6 +512,26 @@ export function escape(): void {
 
 export function requestCamera(kind: CameraRequest["kind"]): void {
   set({ camera: { kind, n: state.camera.n + 1 } });
+}
+
+/** What F frames: the selected real part or plan, or null when nothing is selected. */
+export function focusTarget(s: AppState = state): Placement | null {
+  return s.snapshot?.parts.find((p) => p.id === s.selectedId) ?? s.snapshot?.plans.find((p) => p.id === s.selectedPlanId) ?? null;
+}
+
+export function focusSelected(): void {
+  if (!focusTarget()) {
+    say("Select a part or a plan first, then focus on it.", "error");
+    return;
+  }
+  requestCamera("focus");
+}
+
+/** Orbit or Pan with a left drag, or back to building (null). Moving the camera never touches the room. */
+export function setNavTool(tool: NavTool): void {
+  if (state.navTool === tool) tool = null;
+  set({ navTool: tool, ...(tool ? { deleting: false, targetId: null } : {}) });
+  say(tool === "orbit" ? "Orbit tool: drag to turn the view. Esc or the tool again to build." : tool === "pan" ? "Pan tool: drag to slide the view. Esc or the tool again to build." : "Back to building.");
 }
 
 // ---- commands ------------------------------------------------------------
@@ -489,7 +543,8 @@ async function send(envelope: CommandEnvelope, describe: string): Promise<boolea
     const result = await transport.send(envelope);
     pending = null;
     if (result.ok) {
-      set({ snapshot: result.snapshot, save: { status: "saved" } });
+      adoptLive(result.snapshot);
+      set({ save: { status: "saved" } });
       say(state.durable ? `${describe} Saved.` : `${describe} (Preview: not saved.)`);
       return true;
     }

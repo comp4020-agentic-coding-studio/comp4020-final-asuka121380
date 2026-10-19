@@ -8,16 +8,18 @@ import { pictures, type Pictures } from "./scene/thumbnails.ts";
 import { inviteToRoom, leaveRoom, myFriends, saveRoom, sendFriendRequest } from "./state/api.ts";
 import { useDisplayNames, who as whoName } from "./state/names.ts";
 import {
-  canStepHigher,
   catalog,
   choosePart,
   commitHeld,
   cycle,
   ensureAnchor,
+  focusSelected,
+  focusTarget,
   getRoomId,
   getState,
   markPlanForEveryone,
   moveOnScreen,
+  planFitsNow,
   plannedCounts,
   preview,
   putDown,
@@ -32,6 +34,7 @@ import {
   selectPlan,
   setColour,
   setMode,
+  setNavTool,
   stepLevel,
   toggleDelete,
   useApp,
@@ -115,14 +118,11 @@ function Swatches({ value, onPick, label }: { value: string; onPick: (id: string
  * that fit here: how a lower spot under an overhang is reached (ADR 0005).
  */
 function Height({ pv }: { pv: NonNullable<ReturnType<typeof preview>> }) {
-  const mode = useApp((s) => s.mode);
   const { fits } = pv;
   const y = pv.placement.y;
   const i = fits.indexOf(y);
   const where = y === 0 ? "on the plot" : `${y} plate${y === 1 ? "" : "s"} up`;
-  // in Plan mode Higher can also climb past the topmost real height, into
-  // positions nothing supports yet (store.ts, ADR 0011)
-  const higherReachable = canStepHigher(pv, mode);
+  const higherReachable = fits.some((f) => f > y);
   return (
     <div className="height" role="group" aria-label="Height">
       <button className="btn btn-small" onClick={() => stepLevel(-1)} aria-label="Lower: the next height down that fits" disabled={!fits.some((f) => f < y)}>
@@ -210,6 +210,7 @@ function Context() {
   const snapshot = useApp((s) => s.snapshot);
   const selected = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.selectedId));
   const selectedPlan = useApp((s) => s.snapshot?.plans.find((p) => p.id === s.selectedPlanId));
+  const selectedPlanFit = useApp((s) => (s.selectedPlanId ? planFitsNow(s).get(s.selectedPlanId) : undefined));
   const deleting = useApp((s) => s.deleting);
   const target = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.targetId));
   const saving = useApp((s) => s.save.status === "saving");
@@ -261,7 +262,7 @@ function Context() {
               ? "Tap the plot to preview a plan."
               : "Point where it should go."
             : pv.planRejection
-              ? `✕ ${pv.planRejection.message}`
+              ? `✕ Can't plan here: ${pv.planRejection.message}`
               : `◇ ${coarse ? "Tap it" : "Click"} to propose it. No stock used.`}
         </span>
         <div className="context-actions">
@@ -322,9 +323,9 @@ function Context() {
             Cancel <kbd>Esc</kbd>
           </button>
         </div>
-        {(pv?.rejection?.code === "unsupported" || pv?.rejection?.code === "out_of_stock") && (
+        {pv?.rejection?.code === "out_of_stock" && !pv.planRejection && (
           <span className="context-hint" aria-live="polite">
-            {pv.rejection.code === "unsupported" ? "Nothing's built underneath yet." : "None left in the room's kit."} Switch to Plan (P) to propose it for later.
+            None left in the room's kit. Switch to Plan (P) to propose it for later.
           </span>
         )}
         {pv && <Height pv={pv} />}
@@ -391,7 +392,13 @@ function Context() {
             identifies a person, without opening chat */}
         <span className="context-hint" aria-live="polite">
           {proposer && <>Proposed by {proposer}. </>}
-          A plan costs no stock and never blocks real building. Anyone can build it, or ask the room to look at it.
+          {selectedPlanFit === "conflict" ? (
+            <strong className="plan-fit-bad">✕ Conflicts with the current construction: something now takes its space. It's kept, but holds nothing up; withdraw it or clear the space. </strong>
+          ) : selectedPlanFit === "unsupported" ? (
+            <strong className="plan-fit-bad">✕ Nothing holds this plan up any more. It's kept, but holds nothing up; withdraw it or build its support. </strong>
+          ) : (
+            <>A plan costs no stock and never blocks real building. Anyone can build it once what it rests on is real, or ask the room to look at it. </>
+          )}
           {marker && <> {marker === "you" ? "You" : marker} marked this for everyone.</>}
         </span>
         <div className="context-actions">
@@ -553,7 +560,12 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             part that something rests on alone: take things off from the top down.
           </p>
           <h3>Camera</h3>
-          <p>Drag to look around, right-drag or shift-drag to slide, scroll or pinch to zoom. Dragging never builds or deletes.</p>
+          <p>
+            Right-drag to orbit round the view's centre, Shift + right-drag or middle-drag to pan, scroll to zoom. No right
+            button? Use the Orbit and Pan tools beside the view buttons, then Esc to build again. On a touch screen, one finger
+            orbits, two fingers pan and pinch. F frames the selected part or plan; Home goes back to the whole plot. Moving the
+            camera never builds, selects or deletes anything.
+          </p>
           <h3>Keys</h3>
           <dl className="keys">
             <dt>Arrows</dt>
@@ -574,19 +586,25 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             <dd>delete the selected part</dd>
             <dt>D</dt>
             <dd>delete tool on or off</dd>
+            <dt>F</dt>
+            <dd>focus on the selected part or plan</dd>
             <dt>T / Home</dt>
             <dd>top view / reset view</dd>
           </dl>
           <h3>Plans and marks</h3>
           <p>
             Switch to Plan (P) and a click proposes a transparent suggestion instead of placing a real part. Plans cost no
-            stock, needn't be buildable yet, and stay in Plan mode until you switch back to Build. Anyone can build a
-            plan, withdraw it, or mark it for everyone, which briefly highlights it for other people in the room.
+            stock, but follow the same shape rules as real parts: on the plot or on studs, real or planned, and never
+            inside anything. Plan a wall, then a roof on it; the wall has to be built for real before the roof can be.
+            Anyone can build a plan, withdraw it, or mark it for everyone, which briefly highlights it for other people.
           </p>
           <p>
             In Plan mode the tray shows each part's planned remaining: the room's real stock minus everyone's open
             plans. It can go below zero, which means the plans need more pieces than the room has. Building for real
             always uses the real count.
+          </p>
+          <p className="fineprint">
+            <a href="/readme/">About Brick Commons</a>
           </p>
           <p className="fineprint">
             Your build is saved on the server against this browser. Clearing this site's cookies starts afresh unless
@@ -766,6 +784,45 @@ function RoomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) 
   );
 }
 
+/** Focus, and the left-drag Orbit/Pan tools (ADR 0012), with a one-line reminder of the mouse mapping. */
+function CameraTools() {
+  const navTool = useApp((s) => s.navTool);
+  const canFocus = useApp((s) => !!focusTarget(s));
+  return (
+    <>
+      <span className="chip-group" role="group" aria-label="Camera tools">
+        <button className={`chip-button${navTool === "orbit" ? " on" : ""}`} aria-pressed={navTool === "orbit"} aria-label="Orbit tool" onClick={() => setNavTool("orbit")} title="Left-drag orbits round the view's centre (or right-drag any time)">
+          <span aria-hidden="true">⟲</span> <span className="wide-only">Orbit</span>
+        </button>
+        <button className={`chip-button${navTool === "pan" ? " on" : ""}`} aria-pressed={navTool === "pan"} aria-label="Pan tool" onClick={() => setNavTool("pan")} title="Left-drag pans (or Shift + right-drag, or middle-drag, any time)">
+          <span aria-hidden="true">✥</span> <span className="wide-only">Pan</span>
+        </button>
+      </span>
+      <button className="chip-button" aria-label="Focus selected" onClick={focusSelected} disabled={!canFocus} title={canFocus ? "Frame the selected part or plan" : "Select a part or plan to focus on it"}>
+        Focus<span className="wide-only"> selected</span> <kbd>F</kbd>
+      </button>
+    </>
+  );
+}
+
+/** A small, always-visible reminder of how to move the camera; the nav tool's own hint while one is on. */
+function CameraHint() {
+  const navTool = useApp((s) => s.navTool);
+  return (
+    <p className={`camera-hint${navTool ? " on" : ""}`} aria-live="polite">
+      {navTool ? (
+        <>
+          {navTool === "orbit" ? "Orbit" : "Pan"} tool on: drag to move the view. <strong>Esc</strong> or click the tool again to build.
+        </>
+      ) : coarse ? (
+        <>One finger orbits · two fingers pan and zoom</>
+      ) : (
+        <>Right-drag orbit · Shift+right or middle-drag pan · scroll zoom · F focus · Home reset</>
+      )}
+    </p>
+  );
+}
+
 const MARK = brandMark();
 
 /** A full-page state for a room that couldn't be opened at all: access denied, full, or a network failure. */
@@ -798,6 +855,7 @@ function AccessScreen({ code, message }: { code?: "access_denied" | "room_full";
 export function App() {
   const deleting = useApp((s) => s.deleting);
   const mode = useApp((s) => s.mode);
+  const navTool = useApp((s) => s.navTool);
   const placed = useApp((s) => s.snapshot?.parts.length ?? 0);
   const save = useApp((s) => s.save);
   const [pics, setPics] = useState<Pictures | null>(null);
@@ -838,7 +896,7 @@ export function App() {
   if (save.status === "load-failed") return <AccessScreen code={save.code} message={save.message} />;
 
   return (
-    <div className="app" style={{ "--dock-h": `${dockHeight}px` } as CSSProperties}>
+    <div className={`app${navTool ? " navigating" : ""}`} style={{ "--dock-h": `${dockHeight}px` } as CSSProperties}>
       <div className="stage" role="img" aria-label={`${info?.title ?? "The scene"}, with your plot of ${scene.bounds.w} by ${scene.bounds.d} studs; ${placed} parts placed.`}>
         <Workbench dock={reserve} />
       </div>
@@ -859,18 +917,20 @@ export function App() {
         <ConnectionChip />
         <RoomPanel open={roomOpen} onToggle={() => setRoomOpen((o) => !o)} />
         <Help open={helpOpen} onToggle={() => setHelpOpen((o) => !o)} />
-        <button className="chip-button" onClick={() => requestCamera("top")}>
-          Top view <kbd>T</kbd>
+        <CameraTools />
+        <button className="chip-button" aria-label="Top view" onClick={() => requestCamera("top")}>
+          Top<span className="wide-only"> view</span> <kbd>T</kbd>
         </button>
-        <button className="chip-button" onClick={() => requestCamera("reset")}>
-          Reset view <kbd>Home</kbd>
+        <button className="chip-button" aria-label="Reset view" onClick={() => requestCamera("reset")}>
+          Reset<span className="wide-only"> view</span> <kbd>Home</kbd>
         </button>
-        <a className="chip-button" href="/readme/">
+        <a className="chip-button wide-only-flex" href="/readme/">
           About
         </a>
       </nav>
 
       <Notice />
+      <CameraHint />
 
       <section ref={dockRef} className={`dock${trayOpen ? "" : " folded"}${mode === "plan" ? " planning" : ""}`} aria-label="Building controls">
         <div className="dock-top">
