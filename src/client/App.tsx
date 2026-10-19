@@ -12,6 +12,7 @@ import {
   choosePart,
   commitHeld,
   cycle,
+  deleteObject,
   ensureAnchor,
   focusSelected,
   focusTarget,
@@ -212,7 +213,9 @@ function Context() {
   const selectedPlan = useApp((s) => s.snapshot?.plans.find((p) => p.id === s.selectedPlanId));
   const selectedPlanFit = useApp((s) => (s.selectedPlanId ? planFitsNow(s).get(s.selectedPlanId) : undefined));
   const deleting = useApp((s) => s.deleting);
-  const target = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.targetId));
+  const targetPlan = useApp((s) => s.snapshot?.plans.find((p) => p.id === s.targetId));
+  const targetPart = useApp((s) => s.snapshot?.parts.find((p) => p.id === s.targetId));
+  const target = targetPlan ?? targetPart;
   const saving = useApp((s) => s.save.status === "saving");
   const selfId = useApp((s) => s.selfId);
   const marks = useApp((s) => s.marks);
@@ -228,12 +231,12 @@ function Context() {
         <strong className="context-title danger">Delete tool</strong>
         <span className="context-hint" aria-live="polite">
           {def
-            ? `${coarse ? "Tap it again to remove" : "Click to remove"}: ${def.name} (${def.code})`
-            : `${coarse ? "Tap" : "Click"} a part to remove it; it goes back in your kit.`}
+            ? `${coarse ? "Tap it again to remove" : "Click to remove"}: ${targetPlan ? "planned " : ""}${def.name} (${def.code})${targetPlan ? ". Real stock is unchanged." : ""}`
+            : `${coarse ? "Tap" : "Click"} a real part or plan to remove it. Only real parts return to the kit.`}
         </span>
         <div className="context-actions">
           {target && (
-            <button className="btn btn-small btn-danger danger" onClick={() => !saving && void remove(target.id)} aria-disabled={saving}>
+            <button className="btn btn-small btn-danger danger" onClick={() => !saving && void deleteObject(target.id)} aria-disabled={saving}>
               Remove it <kbd>Enter</kbd>
             </button>
           )}

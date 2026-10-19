@@ -309,6 +309,10 @@ Each entry gives, in proportion to the change:
 - **Selected part:** compact controls to identify, recolour, rotate (90° steps,
   with the whole build re-validated, through the command path) and delete.
 - **Delete tool:** a persistent toolbar button.
+  - Targets both real parts and plans. Real parts use remove; plans use
+    withdraw-plan, without returning real stock. Both retain support checks.
+  - Keyboard target cycling includes plans while deleting; touch retains
+    first-tap target, second-tap remove. The tool stays on after removal.
   - Hover names the target, and a click asks the server.
   - Esc or toggling turns it off, and choosing a part leaves it.
 - **Keyboard:**

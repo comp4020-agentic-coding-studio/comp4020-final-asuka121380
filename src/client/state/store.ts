@@ -27,7 +27,7 @@ import { screenToGrid } from "./view.ts";
 // click means follows from those (ADR 0003, ADR 0011):
 //   holding a part, Build mode → the click places it for real
 //   holding a part, Plan mode  → the click proposes it as a transparent plan
-//   delete tool on             → the click removes the part under it
+//   delete tool on             → the click removes the real part or withdraws the plan under it
 //   otherwise                  → the click selects a part or plan, or clears selection
 // The mode is this browser's alone: another member's mode never changes it.
 
@@ -79,7 +79,7 @@ export interface AppState {
   /** A selected open plan (ADR 0009), mutually exclusive with `selectedId`. */
   selectedPlanId: string | null;
   deleting: boolean;
-  /** The placed part under the pointer (or keyboard cursor) while the delete tool is on. */
+  /** The real part or plan under the pointer (or keyboard cursor) while the delete tool is on. */
   targetId: string | null;
   save: { status: SaveStatus; message?: string; code?: "access_denied" | "room_full" };
   /** The realtime stream's own state; independent of whether a command can still be sent (ADR 0008). */
@@ -479,7 +479,7 @@ export function selectPlan(id: string | null): void {
 
 export function toggleDelete(on = !state.deleting): void {
   set({ deleting: on, held: on ? null : state.held, selectedId: null, selectedPlanId: null, targetId: null, ...(on ? { navTool: null } : {}) });
-  say(on ? "Delete tool on: choose a part to remove it." : "Delete tool off.");
+  say(on ? "Delete tool on: choose a real part or plan to remove it." : "Delete tool off.");
 }
 
 export function setTarget(id: string | null): void {
@@ -488,7 +488,7 @@ export function setTarget(id: string | null): void {
 
 /** Step through placed parts: the selection, or the delete tool's target. */
 export function cycle(step: 1 | -1): void {
-  const parts = state.snapshot?.parts ?? [];
+  const parts = [...(state.snapshot?.parts ?? []), ...(state.deleting ? state.snapshot?.plans ?? [] : [])];
   if (parts.length === 0 || state.held) return;
   const current = state.deleting ? state.targetId : state.selectedId;
   const i = parts.findIndex((p) => p.id === current);
@@ -626,6 +626,13 @@ export async function remove(id: string | null): Promise<void> {
   if (ok && state.targetId === part.id) set({ targetId: null });
 }
 
+/** Delete tool: use the existing authoritative command for the target's kind. */
+export async function deleteObject(id: string | null): Promise<void> {
+  if (!id) return;
+  if (state.snapshot?.plans.some((p) => p.id === id)) await withdrawPlan(id);
+  else await remove(id);
+}
+
 export async function recolourSelected(colour: string): Promise<void> {
   const part = partOf(state.selectedId);
   if (!part) return;
@@ -645,7 +652,7 @@ export function commitHeld(): Promise<void> {
 /** Enter: commit the held part, remove the delete tool's target, or build a selected plan. */
 export function confirm(): void {
   if (state.held) void commitHeld();
-  else if (state.deleting && state.targetId) void remove(state.targetId);
+  else if (state.deleting && state.targetId) void deleteObject(state.targetId);
   else if (state.selectedPlanId) void realizePlan(state.selectedPlanId);
 }
 
@@ -676,6 +683,7 @@ async function proposeHeld(): Promise<void> {
 export async function withdrawPlan(planId: string): Promise<void> {
   const ok = await submit({ type: "withdraw-plan", planId }, "Plan withdrawn.");
   if (ok && state.selectedPlanId === planId) set({ selectedPlanId: null });
+  if (ok && state.targetId === planId) set({ targetId: null });
 }
 
 /** Any member may realize any open plan (author's brief: not restricted to its proposer). */

@@ -13,7 +13,7 @@ import {
   onFootprint,
   planFitsNow,
   preview,
-  remove,
+  deleteObject,
   scene,
   select,
   selectPlan,
@@ -389,7 +389,7 @@ function Build({ isDrag, pressed }: { isDrag: (e: MouseEvent) => boolean; presse
         if (now) trail.current = [...trail.current.slice(-20), { held: now, x: ne.clientX, y: ne.clientY, at: performance.now(), leftAt: null }];
       }
     } else if (s.deleting) {
-      setTarget(placedIdOf(e));
+      setTarget(planIdOf(e) ?? placedIdOf(e));
     }
   };
 
@@ -425,9 +425,10 @@ function Build({ isDrag, pressed }: { isDrag: (e: MouseEvent) => boolean; presse
     const id = placedIdOf(e);
     if (s.deleting) {
       // likewise, the first tap names the target and the second removes it
-      if (!id) setTarget(null);
-      else if (!touch || s.targetId === id) void remove(id);
-      else setTarget(id);
+      const target = planIdOf(e) ?? id;
+      if (!target) setTarget(null);
+      else if (!touch || s.targetId === target) void deleteObject(target);
+      else setTarget(target);
       return;
     }
     const planId = planIdOf(e);
@@ -464,7 +465,7 @@ function Build({ isDrag, pressed }: { isDrag: (e: MouseEvent) => boolean; presse
             placement={plan}
             ghost={fits.get(plan.id) === "standing" ? "plan" : "plan-bad"}
             // selection wins over a mark, so the plan you're acting on is never ambiguous
-            highlight={selected ? "plan" : recentlyMarked ? "marked" : undefined}
+            highlight={deleting && plan.id === targetId ? "delete" : selected ? "plan" : recentlyMarked ? "marked" : undefined}
             userData={{ planId: plan.id }}
           />
         );

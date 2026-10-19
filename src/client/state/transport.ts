@@ -78,7 +78,7 @@ export function localTransport(): Transport {
     revision,
     parts: [...state.parts],
     inventory: { ...state.inventory },
-    plans: [...(state.plans ?? [])],
+    plans: (state.plans ?? []).filter((p) => p.status === "open"),
     contributors: [],
     inheritedCredits: [],
     members: [{ visitorId: "local", active: true, isHost: true }],

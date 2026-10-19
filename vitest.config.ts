@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// Two projects, both run by `pnpm check`:
+// All projects run by `pnpm check`:
 // - `app`: the HTTP checks in spec/*.test.ts, against the RUNNING app that
 //   spec/global-setup.ts finds (the two shipped invariants live here)
 // - `domain`: spec/domain/, the construction rules as plain functions, which
@@ -10,6 +10,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     projects: [
+      {
+        test: {
+          name: "client",
+          include: ["spec/client/**/*.test.ts"],
+        },
+      },
       {
         test: {
           name: "app",

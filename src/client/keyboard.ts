@@ -1,6 +1,7 @@
 import {
   confirm,
   cycle,
+  deleteObject,
   escape,
   focusSelected,
   getState,
@@ -67,9 +68,10 @@ function handle(e: KeyboardEvent): boolean {
       return true;
     case "Delete":
     case "Backspace":
-      if (once && s.selectedId) void remove(s.selectedId);
+      if (once && s.deleting && s.targetId) void deleteObject(s.targetId);
+      else if (once && s.selectedId) void remove(s.selectedId);
       else if (once && s.selectedPlanId) void withdrawPlan(s.selectedPlanId);
-      return !!s.selectedId || !!s.selectedPlanId;
+      return !!(s.deleting && s.targetId) || !!s.selectedId || !!s.selectedPlanId;
     case "d":
     case "D":
       if (once) toggleDelete();
