@@ -88,49 +88,107 @@ describe("plans", () => {
     expect(again.json.ok).toBe(false);
   });
 
-  // Regression: an independent review found that a plan floating with no
-  // real or planned structure underneath it was rejected with "unsupported"
-  // — but the design explicitly permits proposing a future roof before its
-  // supporting walls exist (a plan is a suggestion, not a description of
-  // something already buildable). Realizing is a separate question, fully
-  // re-checked against live state, and correctly still requires support.
-  it("accepts a plan with no support underneath at all (a future roof before its walls), but refuses to realize it until the support is real", async () => {
+  // Author-directed rule change, 19 Oct 2026 (ADR 0012), superseding ADR
+  // 0009's 13 Oct correction and the two tests that asserted it here ("a
+  // plan with no support at all is accepted" and "a plan may collide with
+  // real construction"). Plans now describe a geometrically coherent
+  // structure: real parts plus standing open plans, under the same bounds,
+  // collision and stud rules as real parts. Only stock stays exempt.
+  it("refuses a floating plan, but accepts a wall on the plot and a roof on that planned wall; the roof can't be realized until the wall is real", async () => {
     const a = await freshVisitor();
     const room = await createRoom(a.cookie);
 
-    const proposed = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 3, z: 0, rot: 0, colour: "sky" } });
-    expect(proposed.json.ok, JSON.stringify(proposed.json)).toBe(true);
-    const planId = proposed.json.snapshot.plans[0].id;
-    expect(proposed.json.snapshot.plans[0].y).toBe(3);
+    const floating = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 3, z: 0, rot: 0, colour: "sky" } });
+    expect(floating.json.ok).toBe(false);
+    expect(floating.json.code).toBe("unsupported");
 
-    // can't be built yet: nothing real supports it at height 3 (a brick-2x4 is 3 plates tall)
-    const tooSoon = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, proposed.json.snapshot.revision);
+    const wall = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } });
+    expect(wall.json.ok, JSON.stringify(wall.json)).toBe(true);
+    const roof = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "slope-2x2", x: 0, y: 3, z: 0, rot: 0, colour: "navy" } });
+    expect(roof.json.ok, JSON.stringify(roof.json)).toBe(true);
+    const wallId = wall.json.snapshot.plans[0].id;
+    const roofId = roof.json.snapshot.plans.find((p: any) => p.id !== wallId).id;
+
+    // a planned wall never holds up a real roof
+    const tooSoon = await command(a.cookie, room.roomId, { type: "realize-plan", planId: roofId });
     expect(tooSoon.json.ok).toBe(false);
     expect(tooSoon.json.code).toBe("unsupported");
-    expect(tooSoon.json.snapshot.plans.some((p: any) => p.id === planId)).toBe(true); // still open, not dropped
+    expect(tooSoon.json.snapshot.plans.some((p: any) => p.id === roofId)).toBe(true);
 
-    // build the wall underneath for real...
-    const wall = await command(a.cookie, room.roomId, { type: "place", placement: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "navy" } }, tooSoon.json.snapshot.revision);
-    expect(wall.json.ok).toBe(true);
-
-    // ...now the same plan can be realized
-    const realized = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, wall.json.snapshot.revision);
-    expect(realized.json.ok, JSON.stringify(realized.json)).toBe(true);
+    // realizing the wall keeps the roof plan (now resting on the real wall), and then the roof can be realized
+    const builtWall = await command(a.cookie, room.roomId, { type: "realize-plan", planId: wallId });
+    expect(builtWall.json.ok, JSON.stringify(builtWall.json)).toBe(true);
+    expect(builtWall.json.snapshot.plans.map((p: any) => p.id)).toEqual([roofId]);
+    const builtRoof = await command(a.cookie, room.roomId, { type: "realize-plan", planId: roofId });
+    expect(builtRoof.json.ok, JSON.stringify(builtRoof.json)).toBe(true);
+    expect(builtRoof.json.snapshot.parts.find((p: any) => p.partId === "slope-2x2").proposedBy).toBeDefined();
   });
 
-  it("accepts a plan that collides with current real construction (it's only a proposal); realizing it is refused until the space is clear", async () => {
+  it("refuses a plan inside a real part, and a duplicate or partial overlap of another plan, horizontal or vertical", async () => {
     const a = await freshVisitor();
     const room = await createRoom(a.cookie);
     const real = await command(a.cookie, room.roomId, { type: "place", placement: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "navy" } });
     expect(real.json.ok).toBe(true);
+    const inside = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 1, y: 0, z: 0, rot: 0, colour: "sky" } });
+    expect(inside.json.code).toBe("collision");
 
-    const proposed = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } }, real.json.snapshot.revision);
-    expect(proposed.json.ok, JSON.stringify(proposed.json)).toBe(true);
-    const planId = proposed.json.snapshot.plans[0].id;
+    const p1 = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 8, y: 0, z: 2, rot: 0, colour: "sky" } });
+    expect(p1.json.ok).toBe(true);
+    for (const plan of [
+      { partId: "brick-2x4", x: 8, y: 0, z: 2, rot: 0, colour: "sky" }, // exact duplicate
+      { partId: "brick-2x4", x: 10, y: 0, z: 3, rot: 0, colour: "sky" }, // partial, sideways
+      { partId: "plate-2x2", x: 9, y: 2, z: 2, rot: 0, colour: "sky" }, // partial, vertical
+    ]) {
+      const r = await command(a.cookie, room.roomId, { type: "propose-plan", plan });
+      expect(r.json.ok, JSON.stringify(plan)).toBe(false);
+      expect(r.json.code).toBe("collision");
+    }
+    // adjacency and stacking are fine
+    const beside = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 12, y: 0, z: 2, rot: 0, colour: "sky" } });
+    expect(beside.json.ok).toBe(true);
+    const onTop = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 10, y: 3, z: 2, rot: 0, colour: "sky" } });
+    expect(onTop.json.ok, JSON.stringify(onTop.json)).toBe(true);
+    // and the real brick still can't be stacked on a plan
+    const realOnPlan = await command(a.cookie, room.roomId, { type: "place", placement: { partId: "brick-2x4", x: 8, y: 3, z: 2, rot: 0, colour: "navy" } });
+    expect(realOnPlan.json.code).toBe("unsupported");
+  });
 
-    const blocked = await command(a.cookie, room.roomId, { type: "realize-plan", planId }, proposed.json.snapshot.revision);
-    expect(blocked.json.ok).toBe(false);
-    expect(blocked.json.code).toBe("collision");
+  it("refuses withdrawing, removing or turning the only support under a standing plan, without cascading", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+    const base = await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } });
+    await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 3, z: 0, rot: 0, colour: "sky" } });
+    const withdraw = await command(a.cookie, room.roomId, { type: "withdraw-plan", planId: base.json.snapshot.plans[0].id });
+    expect(withdraw.json.ok).toBe(false);
+    expect(withdraw.json.code).toBe("plan_depends");
+    expect(withdraw.json.message).toMatch(/rests on it/);
+    expect(withdraw.json.snapshot.plans).toHaveLength(2);
+
+    const real = await command(a.cookie, room.roomId, { type: "place", placement: { partId: "brick-2x4", x: 8, y: 0, z: 2, rot: 0, colour: "navy" } });
+    const part = real.json.snapshot.parts[0];
+    await command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-1x2", x: 11, y: 3, z: 2, rot: 1, colour: "sky" } });
+    const remove = await command(a.cookie, room.roomId, { type: "remove", placedId: part.id, expectedRev: part.rev });
+    expect(remove.json.code).toBe("plan_depends");
+    const rotate = await command(a.cookie, room.roomId, { type: "rotate", placedId: part.id, rot: 1, expectedRev: part.rev });
+    expect(rotate.json.code).toBe("plan_depends");
+    const after = await getRoom(a.cookie, room.roomId);
+    expect(after.parts).toHaveLength(1);
+    expect(after.plans).toHaveLength(3);
+  });
+
+  it("lets only one of two concurrent overlapping proposals from different members succeed", async () => {
+    const a = await freshVisitor();
+    const room = await createRoom(a.cookie);
+    const b = await freshVisitor();
+    await fetch(new URL(`/api/rooms/${room.roomId}/join`, baseUrl), { method: "POST", headers: { cookie: b.cookie } });
+    const [ra, rb] = await Promise.all([
+      command(a.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 4, y: 0, z: 4, rot: 0, colour: "sky" } }),
+      command(b.cookie, room.roomId, { type: "propose-plan", plan: { partId: "brick-2x4", x: 6, y: 0, z: 5, rot: 0, colour: "rose" } }),
+    ]);
+    expect([ra.json.ok, rb.json.ok].filter(Boolean)).toHaveLength(1);
+    const loser = ra.json.ok ? rb : ra;
+    expect(loser.json.code).toBe("collision");
+    expect((await getRoom(a.cookie, room.roomId)).plans).toHaveLength(1);
   });
 
   it("rejects realizing a plan that no longer fits, without silently dropping it", async () => {

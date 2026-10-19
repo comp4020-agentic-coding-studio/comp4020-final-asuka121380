@@ -101,7 +101,7 @@ export function saveSnapshot(db: Db, roomId: string, savedBy: string): SnapshotS
 
     // plans: captured, but excluded from the default read-only view and
     // restored only when continued (author's explicit decision, ADR 0009)
-    const plans = db.prepare("SELECT * FROM plans WHERE room_id = ? AND status = 'open'").all(room.id) as {
+    const plans = db.prepare("SELECT * FROM plans WHERE room_id = ? AND status = 'open' ORDER BY rowid").all(room.id) as {
       id: string;
       part_id: string;
       x: number;
@@ -161,7 +161,7 @@ export function collectSnapshot(db: Db, sourceSnapshotId: string, collectedBy: s
       "INSERT INTO snapshot_inherited_credits (snapshot_id, visitor_id, first_contribution_at) SELECT ?, visitor_id, first_contribution_at FROM snapshot_inherited_credits WHERE snapshot_id = ?",
     ).run(id, sourceSnapshotId);
     db.prepare(
-      "INSERT INTO snapshot_plans (snapshot_id, plan_id, part_id, x, y, z, rot, colour, proposed_by) SELECT ?, plan_id, part_id, x, y, z, rot, colour, proposed_by FROM snapshot_plans WHERE snapshot_id = ?",
+      "INSERT INTO snapshot_plans (snapshot_id, plan_id, part_id, x, y, z, rot, colour, proposed_by) SELECT ?, plan_id, part_id, x, y, z, rot, colour, proposed_by FROM snapshot_plans WHERE snapshot_id = ? ORDER BY rowid",
     ).run(id, sourceSnapshotId);
 
     return {
@@ -223,7 +223,7 @@ export function getSnapshot(db: Db, id: string): SnapshotDetail | undefined {
     visitor_id: string;
     first_contribution_at: string;
   }[];
-  const plans = db.prepare("SELECT * FROM snapshot_plans WHERE snapshot_id = ?").all(id) as {
+  const plans = db.prepare("SELECT * FROM snapshot_plans WHERE snapshot_id = ? ORDER BY rowid").all(id) as {
     plan_id: string;
     part_id: string;
     x: number;

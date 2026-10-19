@@ -181,7 +181,7 @@ function seedFromSnapshot(db: Db, roomId: string, snapshotId: string): void {
   for (const c of [...builders, ...priorInherited]) insertCredit.run(roomId, c.visitor_id, c.first_contribution_at);
 
   // Restore unfinished plans too (author's explicit decision, ADR 0009).
-  const plans = db.prepare("SELECT * FROM snapshot_plans WHERE snapshot_id = ?").all(snapshotId) as {
+  const plans = db.prepare("SELECT * FROM snapshot_plans WHERE snapshot_id = ? ORDER BY rowid").all(snapshotId) as {
     plan_id: string;
     part_id: string;
     x: number;
@@ -573,7 +573,7 @@ export function snapshotOf(db: Db, room: RoomRow): Snapshot {
     rev: number;
   }[];
   const stock = db.prepare("SELECT part_id, quantity FROM inventory WHERE build_id = ?").all(room.id) as { part_id: string; quantity: number }[];
-  const plans = db.prepare("SELECT * FROM plans WHERE room_id = ? AND status = 'open' ORDER BY created_at").all(room.id) as {
+  const plans = db.prepare("SELECT * FROM plans WHERE room_id = ? AND status = 'open' ORDER BY rowid").all(room.id) as {
     id: string;
     part_id: string;
     x: number;

@@ -113,7 +113,7 @@ describe("realtime: two people in one room", () => {
     const proposed = await fetch(new URL(`/api/rooms/${room.roomId}/command`, baseUrl), {
       method: "POST",
       headers: { cookie: a.cookie, "content-type": "application/json" },
-      body: JSON.stringify({ commandId: randomUUID(), expectedRevision: 0, command: { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 6, z: 0, rot: 0, colour: "sky" } } }),
+      body: JSON.stringify({ commandId: randomUUID(), expectedRevision: 0, command: { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 0, z: 0, rot: 0, colour: "sky" } } }),
     });
     expect((await proposed.json()).ok).toBe(true);
     const event = await nextEvent<{ type: string; snapshot: Snapshot & { plans: { partId: string }[] } }>(reader, 2000);

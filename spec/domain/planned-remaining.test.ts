@@ -26,7 +26,7 @@ const propose = (s: BuildState, p: Placement): BuildState => {
 describe("plannedRemaining", () => {
   it("is real stock minus open plans, per part type, and can go below zero", () => {
     let s: BuildState = { parts: [], inventory: { "brick-2x4": 3, "brick-2x2": 4 }, plans: [] };
-    for (let i = 0; i < 5; i++) s = propose(s, at(i * 2));
+    for (let i = 0; i < 5; i++) s = propose(s, at((i % 4) * 4, 0, Math.floor(i / 4) * 2));
     expect(plannedRemaining(s)["brick-2x4"]).toBe(-2);
     expect(plannedRemaining(s)["brick-2x2"]).toBe(4);
     expect(s.inventory["brick-2x4"]).toBe(3); // planning never touches real stock
@@ -49,7 +49,7 @@ describe("plannedRemaining", () => {
 
   it("never blocks a real placement while real stock remains, however negative demand is", () => {
     let s: BuildState = { parts: [], inventory: { "brick-2x4": 1 }, plans: [] };
-    for (let i = 0; i < 4; i++) s = propose(s, at(i * 2, 0, 4));
+    for (let i = 0; i < 4; i++) s = propose(s, at(i * 4, 0, 4));
     expect(plannedRemaining(s)["brick-2x4"]).toBe(-3);
     expect(validatePlacement(scene, s, at(0))).toBeNull();
     s = applyPlacement(s, at(0), "real1");
