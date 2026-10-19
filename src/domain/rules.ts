@@ -279,6 +279,20 @@ export function validatePlan(scene: SceneTemplate, state: BuildState, p: Placeme
   return null;
 }
 
+/**
+ * Planning demand (ADR 0011): real stock left minus the room's open plans of
+ * each part type. Derived, never stored, and never consulted by any
+ * validation — it may go negative, and a real placement or realization is
+ * still decided by `inventory` alone.
+ */
+export function plannedRemaining(state: BuildState): Record<string, number> {
+  const out: Record<string, number> = { ...state.inventory };
+  for (const p of state.plans ?? []) {
+    if (p.status === "open") out[p.partId] = (out[p.partId] ?? 0) - 1;
+  }
+  return out;
+}
+
 export function validateWithdrawPlan(state: BuildState, planId: string): Rejection | null {
   const plan = (state.plans ?? []).find((p) => p.id === planId);
   if (!plan) return { code: "not_found", message: "That plan is no longer there." };
