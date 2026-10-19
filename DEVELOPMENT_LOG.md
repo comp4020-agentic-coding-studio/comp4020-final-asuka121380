@@ -2061,3 +2061,129 @@ The author said "push", then "deploy". `git push origin main` (`9625f82` →
 deploy was needed. Live: routes answered 200, the editor bundle contains
 Plan mode, and `scripts/plan-mode.ts` passed 37/37 against the deployed app.
 Details and limitations: `doc/evidence/0007-plan-mode.md`, "Live deployment".
+
+### 2026-10-19 15:15 AEDT — [`7cc7a4d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7cc7a4d) Plans obey construction geometry against real parts plus standing plans
+
+**Changes:**
+- `src/domain/rules.ts`:
+  - `validatePlan` now checks bounds, collision and stud support against
+    `plannedStructure(state)`: the real parts plus the standing open plans.
+    Messages: "Another plan already takes that space." and "a plan needs
+    studs underneath too, from real parts or other plans".
+  - New `planFits(state)` labels each open plan standing, conflict or
+    unsupported, in commit order.
+  - New rejection code `plan_depends`, returned by `validateWithdrawPlan`,
+    `validateRemoval` and `validateRotation` when a standing plan would lose
+    its only support (`strandedPlans`).
+  - `validateRealizePlan` gives its own "nothing real is under it" message.
+  - `planHeights` is removed.
+- `src/server/rooms.ts` and `src/server/snapshots.ts`: plans and snapshot
+  plans are read and copied `ORDER BY rowid`.
+- `spec/domain/plan-geometry.test.ts` (new, 23 tests) and
+  `spec/server/legacy-plans.test.ts` (new, 5 tests).
+- `spec/plans-and-attribution.test.ts`: the old floating-roof and
+  overlap-real tests are replaced by refusals, wall plus roof, collisions,
+  `plan_depends`, and concurrent overlapping proposals.
+- `spec/realtime.test.ts` and `spec/domain/planned-remaining.test.ts`:
+  positions adjusted to the new rule.
+
+**Why.** The author changed the rule: a plan must be something that could
+really be built given what is built and planned (ADR 0012). The rowid
+ordering came from a full-suite failure. Plans sharing a `created_at`
+millisecond were ordered by random id, so an upper plan could be judged
+before its base.
+
+**Who decided:** the author set the geometry, support, no-cascade,
+realization and legacy-preservation rules. The agent chose the commit-order
+fit, rowid ordering, the "only plans resting on the target" dependency rule
+(so turning a part into a plan's space stays allowed) and the messages.
+
+**Tests:** `pnpm check` 156/156 passed (126 before). Obsolete tests were
+rewritten at the author's direction; they are listed in evidence 0008.
+
+### 2026-10-19 15:54 AEDT — [`4f768b9`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/4f768b9) Client: mode-specific heights, exact-preview commits, plan visuals, drop animation, camera remap
+
+**Changes:**
+- `src/client/state/store.ts`:
+  - The preview's heights come from `fitHeights` over the current mode's
+    structure, with a `modeRejection` verdict. The unsupported climb and
+    `canStepHigher` are gone.
+  - `setMode` pins the displayed level.
+  - New `restoreHeld`, `planFitsNow`, `focusSelected`, `setNavTool` and
+    `navTool`.
+  - `adoptLive` gives drop timing only to new part ids. The SSE catch-up
+    after each open is not animated.
+  - Escape order: delete tool, then navigation tool, then held part, then
+    selection.
+- `src/client/scene/Workbench.tsx`:
+  - Mouse mapping is left builds, right orbits, Shift+right and middle pan,
+    with screen-space panning.
+  - Orbit and Pan tools, touch remap, focus framing, and a tighter pan box
+    (plot ±4).
+  - The preview is frozen during drags.
+  - The paused-spot pointer trail undoes sweeps onto UI.
+  - Plans are drawn by fit.
+- `src/client/scene/PartMesh.tsx`:
+  - New `plan-bad` ghost.
+  - The selected plan gets a cyan tint, more opacity (capped at 0.5) and
+    white plus cyan outlines.
+  - `dropAt`: 0.2 units, 180 ms, cubic ease-out.
+- `src/client/App.tsx`:
+  - New Orbit and Pan tool chips, a Focus selected button and a camera
+    hint.
+  - The selected-plan panel explains conflicts.
+  - Phone header labels are shortened, and About moves into Help on
+    phones.
+- `src/client/keyboard.ts`: F focuses.
+- `src/client/styles.css`: supporting styles.
+
+**Why.** These are the author's positioning, plan-visibility, placement
+feedback and camera requirements (ADR 0012).
+
+**Who decided:** the author set the behaviours. The agent chose the
+constants (0.2 units, 180 ms, cyan values, 120 ms / 6 px stillness) and the
+trail mechanism, after three earlier versions failed in browser runs.
+
+**Tests:** see the next entry.
+
+### 2026-10-19 15:54 AEDT — [`1112a96`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/1112a96) Browser scripts: plan-geometry run, and older scripts updated to ADR 0012 rules
+
+**Changes:**
+- `scripts/plan-geometry.ts` (new): two independent contexts driving
+  visible controls, plus camera, reduced-motion and emulated-touch runs.
+  It takes `chromium` or `webkit`.
+- `scripts/interaction.ts`, `scripts/plan-mode.ts` and
+  `scripts/review-fixes.ts` are updated for the right-button orbit and the
+  supported-heights rule. These are author-directed updates to obsolete
+  checks.
+
+**Tests run** against an isolated server (`DATA_DIR=/tmp/bc-test PORT=8361`,
+fresh database):
+- Chrome: plan-geometry 61/61, plan-mode 42/42, review-fixes 15/15,
+  multiplayer 17/17, interaction 85/85.
+- Playwright WebKit: plan-geometry 54/54. The touch section is
+  Chromium-only.
+
+### 2026-10-19 16:01 AEDT — [`53bb365`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/53bb365) ADR 0012, CLAUDE.md, evidence 0008: plan geometry, positioning, camera
+
+**Changes:**
+- `doc/adr/0012-plan-geometry-positioning-and-camera.md` (new).
+- ADRs 0003, 0005, 0009 and 0011 are annotated where superseded.
+- `CLAUDE.md`: the "never require support for a PLAN" rule is replaced by
+  the geometry and compatibility rules. The camera mapping, Higher/Lower,
+  mode-switch and plan-visibility rules are updated.
+- `doc/evidence/0008-plan-geometry-positioning-camera.md`, plus
+  screenshots and results in `doc/evidence/shots/plan-geometry/`.
+- `src/client/styles.css`: the phone camera hint is moved under the header,
+  because it overlapped the notice.
+- `scripts/plan-geometry.ts`: screenshots are named by engine, and the
+  phone screenshot is taken before the gestures.
+
+**Tests:** after this commit's style and script changes, plan-geometry ran
+61/61 in Chrome and 54/54 in WebKit. `pnpm check:evidence` was clean, and
+so was `git diff --check`. The screenshots were inspected; see evidence
+0008 for what each shows.
+
+**Limitations:** Safari.app, Firefox and physical devices were not tested.
+Touch was emulated in Chrome only. Two contexts on one machine are not two
+people. Nothing was pushed or deployed.
