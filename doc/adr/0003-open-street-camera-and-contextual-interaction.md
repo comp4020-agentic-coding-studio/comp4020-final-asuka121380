@@ -65,6 +65,9 @@ restrained translucent bottom dock with model thumbnails.
 
 **Gestures** (agent):
 - Mouse: left-drag orbits, right-drag or shift-drag pans, the wheel zooms.
+  *(Superseded by ADR 0012, 19 Oct 2026: the left button only builds;
+  right drag orbits, Shift+right and middle drag pan, and Orbit/Pan tools
+  give left-drag navigation.)*
 - Trackpad: click-drag orbits, two-finger scroll zooms.
 - Touch: one finger orbits, two fingers pinch-zoom and pan.
 - A press counts as a click only if it moved less than 6 px (10 px for

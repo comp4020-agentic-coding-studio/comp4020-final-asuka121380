@@ -146,12 +146,19 @@ Each entry gives, in proportion to the change:
 - Subtract plans from real inventory, store a second ("planned") stock, or
   let planning demand affect whether anyone may place or realize a real part
   (author, 19 Oct 2026; ADR 0011).
-- Require real or planned structural support for a PLAN (as opposed to a
-  real placement, which still requires it). A plan may describe a position
-  nothing yet built supports — a future roof before its walls — and is
-  checked only for being well-formed input within scene bounds (ADR 0009,
-  corrected 13 Oct 2026: the first cut's "plausible support" check was still
-  too strict against the brief's own example).
+- Accept a new PLAN that floats or collides. A new plan rests on the plot or
+  on studs of real parts and/or standing open plans (same threshold and
+  catalogue stud rules as a real part), and may not overlap a real part or
+  another standing plan. Only stock is exempt. Never let a plan support a
+  real part, and never cascade-withdraw: withdrawing, removing or turning
+  whatever alone holds up a standing plan is refused with `plan_depends`
+  (author, 19 Oct 2026; ADR 0012, superseding ADR 0009's 13 Oct "plans never
+  need support" correction).
+- Delete, move or rewrite an existing plan because it no longer fits.
+  Legacy or overtaken plans stay, are shown as conflicting/unsupported,
+  support and block nothing, and can always be withdrawn (ADR 0012
+  compatibility policy). Plans are read `ORDER BY rowid` everywhere so
+  standing is decided in commit order identically on server and clients.
 - Hand-roll password hashing, store a password anywhere but its salted
   `scrypt` hash, or let checking credentials alone (without an explicit
   confirmation step) switch a browser away from an anonymous identity that
@@ -238,11 +245,21 @@ Each entry gives, in proportion to the change:
   tall foreground objects near the plot. Check visibility from several angles.
 - Camera:
   - perspective, with full 360° horizontal orbit and a practical top-down view
-  - never below the ground
+  - never below the ground, never inside a neighbouring house, no roll
   - zoom and pan bounded so the build can't be lost and the world's edges
     don't show
   - working Top view and Reset view controls
 - A drag that moves the camera never places, selects or deletes on release.
+- **Mapping (author, 19 Oct 2026; ADR 0012, superseding ADR 0003's left-drag
+  orbit):** the left button is for building only; right drag orbits about
+  the current centre; Shift+right and middle drag pan; the wheel zooms.
+  F and a visible Focus selected button (disabled with nothing selected)
+  centre on the selection; T is top view over the current centre; Home /
+  Reset view is the default framing. Orbit and Pan tools give left-drag
+  navigation with a visible way back (Esc or the tool again). Touch: one
+  finger orbits, two fingers pan, pinch zooms. The held preview is frozen
+  during any drag or while a navigation tool is on. A visible controls hint
+  is shown.
 
 ## Interaction (author, 6 Oct 2026; supersedes the Build/Select modes; one Build/Plan mode re-added 19 Oct 2026, ADR 0011)
 
@@ -257,7 +274,9 @@ Each entry gives, in proportion to the change:
     PageDown, plus visible buttons) step through the heights that fit
     there.
   - A chosen height survives horizontal fine adjustment. Confirming commits
-    exactly the preview on screen; a click or tap never re-aims first.
+    exactly the preview on screen; a click or tap never re-aims first, and
+    moving the pointer across the scene to a dock button doesn't re-aim it
+    (ADR 0012).
   - Arrow keys and the direction buttons move the preview relative to the
     camera, snapped to the grid's axes with hysteresis. Height is a separate
     control.
@@ -276,9 +295,14 @@ Each entry gives, in proportion to the change:
     the other kind of object.
   - The mode stays as chosen while proposing; returning to Build is always
     explicit.
-  - Only Plan mode's Higher climbs into unsupported positions, and only in
-    Plan mode can the pointer aim at a plan's surface. In Build mode the
-    pointer looks through plans.
+  - Higher/Lower step only through the current mode's supported heights:
+    real parts in Build mode, real parts plus standing plans in Plan mode.
+    Nothing climbs into unsupported space (ADR 0012). Only in Plan mode can
+    the pointer aim at a plan's surface; in Build mode it looks through
+    plans.
+  - A mode switch keeps the exact displayed preview; if it doesn't fit the
+    new mode it is shown invalid and the commit is refused, never moved
+    (ADR 0012).
   - There is no separate "propose" button that needs pointer travel.
   - Clicking existing parts while holding one goes through the placement
     rules.
@@ -336,7 +360,13 @@ Each entry gives, in proportion to the change:
   revision, so an unrelated change elsewhere in the room never rejects it
   (ADR 0008).
 - **Plans are proposals, not orders.** A transparent plan costs no stock and
-  never blocks real construction. **Planning demand** (ADR 0011) is derived
+  never blocks real construction; it must, however, be buildable against
+  real parts plus standing plans (ADR 0012), and a real part built into its
+  space leaves it kept but conflicting. A selected plan is drawn with bright
+  cyan outlines and a slightly more opaque, never solid, surface; no
+  flashing. A newly real part (own, realized, or pushed) drops about half a
+  plate in ~180 ms, never on load/reconnect, for plans, or under
+  `prefers-reduced-motion` (ADR 0012). **Planning demand** (ADR 0011) is derived
   on each client as real stock minus the room's open plans, per part type,
   counting every member's plans. It is shown only in Plan mode, beside the
   real count and never as owned stock. It may be negative, is never stored,

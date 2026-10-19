@@ -1,0 +1,258 @@
+{
+  "base": "http://localhost:8361",
+  "at": "2026-10-19T04:51:36.020Z",
+  "results": [
+    {
+      "run": "desktop-two-contexts",
+      "name": "A starts in Build mode, with the Build button pressed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Build mode: a click on the scene places a real part and spends real stock",
+      "ok": true,
+      "detail": "{\"parts\":1,\"stock\":18}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the Plan button enters Plan mode, with pressed state and a text tag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "A's Plan mode is local: B stays in Build mode",
+      "ok": true,
+      "detail": "build"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the held part and its preview survive the switch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Place is replaced by Propose plan; there is no 'Propose instead' button",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Plan mode: a click on the scene creates a plan, not a real part",
+      "ok": true,
+      "detail": "{\"plans\":1,\"parts\":1}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the created plan is exactly the preview shown before the click",
+      "ok": true,
+      "detail": "{\"preview\":\"brick-2x4@8,0,1r0:sky\",\"plan\":\"brick-2x4@8,0,1r0:sky\"}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "planning spends no real stock",
+      "ok": true,
+      "detail": "18"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Plan mode stays on after proposing, with the part still held",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "B receives A's plan live over SSE",
+      "ok": true,
+      "detail": "2ms (2ms wall)"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Plan mode: the next preview sits on the planned brick's top, the only height that fits there (the plan occupies the plot level)",
+      "ok": true,
+      "detail": "{\"y\":3,\"fits\":[3],\"real\":\"unsupported\"}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Lower can't drop into the planned brick's own space",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the preview says 'Plan here' in text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "nothing planned above it: Higher is disabled (no climb into empty space)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Enter in Plan mode proposes that stacked plan exactly",
+      "ok": true,
+      "detail": "brick-2x4@8,3,1r0:sky"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "P switches back to Build mode",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "switching mode keeps the exact displayed preview (position, height, rotation, part, colour)",
+      "ok": true,
+      "detail": "{\"before\":\"brick-2x4@8,6,1r0:sky\",\"after\":\"brick-2x4@8,6,1r0:sky\"}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "in Build mode that spot is shown refused (no real support), and Place is disabled",
+      "ok": true,
+      "detail": "unsupported"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "after switching back, a click places a real part at the preview, not a plan",
+      "ok": true,
+      "detail": "{\"parts\":2,\"plans\":2}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "A's tray in Plan mode shows planned remaining and the real count, named separately",
+      "ok": true,
+      "detail": "Brick 2×4, planned remaining 15; 17 real left"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "B's tray shows the same room-wide planned remaining",
+      "ok": true,
+      "detail": "Brick 2×4, planned remaining 15; 17 real left"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "in Build mode the tray shows only the real count",
+      "ok": true,
+      "detail": "Brick 2×4, 17 left"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "plans beyond the real stock are accepted, and planned remaining goes below zero",
+      "ok": true,
+      "detail": "{\"planned\":-2,\"real\":4}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the tray badge shows the negative planned count",
+      "ok": true,
+      "detail": "◇ -2"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "B's planning demand updates live to the same negative value",
+      "ok": true,
+      "detail": "9ms"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "B can still place a real Brick 1×2 while planned remaining is negative",
+      "ok": true,
+      "detail": "Placed Brick 1×2. Saved."
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "withdrawing a plan (by B, not its proposer) restores planned remaining by one, on A's screen too",
+      "ok": true,
+      "detail": "{\"selected\":true,\"ms\":5}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "clicking the lower plan's face selects it",
+      "ok": true,
+      "detail": "{\"picked\":\"e466bac4-e604-455e-86ac-81ba72f96933\",\"target\":\"e466bac4-e604-455e-86ac-81ba72f96933\"}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "realizing a plan spends real stock exactly once and its demand disappears (planned remaining unchanged)",
+      "ok": true,
+      "detail": "{\"real\":\"17 → 16\",\"planned\":\"15 → 15\"}"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the plan stacked on it is kept, now resting on the real part",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "the room's real Brick 1×2 stock is used up",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "realizing with no real stock is refused out_of_stock and the plan stays open",
+      "ok": true,
+      "detail": "out_of_stock"
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "Escape puts the held part down and leaves the mode as chosen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "typing P in a text field is not a shortcut",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "desktop-two-contexts",
+      "name": "no console errors in either context, beyond the deliberately refused realization",
+      "ok": true,
+      "detail": "A: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the Plan button is on screen and at least 40 px tall",
+      "ok": true,
+      "detail": "{\"x\":94,\"y\":645.46875,\"width\":88,\"height\":40}"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "tapping Plan, then a part, holds it in Plan mode",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the first tap previews; nothing is created",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the second tap on the preview proposes exactly that plan",
+      "ok": true,
+      "detail": "[\"plate-2x2@4,0,2r0:pale-mint\"]"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "the dock still fits the 390 px screen in Plan mode",
+      "ok": true,
+      "detail": "{\"x\":0,\"y\":419.859375,\"width\":390,\"height\":424.140625}"
+    },
+    {
+      "run": "touch-emulated-390x844",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

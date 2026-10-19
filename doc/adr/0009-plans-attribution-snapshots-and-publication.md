@@ -249,6 +249,15 @@ button is gone. Plans are created by clicking the scene in an explicit
 Plan mode, and Higher climbs past the real heights only in Plan mode. The
 server-side rules in this section are unchanged.
 
+*Superseded on geometry by ADR 0012 (author, 19 Oct 2026):* a new plan
+again needs support, now from real parts **or standing plans**, and may not
+collide with a real part or another standing plan. Withdrawing, removing or
+turning whatever alone holds up a standing plan is refused. Stock stays
+exempt, and realizing still needs real support. Plans written under the
+rule above are kept and reported as conflicting or unsupported (ADR 0012's
+compatibility policy), never deleted or moved. The future-roof case is
+now met by planning the walls first, then the roof on them.
+
 ## As built (agent; revises the plan above)
 
 - **Inherited credits are their own table, not folded into

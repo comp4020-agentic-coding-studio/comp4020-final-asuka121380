@@ -12,7 +12,8 @@
   - the "no modes" line of `CLAUDE.md`'s Interaction section (which itself
     superseded ADR 0003's Build/Select modes), for one mode only
 - **Unchanged:** every server rule in ADR 0009. Plans cost no real stock,
-  block nothing real and never need support. Realizing a plan re-runs full
+  block nothing real and never need support (*support and collision
+  superseded by ADR 0012*). Realizing a plan re-runs full
   `validatePlacement` against live state in one transaction.
 
 ## Context
@@ -70,6 +71,10 @@ room's pieces could cover what they had proposed.
 
 ### What differs between the modes
 
+- *(Superseded by ADR 0012, 19 Oct 2026: in Plan mode Higher/Lower now step
+  through heights supported by real parts and standing plans only; the
+  unsupported climb and `planFits` are gone. A mode switch keeps the exact
+  displayed preview, shown invalid if it doesn't fit the new mode.)*
 - **Heights.** In Build, Higher/Lower step only through real, supported
   heights (`fits`), exactly as ADR 0005 describes. In Plan, Higher keeps
   climbing past the topmost real height, one level at a time, through

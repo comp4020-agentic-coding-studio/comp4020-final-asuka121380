@@ -105,6 +105,15 @@ climbs past the topmost fitting height into positions nothing supports yet
 (plans never need support, ADR 0009), and a plan's top face is a surface
 you can aim at. In Build mode everything above is unchanged.
 
+## Later change (ADR 0012, 19 Oct 2026)
+
+Plan mode no longer climbs into unsupported positions. In both modes
+Higher/Lower step only through heights that fit: over the real parts in
+Build mode, over the real parts plus standing plans in Plan mode. "Confirm
+commits exactly the preview on screen" now also covers switching modes,
+which keeps the displayed preview, and pointer travel to a dock button,
+which no longer re-aims it.
+
 ## Alternatives considered
 
 - **Keep "tallest + manual lift" and stop resetting lift.** That still makes

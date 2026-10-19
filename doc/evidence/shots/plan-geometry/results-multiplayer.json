@@ -1,0 +1,91 @@
+{
+  "base": "http://localhost:8361",
+  "at": "2026-10-19T04:51:50.117Z",
+  "results": [
+    {
+      "name": "A creates a room through the lobby and it's a fresh, empty room",
+      "ok": true,
+      "detail": "http://localhost:8361/build/room/5491acd7-a782-4019-a91b-6278321af837?debug"
+    },
+    {
+      "name": "B joins the same room by browsing the public lobby, not by an injected membership",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "A and B are distinct identities",
+      "ok": true,
+      "detail": "76a34b19-1d47-4b03-853a-14d65700e383 / a67a479a-a0e7-47e5-9eab-15dcc8fccb15"
+    },
+    {
+      "name": "A's own screen shows both members once B has joined",
+      "ok": true,
+      "detail": "[\"76a34b19-1d47-4b03-853a-14d65700e383\",\"a67a479a-a0e7-47e5-9eab-15dcc8fccb15\"]"
+    },
+    {
+      "name": "B's screen shows A's placement within about a second (no reload)",
+      "ok": true,
+      "detail": "7ms"
+    },
+    {
+      "name": "A's screen shows B's recolour of the same part",
+      "ok": true,
+      "detail": "2ms"
+    },
+    {
+      "name": "B's screen shows A's removal of the part",
+      "ok": true,
+      "detail": "3ms"
+    },
+    {
+      "name": "two simultaneous placements in different spots both succeed and both screens converge",
+      "ok": true,
+      "detail": "10ms"
+    },
+    {
+      "name": "A's click in Plan mode proposes exactly the previewed plan, spending no stock",
+      "ok": true,
+      "detail": "{\"shown\":{\"partId\":\"brick-2x4\",\"x\":9,\"y\":0,\"z\":1,\"rot\":0,\"colour\":\"pale-mint\"},\"made\":{\"id\":\"e4918fca-c7ea-45ea-b43f-c10211caa9ae\",\"partId\":\"brick-2x4\",\"x\":9,\"y\":0,\"z\":1,\"rot\":0,\"colour\":\"pale-mint\",\"proposedBy\":\"76a34b19-1d47-4b03-853a-14d65700e383\",\"createdAt\":\"2026-10-19T04:51:47.778Z\",\"status\":\"open\"}}"
+    },
+    {
+      "name": "B sees A's proposed plan appear live",
+      "ok": true,
+      "detail": "6ms"
+    },
+    {
+      "name": "B's Plan-mode tray shows A's plan as planning demand",
+      "ok": true,
+      "detail": "Brick 2×4, planned remaining 18; 19 real left"
+    },
+    {
+      "name": "B can select A's plan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "A sees B's live mark on the plan",
+      "ok": true,
+      "detail": "2ms"
+    },
+    {
+      "name": "A sees B's realized plan become a real part",
+      "ok": true,
+      "detail": "4ms"
+    },
+    {
+      "name": "B's reload restores the authoritative room state, not an empty or stale one",
+      "ok": true,
+      "detail": "3 → 3"
+    },
+    {
+      "name": "no console errors on A",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no console errors on B",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

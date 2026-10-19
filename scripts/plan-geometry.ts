@@ -176,7 +176,7 @@ run = `${engine}-desktop-two-contexts`;
   await pageB.mouse.click(tp.x, tp.y);
   await pageB.waitForFunction(() => (window as any).__state().selectedPlanId, null, { timeout: 2000 }).catch(() => {});
   check("B selects A's bottom plan", (await state(pageB)).selectedPlanId === bottom.id);
-  await pageB.screenshot({ path: `${out}/b-selected-plan-dense.png` });
+  await pageB.screenshot({ path: `${out}/${engine}-b-selected-plan-dense.png` });
 
   // B tries to withdraw it: refused, two plans rest on it
   await btn(pageB, "Withdraw").click();
@@ -313,7 +313,7 @@ run = `${engine}-desktop-two-contexts`;
   await pageA.keyboard.press("Enter");
   await settle(pageA);
   check("Enter there commits nothing real", (await state(pageA)).snapshot.parts.length === partsBefore);
-  await pageA.screenshot({ path: `${out}/a-invalid-in-build.png` });
+  await pageA.screenshot({ path: `${out}/${engine}-a-invalid-in-build.png` });
 
   // the preview survives the pointer's trip across the scene to the dock
   await btn(pageA, "Plan mode").click();
@@ -416,7 +416,7 @@ run = `${engine}-desktop-camera`;
   c = await cam(page);
   const wantY = (top.y + 1.5) * PLATE;
   check("F makes the selected high brick the new centre, framed closer", Math.abs(c.target[1] - wantY) < 0.3 && Math.abs(c.target[0] - (top.x + 1)) < 0.3 && c.distance < 25, { target: c.target.map((v: number) => +v.toFixed(2)), dist: +c.distance.toFixed(1) });
-  await page.screenshot({ path: `${out}/camera-focus-high.png` });
+  await page.screenshot({ path: `${out}/${engine}-camera-focus-high.png` });
   await page.keyboard.press("t");
   await page.waitForTimeout(900);
   const ct = await cam(page);
@@ -523,6 +523,7 @@ if (engine === "chromium") {
   await settle(page);
   s = await state(page);
   check("tapping the preview on the planned brick stacks a plan on it", s.snapshot.plans.length === 2 && s.snapshot.plans.some((p: any) => p.y === 3), s.snapshot.plans.map(key));
+  await page.screenshot({ path: `${out}/${engine}-mobile-plan-stack.png` });
   // one-finger drag orbits and edits nothing
   const cdp = await ctx.newCDPSession(page);
   const touch = (type: "touchStart" | "touchMove" | "touchEnd", pts: { x: number; y: number }[]) =>
@@ -552,7 +553,6 @@ if (engine === "chromium") {
   check("a pinch zooms, proposing nothing", c.distance < d0 - 1 && (await state(page)).snapshot.plans.length === n0);
   const header = await page.locator(".overlay-right").boundingBox();
   check("the header controls fit in two rows on a phone", !!header && header.height < 110, header);
-  await page.screenshot({ path: `${out}/mobile-plan-stack.png` });
   check("no console errors", errs.length === 0, errs.join(" | "));
   await ctx.close();
 }

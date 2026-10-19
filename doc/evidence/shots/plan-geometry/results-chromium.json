@@ -1,0 +1,373 @@
+{
+  "base": "http://localhost:8361",
+  "engine": "chromium",
+  "at": "2026-10-19T04:57:45.143Z",
+  "results": [
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "A plans a brick on the plot",
+      "ok": true,
+      "detail": "[\"brick-2x4@2,0,2r0:pale-mint\"]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "the next Plan-mode preview sits on the planned brick, a supported height",
+      "ok": true,
+      "detail": "brick-2x4@2,3,2r0:pale-mint"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "a plan stacked on a plan is accepted",
+      "ok": true,
+      "detail": "[\"brick-2x4@2,0,2r0:pale-mint\",\"brick-2x4@2,3,2r0:pale-mint\"]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "hovering the stacked plan's top previews a roof at height 6, valid as a plan",
+      "ok": true,
+      "detail": "{\"p\":\"slope-2x2@2,6,2r0:pale-mint\"}"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "the roof plan is exactly the preview that was shown",
+      "ok": true,
+      "detail": "slope-2x2@2,6,2r0:pale-mint"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "on bare plot, Higher offers no floating height",
+      "ok": true,
+      "detail": "[0]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "a duplicate of a planned brick isn't offered: its level is taken, so the preview sits above it",
+      "ok": true,
+      "detail": "brick-2x4@2,9,3r0:pale-mint"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "the server refuses an overlapping plan sent directly (preview and server agree)",
+      "ok": true,
+      "detail": "Another plan already takes that space."
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "B receives the three plans live",
+      "ok": true,
+      "detail": "9ms"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "B selects A's bottom plan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "withdrawing a plan others rest on is refused, with a reason naming the dependant",
+      "ok": true,
+      "detail": "Can't withdraw this plan yet: a planned Brick 2×4 rests on it. Withdraw that one first, or give it other support."
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "in Build mode the pointer looks through plans: no real preview lands on a plan",
+      "ok": true,
+      "detail": "brick-2x2@2,0,2r0:pale-mint"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "realizing the bottom plan spends one real brick and keeps the two plans above",
+      "ok": true,
+      "detail": "{\"parts\":1,\"plans\":2}"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "the realized brick drops into place on B's screen: starts ~half a plate up, eases down monotonically, ends at rest",
+      "ok": true,
+      "detail": "[0.153,0.111,0.079,0.053,0.033,0.017,0.009,0.004,0.001,0,0]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "and on A's screen, from the pushed change",
+      "ok": true,
+      "detail": "[0.187,0.147,0.106,0.074,0.048,0.03,0.017,0.008,0.003,0.001,0,0]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "no drop is played for plans",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "the authoritative position is final at once: the part's y is its committed y throughout",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "nothing replays without a new commit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "after a reload, existing parts don't drop again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "an ordinary placement drops once on A",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "and once on B",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "recolouring plays no drop",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "two overlapping proposals at once from A and B: exactly one is committed",
+      "ok": true,
+      "detail": "{\"added\":1,\"notices\":[\"Proposed a Brick 2×4 as a plan. Saved.\",\"Can't plan there: That space is taken by a Brick 2×2.\"]}"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "Plan → Build keeps the exact preview",
+      "ok": true,
+      "detail": "[\"brick-2x4@12,0,1r0:pale-mint\",\"brick-2x4@12,0,1r0:pale-mint\"]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "Build → Plan keeps it too",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "a preview valid only as a plan stays put when switching to Build, shown refused, and Place does nothing",
+      "ok": true,
+      "detail": "{\"plan\":\"brick-2x4@2,9,2r0:pale-mint\",\"build\":\"brick-2x4@2,9,2r0:pale-mint\",\"why\":\"unsupported\"}"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "Enter there commits nothing real",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "moving the pointer across the scene to the commit button doesn't drag the preview along",
+      "ok": true,
+      "detail": "[\"brick-2x4@12,0,1r0:pale-mint\",\"brick-2x4@12,0,1r0:pale-mint\"]"
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "that button then commits exactly the rested preview",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-two-contexts",
+      "name": "no unexpected console errors in either context",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "a six-brick tower is built",
+      "ok": true,
+      "detail": "15"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "right-drag orbits about the centre (target unchanged, heading changed)",
+      "ok": true,
+      "detail": "{\"az\":[0.20000000000000004,-1.196245603435912]}"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "Shift+right-drag pans: centre and camera move together",
+      "ok": true,
+      "detail": "{\"moved\":5.77}"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "middle-drag pans too",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "orbiting after a pan turns round the panned centre, not the plot's",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "the wheel zooms towards the centre",
+      "ok": true,
+      "detail": "{\"from\":\"30.0\",\"to\":\"18.0\"}"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "the horizon stays level (camera up is world up)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "none of those gestures placed, selected or removed anything",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "Focus selected is disabled with nothing selected",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "clicking the top brick selects it",
+      "ok": true,
+      "detail": "1c894823-eab6-4e51-aa2a-45df2c90f3b1"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "Focus selected becomes enabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "F makes the selected high brick the new centre, framed closer",
+      "ok": true,
+      "detail": "{\"target\":[8,6.6,4],\"dist\":12.4}"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "T gives a top view over the current centre",
+      "ok": true,
+      "detail": "{\"polar\":\"0.020\"}"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "Reset view restores the default plot framing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "the Orbit tool is on (pressed), with a visible way back",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "with the Orbit tool, a left drag orbits and places nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "the held preview stayed frozen in the world during the drag",
+      "ok": true,
+      "detail": "[\"{\\\"partId\\\":\\\"brick-2x2\\\",\\\"rot\\\":0,\\\"anchor\\\":null,\\\"level\\\":null,\\\"snap\\\":false}\",\"{\\\"partId\\\":\\\"brick-2x2\\\",\\\"rot\\\":0,\\\"anchor\\\":null,\\\"level\\\":null,\\\"snap\\\":false}\"]"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "a left click with a navigation tool on places nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "the Pan tool pans with a left drag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "Esc leaves the navigation tool and keeps the held part",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "after leaving the tool, a click builds again",
+      "ok": true,
+      "detail": "{\"held\":{\"partId\":\"brick-2x2\",\"rot\":0,\"anchor\":{\"x\":1,\"z\":1},\"level\":3,\"snap\":false},\"notice\":\"Placed Brick 2×2. Saved.\",\"nav\":null}"
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "F, P and T typed in a text field aren't shortcuts",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-desktop-camera",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-reduced-motion",
+      "name": "with prefers-reduced-motion, the placed brick shows at once (no drop)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "tap-to-preview then tap proposes a plan",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "tapping the preview on the planned brick stacks a plan on it",
+      "ok": true,
+      "detail": "[\"brick-2x2@4,0,2r0:pale-mint\",\"brick-2x2@4,3,2r0:pale-mint\"]"
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "one finger orbits and proposes nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "two fingers moving together pan, proposing nothing",
+      "ok": true,
+      "detail": "[6.563010395872206,4.074354043915557,-2.027203205414011]"
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "a pinch zooms, proposing nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "the header controls fit in two rows on a phone",
+      "ok": true,
+      "detail": "{\"x\":140.203125,\"y\":8,\"width\":241.796875,\"height\":79.1875}"
+    },
+    {
+      "run": "chromium-touch-emulated-390x844",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
