@@ -127,30 +127,39 @@ const t0 = Date.now();
 const seen = await waitFor(pageB, (s) => s.snapshot.plans.length === 1);
 check("B receives A's plan live over SSE", seen >= 0 && seen < 1000, `${seen}ms (${Date.now() - t0}ms wall)`);
 
-// 5. an unsupported future position, reached with Higher in Plan mode
-p = await hover(pageA, 9, 5);
-for (let i = 0; i < 4; i++) {
-  await pageA.getByRole("button", { name: /Higher:/ }).click();
-  await pageA.waitForTimeout(60);
-}
+// 5. ADR 0012: a stacked plan on a planned brick, reached with Higher; nothing floats
+// after proposing, the held preview moves onto the new plan's top (store.ts), as after a real placement
+await pageA.mouse.move(10, 10); // off the scene: the buttons drive the preview from here
 const high = await pv(pageA);
-check("Plan mode: Higher climbs to a height nothing supports", high.placement.y > 0 && !!high.rejection && !high.planRejection, { y: high.placement.y, real: high.rejection?.code });
+check(
+  "Plan mode: the next preview sits on the planned brick's top, the only height that fits there (the plan occupies the plot level)",
+  high.placement.y === plan1.y + 3 && high.placement.x === plan1.x && JSON.stringify(high.fits) === "[3]" && !high.planRejection && high.rejection?.code === "unsupported",
+  { y: high.placement.y, fits: high.fits, real: high.rejection?.code },
+);
+const lowerOff = await pageA.getByRole("button", { name: /Lower:/ }).isDisabled();
+check("Lower can't drop into the planned brick's own space", lowerOff);
 check("the preview says 'Plan here' in text", (await pageA.locator(".ghost-label").innerText()).includes("Plan here"));
-await pageA.screenshot({ path: `${out}/a-plan-mode-unsupported.png` });
+const higherOff = await pageA.getByRole("button", { name: /Higher:/ }).isDisabled();
+check("nothing planned above it: Higher is disabled (no climb into empty space)", higherOff);
+await pageA.screenshot({ path: `${out}/a-plan-on-plan.png` });
 await pageA.keyboard.press("Enter");
 await settle(pageA);
 sA = await state(pageA);
 const plan2 = sA.snapshot.plans.find((q: any) => q.id !== plan1.id);
-check("Enter in Plan mode proposes that unsupported position exactly", !!plan2 && key(plan2) === key(high.placement) && sA.snapshot.parts.length === 1, plan2 && key(plan2));
+check("Enter in Plan mode proposes that stacked plan exactly", !!plan2 && key(plan2) === key(high.placement) && sA.snapshot.parts.length === 1, plan2 && key(plan2));
 
-// 6. P toggles back to Build; Higher no longer climbs into unsupported space, and a click is real again
+// 6. P toggles back to Build: the preview stays put and shows it can't be placed for real
+const beforeSwitch = await pv(pageA);
 await pageA.keyboard.press("p");
 sA = await state(pageA);
 check("P switches back to Build mode", sA.mode === "build");
-await pageA.mouse.move(10, 10); // off the scene, so nothing re-aims
 const inBuild = await pv(pageA);
-const higherDisabled = await pageA.getByRole("button", { name: /Higher:/ }).isDisabled();
-check("Build mode: Higher can't reach unsupported heights", inBuild.fits.every((f: number) => f <= inBuild.placement.y) ? higherDisabled : true, { y: inBuild.placement.y, fits: inBuild.fits, higherDisabled });
+check(
+  "switching mode keeps the exact displayed preview (position, height, rotation, part, colour)",
+  key(inBuild.placement) === key(beforeSwitch.placement),
+  { before: key(beforeSwitch.placement), after: key(inBuild.placement) },
+);
+check("in Build mode that spot is shown refused (no real support), and Place is disabled", !!inBuild.modeRejection && (await pageA.locator(".place-button").getAttribute("aria-disabled")) === "true", inBuild.modeRejection?.code);
 p = await hover(pageA, 5, 3);
 const buildPreview = await pv(pageA);
 await pageA.mouse.click(p.x, p.y);
@@ -223,10 +232,15 @@ sA = await state(pageA);
 const target = sA.snapshot.plans.find((q: any) => q.partId === "brick-2x4" && q.y === 0);
 const real0 = sA.snapshot.inventory["brick-2x4"];
 const dem0 = planned(sA, "brick-2x4");
-tp = await project(pageA, target.x + 2, 1.0, target.z + 1);
+// a plan is stacked on this one (step 5), so pick it by its front face, which nothing covers
+await pageA.keyboard.press("Home");
+await pageA.waitForTimeout(900);
+tp = await project(pageA, target.x + 2, 0.6, target.z + 2.0);
 await pageA.mouse.move(tp.x, tp.y, { steps: 3 });
 await pageA.mouse.click(tp.x, tp.y);
 await pageA.waitForFunction(() => (window as any).__state().selectedPlanId, null, { timeout: 2000 }).catch(() => {});
+const picked = (await state(pageA)).selectedPlanId;
+check("clicking the lower plan's face selects it", picked === target.id, { picked, target: target.id });
 await pageA.getByRole("button", { name: /Build this/ }).click();
 await settle(pageA);
 sA = await state(pageA);
@@ -235,6 +249,10 @@ check(
   sA.snapshot.inventory["brick-2x4"] === real0 - 1 && planned(sA, "brick-2x4") === dem0 && !sA.snapshot.plans.some((q: any) => q.id === target.id),
   { real: `${real0} → ${sA.snapshot.inventory["brick-2x4"]}`, planned: `${dem0} → ${planned(sA, "brick-2x4")}` },
 );
+const upper = sA.snapshot.plans.find((q: any) => q.partId === "brick-2x4" && q.y === 3 && q.x === target.x && q.z === target.z);
+check("the plan stacked on it is kept, now resting on the real part", !!upper);
+await pageA.keyboard.press("t");
+await pageA.waitForTimeout(900);
 
 // 12. realization with no real stock left fails and leaves the plan open
 sA = await state(pageA);
@@ -297,7 +315,7 @@ await ctxB.close();
   await page.getByRole("button", { name: "Create and open" }).click();
   await page.waitForURL(/\/build\/room\//);
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
-  await page.locator(".chip-button", { hasText: "Top view" }).tap();
+  await page.getByRole("button", { name: "Top view", exact: true }).tap();
   await page.waitForTimeout(900);
   const planBtn = page.getByRole("button", { name: "Plan mode", exact: true });
   const box = await planBtn.boundingBox();

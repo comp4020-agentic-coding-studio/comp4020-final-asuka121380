@@ -8,7 +8,7 @@
 //      accept/decline.
 //   2. A plan with no real or planned support underneath (a future roof
 //      before its walls) can be proposed through the real UI — reachable
-//      with Higher, not merely accepted if a client somehow sent it.
+//      with Higher (since ADR 0012: onto a planned wall, never into empty space).
 //   3. Selecting a placed part shows who placed it and, after someone else
 //      recolours it, who last edited it — distinctly.
 //   4. Saving a published version directly to a collection, via its own
@@ -60,38 +60,39 @@ await pageB.goto(link, { waitUntil: "domcontentloaded" });
 await pageB.waitForSelector("text=already friends");
 check("reopening an already-accepted link says so, rather than offering to accept again", true);
 
-// ---- 2. propose a future roof with no support, through the real UI (Higher/Lower reaches it)
+// ---- 2. (rewritten for ADR 0012, author 19 Oct 2026: the old "future roof
+// with no support" check is superseded) a roof planned on a planned wall,
+// reached with the visible Higher control; a floating spot isn't offered
 await pageA.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
 await pageA.fill('input[placeholder="e.g. Saturday build"]', `Review fixes ${Date.now()}`);
 await pageA.getByRole("button", { name: "Create and open" }).click();
 await pageA.waitForURL(/\/build\/room\/.*debug/);
 await pageA.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
 
-// ADR 0011: unsupported heights are reachable in Plan mode, where a click proposes
 await pageA.getByRole("button", { name: "Plan mode", exact: true }).click();
 await pageA.locator('.tray button[aria-label^="Brick 2×4,"]').click();
 const p = await pageA.evaluate(() => (window as any).__project(2.5, 0, 2.5));
 await pageA.mouse.move(p.x, p.y, { steps: 3 });
 await pageA.waitForTimeout(150);
-// step the preview's height up with the visible Higher button — reaching a
-// position with nothing real or planned under it, which Place would refuse
-for (let i = 0; i < 2; i++) {
-  await pageA.getByRole("button", { name: /Higher:/ }).click();
-  await pageA.waitForTimeout(80);
-}
+await pageA.mouse.click(p.x, p.y); // the planned wall
+await pageA.waitForTimeout(400);
+await pageA.mouse.move(10, 10);
+const wallY = await pageA.evaluate(() => (window as any).__state().snapshot.plans[0]?.y);
 const previewY = await pageA.evaluate(() => (window as any).__preview()?.placement.y);
-check("the preview can be stepped to an unsupported height with the visible Higher control", (previewY ?? 0) > 0, previewY);
+check("after planning a wall, the next preview sits on the planned wall's top", wallY === 0 && previewY === 3, { wallY, previewY });
+const higherDisabled = await pageA.getByRole("button", { name: /Higher:/ }).isDisabled();
+check("Higher offers no floating height above it", higherDisabled);
 
 const realRejection = await pageA.evaluate(() => (window as any).__preview()?.rejection?.code);
-check("a real placement is correctly refused at that height (nothing real supports it)", realRejection === "unsupported", realRejection);
+check("a real placement is refused there (a plan is no real support)", realRejection === "unsupported", realRejection);
 const proposeDisabled = await pageA.getByRole("button", { name: /Propose plan/ }).getAttribute("aria-disabled");
-check("but Propose plan is enabled there — a plan never requires support", proposeDisabled !== "true", proposeDisabled);
+check("but Propose plan is enabled there: planned support counts for a plan", proposeDisabled !== "true", proposeDisabled);
 
 await pageA.getByRole("button", { name: /Propose plan/ }).click();
 await pageA.waitForTimeout(400);
 const planCreated = await pageA.evaluate(() => (window as any).__state().snapshot.plans.length);
-check("the plan was actually created through the real button, at the unsupported height", planCreated === 1, { planCreated, previewY });
-await pageA.keyboard.press("Escape"); // put the still-held preview down; proposing doesn't do this on its own
+check("the stacked plan was created through the real button", planCreated === 2, { planCreated, previewY });
+await pageA.keyboard.press("Escape");
 await pageA.getByRole("button", { name: "Build mode", exact: true }).click();
 
 // ---- 3. attribution shown when a part is selected, before and after another member edits it

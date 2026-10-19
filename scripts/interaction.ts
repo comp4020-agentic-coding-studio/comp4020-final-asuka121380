@@ -95,11 +95,14 @@ async function aimAndClick(page: Page, x: number, z: number, plates = 0): Promis
   await settle(page);
 }
 
-async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: number, button: "left" | "right" = "left"): Promise<void> {
+// ADR 0012 mapping: right drag orbits, Shift+right or middle drag pans; a plain left drag is the builder's
+async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: number, button: "left" | "right" | "middle" = "right", shift = false): Promise<void> {
   await page.mouse.move(from.x, from.y);
+  if (shift) await page.keyboard.down("Shift");
   await page.mouse.down({ button });
   await page.mouse.move(from.x + dx, from.y + dy, { steps: 12 });
   await page.mouse.up({ button });
+  if (shift) await page.keyboard.up("Shift");
   await page.waitForTimeout(500);
 }
 
@@ -288,7 +291,7 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   await drag(page, p, 160, 40);
   s = await state(page);
   c = await cam(page);
-  check("drag while holding a part moves the camera and places nothing", s.parts.length === count && Math.abs(c.azimuth - c0.azimuth) > 0.05, `${count} → ${s.parts.length} parts; azimuth ${c0.azimuth.toFixed(2)} → ${c.azimuth.toFixed(2)}`);
+  check("right-drag while holding a part orbits the camera and places nothing", s.parts.length === count && Math.abs(c.azimuth - c0.azimuth) > 0.05, `${count} → ${s.parts.length} parts; azimuth ${c0.azimuth.toFixed(2)} → ${c.azimuth.toFixed(2)}`);
   await page.keyboard.press("Escape");
   await page.keyboard.press("Home");
   await page.waitForTimeout(900);
@@ -299,14 +302,14 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   p = await project(page, 8, plateY(3), 1);
   await drag(page, p, -140, 30);
   s = await state(page);
-  check("drag starting on a part with nothing held selects nothing", s.selectedId === null, s.selectedId);
+  check("right-drag starting on a part with nothing held selects nothing", s.selectedId === null, s.selectedId);
   await page.keyboard.press("t");
   await page.waitForTimeout(900);
   await page.keyboard.press("d");
   p = await project(page, 8, plateY(3), 1);
   await drag(page, p, 150, -30);
   s = await state(page);
-  check("drag starting on a part with the delete tool removes nothing", s.parts.some((q) => q.id === second.id) && s.parts.length === count);
+  check("right-drag starting on a part with the delete tool removes nothing", s.parts.some((q) => q.id === second.id) && s.parts.length === count);
   await page.keyboard.press("Escape");
 
   // orbit all the way round, then the ground and zoom limits
@@ -334,11 +337,16 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   for (let i = 0; i < 40; i++) await page.mouse.wheel(0, 600);
   await page.waitForTimeout(800);
   const far = (await cam(page)).distance;
-  check("zoom is bounded both ways", near >= 13.9 && far <= 95.1, `nearest ${near.toFixed(1)}, farthest ${far.toFixed(1)}`);
-  for (let i = 0; i < 4; i++) await drag(page, { x: 960, y: 400 }, -700, -300, "right");
+  // near enough to inspect one part (ADR 0012), never through it; far enough to see the street
+  check("zoom is bounded both ways", near >= 5.9 && far <= 95.1 && far > near + 20, `nearest ${near.toFixed(1)}, farthest ${far.toFixed(1)}`);
+  for (let i = 0; i < 4; i++) await drag(page, { x: 960, y: 400 }, -700, -300, "right", true);
   c = await cam(page);
   const [tx, ty, tz] = c.target;
-  check("panning keeps the target near the plot", tx >= -6.01 && tx <= 22.01 && ty >= -0.01 && ty <= 8.01 && tz >= -5.01 && tz <= 14.01, c.target.map((v) => v.toFixed(1)));
+  check("Shift+right-drag pans, and panning keeps the centre within the plot's margin", tx >= -4.01 && tx <= 20.01 && ty >= -0.01 && ty <= 18.81 && tz >= -4.01 && tz <= 12.01, c.target.map((v) => v.toFixed(1)));
+  const panFrom = (await cam(page)).target;
+  await drag(page, { x: 960, y: 400 }, 200, 80, "middle");
+  const panTo = (await cam(page)).target;
+  check("middle-drag pans too", Math.hypot(panTo[0] - panFrom[0], panTo[1] - panFrom[1], panTo[2] - panFrom[2]) > 0.3, { panFrom, panTo });
   await page.keyboard.press("Home");
   await page.waitForTimeout(900);
   await shot(page, "desktop-after-orbit-reset");
@@ -522,7 +530,7 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   check("the dock folds to its top row", short < tall * 0.6, `${tall.toFixed(0)} → ${short.toFixed(0)} px`);
   await shot(page, "mobile-folded");
   await page.locator(".fold").tap();
-  await page.locator(".chip-button", { hasText: "Top view" }).tap();
+  await page.getByRole("button", { name: "Top view", exact: true }).tap();
   await page.waitForTimeout(900);
   await tray(page, "Plate 2×2").tap();
   let s = await state(page);
@@ -555,7 +563,7 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   s = await state(page);
   check("a two-finger pinch zooms and places nothing", c.distance < d0 - 1 && s.parts.length === placedCount, `distance ${d0.toFixed(1)} → ${c.distance.toFixed(1)}`);
   await page.locator(".context-actions button", { hasText: "Cancel" }).tap();
-  await page.locator(".chip-button", { hasText: "Top view" }).tap();
+  await page.getByRole("button", { name: "Top view", exact: true }).tap();
   await page.waitForTimeout(900);
   await tapAt(await project(page, 5, plateY(1), 3));
   s = await state(page);
