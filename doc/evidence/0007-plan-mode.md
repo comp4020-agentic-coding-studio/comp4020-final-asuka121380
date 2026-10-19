@@ -89,3 +89,27 @@ captures were viewed, not only counted.
 - No physical phone, no Safari/WebKit, no deployed instance.
 - No human playtest: whether two people actually use Plan mode to negotiate a
   design is unobserved.
+
+## Live deployment (added 19 Oct 2026, after the author's "push" and "deploy")
+
+- `git push origin main` moved `origin/main` from `9625f82` to
+  [`e0c3a3e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/e0c3a3e),
+  with no force push. Before pushing, a scan of the diff found no token,
+  private-key, cookie or password patterns, and showed no change to
+  `fly.toml`, the `Dockerfile` or `spec/invariants.test.ts`.
+- The repository is public, so the push itself triggered the `checks`
+  workflow (run 39195594737). Its `check` job (the spec against the built
+  image) and its `deploy` job both succeeded, producing Fly release **v9**.
+  No manual `flyctl deploy` was run.
+- Live checks on https://comp4020-final-asuka121380.fly.dev/: `/`, `/build/`
+  and `/readme/` returned 200. The served editor bundle contains
+  "Plan mode" and "Propose plan", and no "Propose instead".
+- `node scripts/plan-mode.ts https://comp4020-final-asuka121380.fly.dev`:
+  **37/37**, same environment as above (local Chrome, two contexts, emulated
+  phone). The created plan matched the preview; B received it in 4 ms;
+  planned remaining reached −2 with real stock at 4; realizing spent real
+  stock once (17 → 16) with planned remaining unchanged.
+- That run left three test rooms ("Plan mode check …" and two unnamed) in
+  the production database, as earlier browser scripts have. The full HTTP
+  suite was not rerun against production; CI ran it against the deployed
+  image.

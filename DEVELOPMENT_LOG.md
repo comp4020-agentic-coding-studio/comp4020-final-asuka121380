@@ -2052,3 +2052,12 @@ changed in this commit.
 **Ambiguities recorded:** `CLAUDE.md` said the editor had no modes, and ADR
 0009's Decision section still described a support check its own correction
 removed. Both are now annotated rather than rewritten.
+
+### 2026-10-19 14:45 AEDT — Push and deployment of `e0c3a3e` (no code commit)
+
+The author said "push", then "deploy". `git push origin main` (`9625f82` →
+`e0c3a3e`) triggered the public repo's `checks` workflow (run 39195594737):
+`check` and `deploy` both succeeded, producing Fly release v9. No manual
+deploy was needed. Live: routes answered 200, the editor bundle contains
+Plan mode, and `scripts/plan-mode.ts` passed 37/37 against the deployed app.
+Details and limitations: `doc/evidence/0007-plan-mode.md`, "Live deployment".
