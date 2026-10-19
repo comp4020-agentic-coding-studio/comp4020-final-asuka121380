@@ -2187,3 +2187,31 @@ so was `git diff --check`. The screenshots were inspected; see evidence
 **Limitations:** Safari.app, Firefox and physical devices were not tested.
 Touch was emulated in Chrome only. Two contexts on one machine are not two
 people. Nothing was pushed or deployed.
+
+## 19 October 2026, 16:23 AEDT — Delete tool also withdraws plans (Codex)
+
+Commit: [`0270a00`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0270a00)
+— `fix: let delete tool withdraw planned bricks`.
+
+**Decision:** the author requested one Delete tool for real and planned
+bricks, avoiding repeated select-and-withdraw steps. Codex chose to reuse
+the existing authoritative withdraw-plan command and retain support checks.
+
+**Implemented:** Workbench targets and highlights plans in Delete tool;
+App, keyboard and store dispatch by target type. Keyboard target cycling
+includes plans, successful withdrawal clears the target, and the tool stays
+active. Five client-store regression tests and a client Vitest project were
+added. A test exposed localTransport returning withdrawn plans; its snapshot
+now filters to open plans, matching the server contract. CLAUDE.md records
+the interaction. README, PROCESS and reflections were not edited.
+
+**Observed checks:** typecheck and build passed; client/domain/server tests
+79/79; full check against an isolated server with a fresh temporary database
+161/161 across 18 files. Evidence checker and whitespace check passed.
+See [evidence 0009](doc/evidence/0009-delete-plans.md).
+
+**Limitations:** browser control was denied because its security policy
+could not be verified. No browser driver workaround was used. Pointer hit
+testing, visual deletion highlight and touch still need manual acceptance;
+passing store and HTTP tests are not browser evidence. Nothing pushed or
+deployed, and no existing user database was used for tests.
