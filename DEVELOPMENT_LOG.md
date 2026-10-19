@@ -2019,3 +2019,36 @@ realization with no real stock was refused and the plan stayed open.
 on a physical phone; two contexts on one machine, not two people; nothing
 pushed or deployed. In Plan mode the dock is one row taller than in Build
 mode.
+
+### 2026-10-19 14:35 AEDT — [`41a632f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/41a632f) ADR 0011 and CLAUDE.md: Plan mode and derived planning demand
+
+**Changes:**
+- `doc/adr/0011-plan-mode-and-planning-demand.md` (new): the two modes,
+  the single commit path, what differs between modes, planning demand
+  (formula, derived and never stored, may be negative, never consulted by a
+  rule, server authoritative for real stock and realization), alternatives,
+  consequences.
+- `doc/adr/0005-...md`: a "Later change" section saying how its rules apply
+  in Plan mode.
+- `doc/adr/0009-...md`: notes that its original "plausible support" wording
+  was superseded by its own 13 Oct correction, and that the `Propose
+  instead` UI it describes was superseded by ADR 0011. Server rules
+  unchanged.
+- `CLAUDE.md`: the Interaction heading now records the one re-added mode; a
+  new "Build and Plan modes" rule; Esc never changes the mode; planning
+  demand added to "Plans are proposals"; a new "Never" entry against
+  subtracting plans from inventory, storing a planned stock, or letting
+  demand gate real placement or realization.
+
+**Why.** The project keeps decisions in ADRs and binding rules in
+`CLAUDE.md`, updated in the same pass as the implementation.
+
+**Who decided:** the author approved the change and its rules; the agent
+wrote it up and marked its own choices "agent" in ADR 0011.
+
+**Tests:** `pnpm check:evidence` clean; `git diff --check` clean. No code
+changed in this commit.
+
+**Ambiguities recorded:** `CLAUDE.md` said the editor had no modes, and ADR
+0009's Decision section still described a support check its own correction
+removed. Both are now annotated rather than rewritten.
