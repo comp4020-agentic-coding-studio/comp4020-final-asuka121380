@@ -97,6 +97,32 @@ describe("realtime: two people in one room", () => {
     reader.cancel();
   });
 
+  // ADR 0011: Plan mode's demand count is derived on each client from this
+  // same pushed snapshot, so the plan, and the unchanged real stock, must
+  // both arrive on the other member's stream.
+  it("delivers a proposed plan to the other open session, with real stock unchanged", async () => {
+    const a = await freshVisitor();
+    const room = await createPublicRoom(a.cookie);
+    const b = await freshVisitor();
+    await joinRoom(b.cookie, room.roomId);
+    const res = await fetch(new URL(`/api/rooms/${room.roomId}/events`, baseUrl), { headers: { cookie: b.cookie } });
+    const reader = res.body!.getReader();
+    await nextEvent(reader, 2000);
+
+    const start = Date.now();
+    const proposed = await fetch(new URL(`/api/rooms/${room.roomId}/command`, baseUrl), {
+      method: "POST",
+      headers: { cookie: a.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ commandId: randomUUID(), expectedRevision: 0, command: { type: "propose-plan", plan: { partId: "brick-2x4", x: 0, y: 6, z: 0, rot: 0, colour: "sky" } } }),
+    });
+    expect((await proposed.json()).ok).toBe(true);
+    const event = await nextEvent<{ type: string; snapshot: Snapshot & { plans: { partId: string }[] } }>(reader, 2000);
+    expect(Date.now() - start).toBeLessThan(1000);
+    expect(event.snapshot.plans).toHaveLength(1);
+    expect(event.snapshot.inventory["brick-2x4"]).toBe(room.inventory["brick-2x4"]);
+    reader.cancel();
+  });
+
   it("lets two members place in different spots at once; neither rejects the other", async () => {
     const a = await freshVisitor();
     const room = await createPublicRoom(a.cookie);

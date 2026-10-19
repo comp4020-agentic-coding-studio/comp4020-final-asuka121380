@@ -67,6 +67,8 @@ await pageA.getByRole("button", { name: "Create and open" }).click();
 await pageA.waitForURL(/\/build\/room\/.*debug/);
 await pageA.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
 
+// ADR 0011: unsupported heights are reachable in Plan mode, where a click proposes
+await pageA.getByRole("button", { name: "Plan mode", exact: true }).click();
 await pageA.locator('.tray button[aria-label^="Brick 2×4,"]').click();
 const p = await pageA.evaluate(() => (window as any).__project(2.5, 0, 2.5));
 await pageA.mouse.move(p.x, p.y, { steps: 3 });
@@ -80,16 +82,17 @@ for (let i = 0; i < 2; i++) {
 const previewY = await pageA.evaluate(() => (window as any).__preview()?.placement.y);
 check("the preview can be stepped to an unsupported height with the visible Higher control", (previewY ?? 0) > 0, previewY);
 
-const placeDisabled = await pageA.locator(".place-button").getAttribute("aria-disabled");
-check("Place is correctly refused at that height (nothing real supports it)", placeDisabled === "true");
-const proposeDisabled = await pageA.getByRole("button", { name: "Propose instead" }).getAttribute("aria-disabled");
-check("but Propose instead is enabled there — a plan never requires support", proposeDisabled !== "true", proposeDisabled);
+const realRejection = await pageA.evaluate(() => (window as any).__preview()?.rejection?.code);
+check("a real placement is correctly refused at that height (nothing real supports it)", realRejection === "unsupported", realRejection);
+const proposeDisabled = await pageA.getByRole("button", { name: /Propose plan/ }).getAttribute("aria-disabled");
+check("but Propose plan is enabled there — a plan never requires support", proposeDisabled !== "true", proposeDisabled);
 
-await pageA.getByRole("button", { name: "Propose instead" }).click();
+await pageA.getByRole("button", { name: /Propose plan/ }).click();
 await pageA.waitForTimeout(400);
 const planCreated = await pageA.evaluate(() => (window as any).__state().snapshot.plans.length);
 check("the plan was actually created through the real button, at the unsupported height", planCreated === 1, { planCreated, previewY });
 await pageA.keyboard.press("Escape"); // put the still-held preview down; proposing doesn't do this on its own
+await pageA.getByRole("button", { name: "Build mode", exact: true }).click();
 
 // ---- 3. attribution shown when a part is selected, before and after another member edits it
 await pageA.locator('.tray button[aria-label^="Brick 2×4,"]').click();

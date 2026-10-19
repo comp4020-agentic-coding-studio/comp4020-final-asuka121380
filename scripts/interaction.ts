@@ -486,9 +486,18 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
     document.body.append(i);
     i.focus();
   });
-  await page.keyboard.type("dt");
+  await page.keyboard.type("dtp");
   s = await state(page);
-  check("letters typed in a text field aren't shortcuts", !s.deleting && (await page.inputValue("#probe")) === "dt");
+  const typedMode = await page.evaluate(() => (window as any).__state().mode);
+  check("letters typed in a text field aren't shortcuts", !s.deleting && typedMode === "build" && (await page.inputValue("#probe")) === "dtp");
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  // P and the visible Build/Plan buttons (ADR 0011)
+  await page.keyboard.press("p");
+  const viaKey = await page.evaluate(() => (window as any).__state().mode);
+  const pressed = await page.getByRole("button", { name: "Plan mode", exact: true }).getAttribute("aria-pressed");
+  await page.getByRole("button", { name: "Build mode", exact: true }).click();
+  const viaButton = await page.evaluate(() => (window as any).__state().mode);
+  check("P enters Plan mode (shown pressed), and the Build button returns", viaKey === "plan" && pressed === "true" && viaButton === "build", { viaKey, pressed, viaButton });
   check("no console errors", errors.length === 0, errors.join(" | "));
   await context.close();
 }

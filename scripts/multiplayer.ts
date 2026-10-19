@@ -161,15 +161,31 @@ const bothSettled = await waitForConvergence(pageB, (s) => s.snapshot.parts.leng
 check("two simultaneous placements in different spots both succeed and both screens converge", bothSettled >= 0, `${bothSettled}ms`);
 
 // ---- plans and marks, in the real editor (ADR 0009) ------------------------
+// ADR 0011: Plan mode, then a click on the scene proposes exactly the preview
+await pageA.getByRole("button", { name: "Plan mode", exact: true }).click();
 await pageA.locator(`.tray button[aria-label^="Brick 2×4,"]`).click();
 const planCell = await cell(pageA, 10, 1);
 await pageA.mouse.move(planCell.x, planCell.y, { steps: 3 });
 await pageA.waitForTimeout(150);
-await pageA.locator('button:has-text("Propose instead")').click();
+const shownPlan = await pageA.evaluate(() => (window as any).__preview()?.placement);
+await pageA.mouse.click(planCell.x, planCell.y);
 await settle(pageA);
 await pageA.keyboard.press("Escape");
+await pageA.getByRole("button", { name: "Build mode", exact: true }).click();
+const madePlan = (await state(pageA)).snapshot.plans[0];
+check(
+  "A's click in Plan mode proposes exactly the previewed plan, spending no stock",
+  !!madePlan && ["partId", "x", "y", "z", "rot", "colour"].every((k) => madePlan[k] === shownPlan?.[k]),
+  { shown: shownPlan, made: madePlan },
+);
 const planConverged = await waitForConvergence(pageB, (s) => s.snapshot.plans.length === 1);
 check("B sees A's proposed plan appear live", planConverged >= 0 && planConverged < 1000, `${planConverged}ms`);
+// planning demand is derived from the same pushed snapshot on B's screen
+await pageB.getByRole("button", { name: "Plan mode", exact: true }).click();
+const sB24 = (await state(pageB)).snapshot.inventory["brick-2x4"];
+const tileB24 = await pageB.locator(`.tray button[aria-label^="Brick 2×4,"]`).getAttribute("aria-label");
+check("B's Plan-mode tray shows A's plan as planning demand", tileB24 === `Brick 2×4, planned remaining ${sB24 - 1}; ${sB24} real left`, tileB24);
+await pageB.getByRole("button", { name: "Build mode", exact: true }).click();
 
 const plan = (await state(pageB)).snapshot.plans[0];
 const planScreen = await project(pageB, plan.x + 2, 1.0, plan.z + 1); // a brick-2x4 plan, same top-face target as above
