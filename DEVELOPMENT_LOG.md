@@ -2549,3 +2549,19 @@ The agent wrote the text.
 
 **Tests:** `pnpm check:evidence` clean, `git diff --check` clean. No code
 changed in this commit.
+
+### 2026-10-20 15:36 AEDT — Push and deployment of `6b1fda1` (no code commit)
+
+The author said "push and deploy".
+- `git push origin main` moved `f325e2e` → `6b1fda1`, 14 commits.
+- That triggered the `checks` workflow, run 39370218138: `check` and
+  `deploy` both succeeded.
+- Fly release v11.
+
+Live, read-only checks: routes answered 200, `X-Request-Id` is present, the
+lobby bundle matches the local build and contains the identity gate, and
+`flyctl logs` shows the new event format. One anonymous `/api/me` probe
+created one visitor row. Details: evidence 0012, "Live deployment".
+
+**Not done:** the two-classmate rehearsal and browser runs against the
+live app.

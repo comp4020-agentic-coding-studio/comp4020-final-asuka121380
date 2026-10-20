@@ -131,3 +131,29 @@ and its stderr was 0 bytes.
 - **Real log loss, as designed.** Under sustained overload the server
   drops log lines. The `log.dropped` count says how many, but not which.
 - **Not run against the deployed app**, and no two-person test was done.
+
+## Live deployment, 20 October 2026 (added after the push)
+
+The author said "push and deploy".
+- `git push origin main` moved `f325e2e` → `6b1fda1` (14 commits: ADR 0013
+  logging, the identity-ordering fix, the fatal-error and backpressure
+  corrections).
+- That triggered the `checks` workflow, run 39370218138:
+  - `check` succeeded, 04:33:38–04:34:56 UTC
+  - `deploy` succeeded, 04:34:58–04:36:18 UTC
+- Fly release **v11** (`flyctl releases`). No manual deploy was needed.
+
+Checked on the live app, read-only apart from one probe:
+- `/`, `/build/`, `/readme/`, `/api/rooms` and `/api/showcase` answered
+  200.
+- Responses carry `X-Request-Id`.
+- The lobby serves the same bundle as the local build
+  (`lobby-gjpj5ZEZ.js`). Its shared chunk contains the identity gate
+  ("Couldn't start your session") and the Web Lock name `brick-identity`.
+- `flyctl logs` shows the new format: `server.start` at 04:36:15Z, and one
+  `visitor.new` (reason `no_cookie`, route `/api/me`) for the agent's
+  single anonymous `/api/me` probe. That probe created one anonymous
+  visitor row on production; nothing else was written.
+
+Not done on the live app: browser runs, the two-classmate rehearsal, and
+any test of backpressure or shutdown.
