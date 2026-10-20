@@ -24,6 +24,12 @@ export interface ServerProcess {
   exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   /** Sends a signal to the server process. */
   kill: (signal: NodeJS.Signals) => void;
+  /** Stop reading the server's stdout, so its pipe fills as an unread log shipper's would. */
+  pauseStdout: () => void;
+  /** Read it again. */
+  resumeStdout: () => void;
+  /** Close our end of the stdout pipe: the server's next writes fail (EPIPE). */
+  closeStdout: () => void;
 }
 
 export interface StartOptions {
@@ -57,6 +63,7 @@ export async function startServer(opts: StartOptions = {}): Promise<ServerProces
     child.once("exit", (code, signal) => resolve({ code, signal })),
   );
   child.stdout!.setEncoding("utf8").on("data", (d: string) => (out += d));
+  child.stdout!.on("error", () => {}); // after closeStdout
   child.stderr!.setEncoding("utf8").on("data", (d: string) => (err += d));
 
   const events = (): Record<string, unknown>[] =>
@@ -91,7 +98,19 @@ export async function startServer(opts: StartOptions = {}): Promise<ServerProces
     await stop();
     throw e;
   }
-  return { base: `http://127.0.0.1:${port}`, stdout: () => out, stderr: () => err, events, waitFor, stop, exited, kill: (sig) => void child.kill(sig) };
+  return {
+    base: `http://127.0.0.1:${port}`,
+    stdout: () => out,
+    stderr: () => err,
+    events,
+    waitFor,
+    stop,
+    exited,
+    kill: (sig) => void child.kill(sig),
+    pauseStdout: () => void child.stdout!.pause(),
+    resumeStdout: () => void child.stdout!.resume(),
+    closeStdout: () => void child.stdout!.destroy(),
+  };
 }
 
 /** A tiny cookie-keeping client: one per simulated browser profile. */

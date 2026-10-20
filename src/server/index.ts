@@ -8,7 +8,7 @@ import { openDatabase } from "./db.ts";
 import { createRecoveryCode, createSession, deleteSession, findVisitor, hashToken, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
-import { classifyError, commandRef, describeError, emit, known, label, newRequestId, safeId, type Fields } from "./log.ts";
+import { classifyError, commandRef, describeError, emit, flushLogs, known, label, newRequestId, safeId, type Fields } from "./log.ts";
 import { markPlan, openConnections, registerConnection, revokeSession, subscribe } from "./realtime.ts";
 import {
   admissionPreview,
@@ -1074,34 +1074,67 @@ function backgroundError(kind: "presence_sweep" | "sse_keepalive", err: unknown,
   if (stuck) shutdown(1, "open_transaction");
 }
 
-// ---- stopping (ADR 0013, reviewed 20 Oct 2026) ------------------------------
+// ---- stopping (ADR 0013, corrected 20 Oct 2026) -----------------------------
 //
-// One way out, for a signal or a fatal error alike: stop accepting
+// One way out, for a signal or a fatal error alike. The exit status only ever
+// goes up: a signal asks for 0, anything fatal raises it to 1, and nothing
+// lowers it again, so a fatal error while a graceful shutdown is already
+// running still ends the process non-zero.
+//
+// The deadline timer is set before anything else, then: stop accepting
 // connections, end the open ones (SSE streams would otherwise keep the
-// process alive indefinitely), close the database so the WAL is
-// checkpointed, and exit. A hard deadline exits regardless, so shutdown can
-// never hang. Every SQLite call is synchronous, so no request can be part-way
-// through a transaction while this runs.
+// process alive), close the database (checkpointing the WAL), give queued log
+// lines a bounded chance to reach stdout, and exit with the status as it then
+// stands. If cleanup stalls, the deadline exits with that status instead.
+//
+// What the deadline does not guarantee: it is a JavaScript timer, so it only
+// fires while the event loop runs. Logging no longer blocks the loop (log.ts),
+// and every SQLite call is short, but a loop blocked some other way can only
+// be ended from outside: Fly sends SIGKILL a few seconds after its stop
+// signal.
 const SHUTDOWN_DEADLINE_MS = 3000;
+const LOG_FLUSH_MS = 1000;
+let exitStatus = 0;
 let stopping = false;
-function shutdown(code: number, reason: string): void {
-  if (stopping) return; // a second signal, or an error while stopping: the first shutdown is already bounded
+let escalationLogged = false;
+
+function shutdown(code: 0 | 1, reason: string): void {
+  exitStatus = Math.max(exitStatus, code);
+  // also Node's own default, so even an exit by another route (the loop simply
+  // running out of work) carries the escalated status
+  process.exitCode = exitStatus;
+  if (stopping) {
+    // already on the way out: only the status may change, and only upward
+    if (code > 0 && !escalationLogged) {
+      escalationLogged = true;
+      emit({ event: "server.stop", outcome: "error", reason: `escalated_${reason}` });
+    }
+    return;
+  }
   stopping = true;
+  setTimeout(() => process.exit(exitStatus), SHUTDOWN_DEADLINE_MS).unref();
   emit({ event: "server.stop", outcome: code === 0 ? "ok" : "error", reason });
-  setTimeout(() => process.exit(code), SHUTDOWN_DEADLINE_MS).unref();
   clearInterval(presenceSweep);
+  const finish = async (): Promise<void> => {
+    try {
+      if (db.isOpen) db.close();
+    } catch {
+      // already closed or failing: the status already says what it should
+    }
+    // Give queued lines a bounded chance to reach stdout. Wait one turn of the
+    // loop first, so an error raised during cleanup has logged its line (and
+    // raised the status) before the last flush; never wait on an unread pipe
+    // beyond LOG_FLUSH_MS.
+    const until = Date.now() + LOG_FLUSH_MS;
+    await new Promise((r) => setImmediate(r));
+    await flushLogs(Math.max(0, until - Date.now()));
+    process.exit(exitStatus);
+  };
   try {
-    server.close(() => {
-      try {
-        db.close();
-      } catch {
-        // already closed, or failing: exiting is all that's left
-      }
-      process.exit(code);
-    });
+    server.close(() => void finish());
     server.closeAllConnections();
   } catch {
-    process.exit(code);
+    void finish();
   }
 }
 
@@ -1111,7 +1144,9 @@ function shutdown(code: number, reason: string): void {
 // process exits non-zero, so Fly restarts it. Request errors are handled by
 // the Express error handler above; the presence sweep and SSE keep-alive
 // catch their own errors, which are recoverable (each is one idempotent
-// statement, rolled back on failure and simply tried again next tick).
+// statement, rolled back on failure and simply tried again next tick). A
+// fatal error during shutdown raises the exit status and lets the running
+// shutdown finish; it never starts a second one.
 for (const kind of ["uncaught_exception", "unhandled_rejection"] as const) {
   process.on(kind === "uncaught_exception" ? "uncaughtException" : "unhandledRejection", (err: unknown) => {
     emit({ event: "process.crash", outcome: "error", kind, ...describeError(err) });

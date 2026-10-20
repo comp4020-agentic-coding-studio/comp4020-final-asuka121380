@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { writeSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // Structured server logs (ADR 0013): one JSON line per event on stdout,
@@ -72,6 +71,8 @@ export interface Fields {
   port?: number;
   /** Server-generated per HTTP request (also sent as X-Request-Id); absent on background events. */
   req?: string;
+  /** `log.dropped` only: how many lines were dropped since the last report. */
+  lost?: number;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -138,6 +139,7 @@ const VALIDATE: { [K in keyof Fields]-?: (v: unknown) => unknown } = {
   ms: int,
   port: int,
   req: (v) => (typeof v === "string" && UUID.test(v) ? v.toLowerCase() : undefined),
+  lost: int,
 };
 
 /** The exact line `emit` writes: allowlisted, validated fields only. Exported for tests. */
@@ -151,36 +153,179 @@ export function format(fields: Fields, at: Date = new Date()): string {
   return JSON.stringify(out);
 }
 
-/**
- * Writes one line to stdout synchronously. `process.stdout.write` to a pipe
- * (how Fly collects output) is asynchronous: anything still queued when the
- * process exits is lost, which in testing dropped the very line saying why a
- * crashed process exited. A synchronous write is on its way before the next
- * statement runs. If the pipe is full and non-blocking (EAGAIN), retry briefly;
- * past the deadline the line is dropped rather than hang the server.
- */
-export function writeLineSync(line: string, fd = 1, deadlineMs = 2000): void {
-  const buf = Buffer.from(`${line}\n`, "utf8");
-  const until = Date.now() + deadlineMs;
-  let off = 0;
-  while (off < buf.length) {
-    try {
-      off += writeSync(fd, buf, off, buf.length - off);
-    } catch (e) {
-      if ((e as { code?: unknown }).code !== "EAGAIN" || Date.now() > until) throw e;
+// ---- output: a bounded queue in front of stdout (ADR 0013, corrected 20 Oct 2026) ----
+//
+// Lines are never written synchronously. An earlier version used
+// fs.writeSync so a crash line couldn't be lost on exit, but stdout's pipe
+// fd is in blocking mode here, so with the pipe unread (a stalled log
+// shipper) writeSync blocked the whole server in the kernel: no requests, no
+// timers, and no shutdown, until SIGKILL.
+//
+// Now each line goes into an in-memory queue, and the queue is written to the
+// stream one line at a time, waiting for 'drain' whenever write() says the
+// stream is full. The event loop never blocks on logging. Retained lines keep
+// their order. The queue is bounded: past MAX_LINES lines or MAX_BYTES bytes,
+// a new line is dropped (older queued lines are kept, so what survives is
+// contiguous) and counted, and a single `log.dropped` line is written in the
+// gap's place, saying how many were lost. If the stream errors or
+// closes, writing stops for good and further lines are counted, never
+// retried, and never logged about. Under severe output failure, then, some
+// diagnostic lines are lost; that is the deliberate trade-off for never
+// stalling the server.
+
+/** The part of a Writable the queue uses, so a test can stand in a fake stream. */
+export interface LineStream {
+  write(chunk: string, cb?: (err?: Error | null) => void): boolean;
+  once(event: "drain" | "close", listener: (...args: unknown[]) => void): unknown;
+  on(event: "error", listener: (...args: unknown[]) => void): unknown;
+}
+
+export const MAX_LINES = 1000;
+export const MAX_BYTES = 1024 * 1024;
+
+/** Where lines were dropped: written in their place, as one `log.dropped` line, when the stream gets that far. */
+interface Gap {
+  lost: number;
+}
+
+export class LineQueue {
+  private queue: (string | Gap)[] = [];
+  private lines = 0;
+  private bytes = 0;
+  private writing = false;
+  private waitingForDrain = false;
+  private dead = false;
+  private lostWhileDead = 0;
+  private flushWaiters: (() => void)[] = [];
+  private readonly out: LineStream;
+  private readonly limits: { lines: number; bytes: number };
+
+  constructor(out: LineStream, limits = { lines: MAX_LINES, bytes: MAX_BYTES }) {
+    this.out = out;
+    this.limits = limits;
+    // a persistent listener: an unhandled 'error' on stdout (EPIPE) would otherwise be an uncaught exception
+    out.on("error", () => this.die());
+    out.once("close", () => this.die());
+  }
+
+  /** Queues one line. Never throws, never blocks. */
+  push(line: string): void {
+    if (this.dead) {
+      this.lostWhileDead++;
+      return;
     }
+    const size = Buffer.byteLength(line) + 1;
+    if (this.lines >= this.limits.lines || this.bytes + size > this.limits.bytes) {
+      // Mark the gap where it happened, so the report lands after every line
+      // kept from before it and before every line accepted after it. A gap
+      // costs one small object, however many lines it stands for.
+      const last = this.queue[this.queue.length - 1];
+      if (typeof last === "object") last.lost++;
+      else this.queue.push({ lost: 1 });
+      return;
+    }
+    this.queue.push(line);
+    this.lines++;
+    this.bytes += size;
+    this.pump();
+  }
+
+  /** Queued lines and bytes, lines dropped and not yet reported, and whether output has failed. */
+  stats(): { queued: number; bytes: number; dropped: number; dead: boolean } {
+    const pending = this.queue.reduce((n, item) => n + (typeof item === "object" ? item.lost : 0), 0);
+    return { queued: this.lines, bytes: this.bytes, dropped: pending + this.lostWhileDead, dead: this.dead };
+  }
+
+  /** Resolves when everything queued has been handed to the stream, or after `ms`, whichever is first. Never rejects. */
+  flush(ms: number): Promise<boolean> {
+    if (this.idle()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), ms);
+      timer.unref?.();
+      this.flushWaiters.push(() => {
+        clearTimeout(timer);
+        resolve(true);
+      });
+    });
+  }
+
+  private idle(): boolean {
+    return this.dead || (this.queue.length === 0 && !this.writing);
+  }
+
+  private pump(): void {
+    if (this.writing || this.waitingForDrain || this.dead) return;
+    const item = this.queue.shift();
+    if (item === undefined) {
+      this.settle();
+      return;
+    }
+    let line: string;
+    if (typeof item === "object") {
+      line = format({ event: "log.dropped", outcome: "error", reason: "output_backpressure", lost: item.lost });
+    } else {
+      line = item;
+      this.lines--;
+      this.bytes -= Buffer.byteLength(item) + 1;
+    }
+    this.writing = true;
+    let ok: boolean;
+    try {
+      ok = this.out.write(`${line}\n`, (err) => {
+        this.writing = false;
+        if (err) this.die();
+        else this.pump();
+      });
+    } catch {
+      this.writing = false;
+      this.die();
+      return;
+    }
+    if (!ok && !this.dead) {
+      this.waitingForDrain = true;
+      this.out.once("drain", () => {
+        this.waitingForDrain = false;
+        this.pump();
+      });
+    }
+  }
+
+  private die(): void {
+    if (this.dead) return;
+    this.dead = true;
+    this.lostWhileDead += this.queue.reduce((n, item) => n + (typeof item === "object" ? item.lost : 1), 0);
+    this.queue = [];
+    this.lines = 0;
+    this.bytes = 0;
+    this.writing = false;
+    this.settle();
+  }
+
+  private settle(): void {
+    if (!this.idle()) return;
+    const waiters = this.flushWaiters;
+    this.flushWaiters = [];
+    for (const w of waiters) w();
   }
 }
 
-let sink: (line: string) => void = (line) => writeLineSync(line);
+let output: LineQueue | null = null;
+const stdoutQueue = (): LineQueue => (output ??= new LineQueue(process.stdout));
 
-/** Writes one event line. A logging failure never propagates into the request it describes. */
+let sink: (line: string) => void = (line) => stdoutQueue().push(line);
+
+/** Queues one event line. Never throws and never blocks, so logging can't fail or stall the request it describes. */
 export function emit(fields: Fields): void {
   try {
     sink(format(fields));
   } catch {
     // never let logging turn a committed operation into a failed response
   }
+}
+
+/** Best-effort, bounded: resolves once queued lines are handed to stdout, or after `ms`. For use just before exiting. */
+export function flushLogs(ms: number): Promise<boolean> {
+  return output ? output.flush(ms) : Promise.resolve(true);
 }
 
 /** Test seam: capture lines instead of writing them. Returns a restore function. */

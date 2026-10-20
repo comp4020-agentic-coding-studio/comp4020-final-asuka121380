@@ -70,8 +70,10 @@ describe("fatal errors stop the process, safely", () => {
     }
   }, 20_000);
 
-  it("the crash line survives a backed-up stdout pipe (writes are synchronous)", async () => {
-    // fill the pipe with this preload's own (asynchronous) writes, then throw at once
+  it("with stdout congested by other writes but still being read, the crash line arrives before exit (bounded flush)", async () => {
+    // fill the pipe with this preload's own writes, then throw at once; the
+    // reader (this test) keeps reading, so the bounded flush can deliver it.
+    // With a pipe nobody reads, the line can be lost: see log-backpressure.test.ts
     const FLOOD = preload(
       "flood",
       `setTimeout(() => { const l = JSON.stringify({ event: "filler", pad: "x".repeat(200) }) + "\\n"; for (let i = 0; i < 20000; i++) process.stdout.write(l); throw new TypeError("${SENTINEL}"); }, 1500);`,
