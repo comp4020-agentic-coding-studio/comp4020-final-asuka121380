@@ -165,7 +165,11 @@ await pageB.waitForSelector("text=Saved to your collection.");
 const bRoomsAfter = await pageB.evaluate(async () => (await (await fetch("/api/my/rooms")).json()).length);
 check("saving a published version to B's collection creates no room as a side effect", bRoomsAfter === bRoomsBefore, { bRoomsBefore, bRoomsAfter });
 
-const bCollectionCount = await pageB.goto(`${base}/build/?view=collection`, { waitUntil: "domcontentloaded" }).then(() => pageB.locator(".room-row").count());
+// the list renders once the page's identity is established (state/identity.ts), so wait for it before counting
+const bCollectionCount = await pageB
+  .goto(`${base}/build/?view=collection`, { waitUntil: "domcontentloaded" })
+  .then(() => pageB.waitForSelector(".room-row, text=Nothing saved yet", { timeout: 10000 }).catch(() => {}))
+  .then(() => pageB.locator(".room-row").count());
 check("the collected copy appears in B's own collection", bCollectionCount >= 1, bCollectionCount);
 
 // ---- 5. publication policy disclosed in the public lobby before joining

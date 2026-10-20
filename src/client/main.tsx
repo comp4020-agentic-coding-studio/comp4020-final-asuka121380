@@ -2,6 +2,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { installKeyboard } from "./keyboard.ts";
+import { IdentityGate } from "./IdentityGate.tsx";
 import { PreJoinGate } from "./PreJoin.tsx";
 import { getState, preview, setRoomId, start } from "./state/store.ts";
 import { viewQuadrant } from "./state/view.ts";
@@ -45,8 +46,17 @@ function Root() {
   return <App />;
 }
 
+// The pre-join preview, the join, the snapshot and the realtime stream all
+// act as this browser's identity, so it is established first
+// (state/identity.ts). `?local` keeps nothing on the server and needs none.
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Root />
+    {local ? (
+      <Root />
+    ) : (
+      <IdentityGate>
+        <Root />
+      </IdentityGate>
+    )}
   </StrictMode>,
 );

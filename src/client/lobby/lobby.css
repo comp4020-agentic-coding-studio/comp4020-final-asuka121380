@@ -240,3 +240,23 @@ fieldset.field {
 .continue-box h3 {
   margin: 0 0 0.3rem;
 }
+
+/* waiting for, or retrying, this browser's identity (IdentityGate) */
+.identity-gate {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: 1.5rem;
+}
+.identity-gate .access-card {
+  max-width: 28rem;
+  padding: 1.5rem;
+}
+.identity-gate h1 {
+  margin: 0 0 0.5rem;
+  font: 700 1.3rem var(--font-display);
+}
+.identity-gate p {
+  margin: 0 0 1rem;
+  color: var(--ink-soft);
+}

@@ -17,6 +17,7 @@ import {
   type Rejection,
 } from "../../domain/rules.ts";
 import { STREET_SCENE } from "../../domain/scene.ts";
+import { ensureIdentity, resetIdentity } from "./identity.ts";
 import { onIdentityChangedElsewhere } from "./session-events.ts";
 import { AccessError, NetworkError, RoomFullError, type Transport } from "./transport.ts";
 import { screenToGrid } from "./view.ts";
@@ -195,13 +196,11 @@ export async function start(t: Transport): Promise<void> {
   eventSource?.close();
   eventSource = null;
   set({ durable: t.durable, save: { status: "loading" }, connection: "connecting" });
-  if (t.durable) {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((r: { visitorId: string }) => set({ selfId: r.visitorId }))
-      .catch(() => {});
-  }
   try {
+    // the join, the snapshot and the realtime stream all act as this
+    // browser's identity: establish it first, and know who "you" are from
+    // the same answer (state/identity.ts)
+    if (t.durable) set({ selfId: (await ensureIdentity()).visitorId });
     const snapshot = await t.load();
     set({ snapshot, save: { status: "saved" } });
     if (t.durable) connectRealtime(snapshot.roomId);
@@ -224,6 +223,7 @@ export async function start(t: Transport): Promise<void> {
   stopIdentityWatch?.();
   if (t.durable) {
     stopIdentityWatch = onIdentityChangedElsewhere(() => {
+      resetIdentity();
       putDown();
       select(null);
       selectPlan(null);

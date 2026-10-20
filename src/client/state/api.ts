@@ -2,6 +2,8 @@
 // friends and invitations. Every call is same-origin, cookie-based; nothing
 // here decides anything the server doesn't re-check.
 
+import { ensureIdentity } from "./identity.ts";
+
 export interface LobbyRoom {
   id: string;
   sceneId: string;
@@ -50,7 +52,8 @@ export interface Account {
   username: string;
   displayName: string;
 }
-export const whoAmI = (): Promise<{ visitorId: string; account: Account | null }> => fetch("/api/me").then((r) => json(r));
+/** Who this browser is now. Goes through `ensureIdentity`, so a first visit's identity is established once, never raced. */
+export const whoAmI = (): Promise<{ visitorId: string; account: Account | null }> => ensureIdentity();
 
 // ---- explicit accounts (phase 2 corrective review) -------------------------
 

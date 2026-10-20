@@ -62,7 +62,11 @@ const noEditorControls = !(await pageA.locator(".tray").count());
 check("2. opening a saved version shows a read-only page with no building controls", noEditorControls);
 const snapshotId = new URL(pageA.url()).searchParams.get("snapshot")!;
 
-const collectionRow = await pageA.goto(`${base}/build/?view=collection`, { waitUntil: "domcontentloaded" }).then(() => pageA.locator(".room-row").count());
+// the list renders once the page's identity is established (state/identity.ts), so wait for it before counting
+const collectionRow = await pageA
+  .goto(`${base}/build/?view=collection`, { waitUntil: "domcontentloaded" })
+  .then(() => pageA.waitForSelector(".room-row, text=Nothing saved yet", { timeout: 10000 }).catch(() => {}))
+  .then(() => pageA.locator(".room-row").count());
 check("the saved version also appears by browsing the collection page", collectionRow >= 1, collectionRow);
 
 // ---- 3. Continue it in a new, independent room -----------------------------

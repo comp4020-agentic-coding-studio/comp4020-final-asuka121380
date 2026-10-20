@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { confirmSignIn, createRecoveryCode, migrationCheck, register, signIn, signOut, whoAmI, type Account, type RegisterCode } from "../state/api.ts";
+import { resetIdentity } from "../state/identity.ts";
 import { broadcastIdentityChange } from "../state/session-events.ts";
 
 // Explicit accounts (phase 2 corrective review, author-approved scope
@@ -244,6 +245,7 @@ export function AccountPage() {
       setMode("sign-in");
       return;
     }
+    resetIdentity(); // the confirm response set the account's cookie; "who am I" must be asked again
     setAccount(r.account);
     setMode("signed-in");
     // this browser's identity just changed (this tab's own cookie is
@@ -266,6 +268,7 @@ export function AccountPage() {
 
   const doSignOut = async () => {
     await signOut();
+    resetIdentity(); // the sign-out response already set a fresh anonymous cookie
     setAccount(null);
     setPending(null);
     setJustSignedOut(true);

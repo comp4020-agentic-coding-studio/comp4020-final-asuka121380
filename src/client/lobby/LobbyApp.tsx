@@ -5,6 +5,7 @@ import { brandMark } from "../ui/iso.ts";
 import { AccountPage } from "./Account.tsx";
 import { CollectionPage, ShowcasePage, SnapshotViewerPage } from "./Collection.tsx";
 import { useDisplayNames, who } from "../state/names.ts";
+import { resetIdentity } from "../state/identity.ts";
 import { onIdentityChangedElsewhere } from "../state/session-events.ts";
 import {
   createFriendLink,
@@ -596,7 +597,14 @@ export function LobbyApp() {
   useEffect(refreshWho, []);
   // a sign-out or account switch completed in another tab: refresh who
   // this tab is now, so a stale "Sign in" / display name never lingers
-  useEffect(() => onIdentityChangedElsewhere(refreshWho), []);
+  useEffect(
+    () =>
+      onIdentityChangedElsewhere(() => {
+        resetIdentity();
+        refreshWho();
+      }),
+    [],
+  );
 
   const goTo = (roomId: string) => {
     // the browser test harness's ?debug flag (and any future query param)
