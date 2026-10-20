@@ -68,6 +68,11 @@ Option 3 (author).
 - **Never logged, never in a URL.** The code travels only in a POST body
   over HTTPS (Fly terminates TLS); the structured log in `index.ts` never
   receives request bodies, and this stays true for the new route.
+  *(Corrected by ADR 0013, 20 Oct 2026: the command log line never did, but
+  Express's default error handler printed error stacks, and a JSON parse
+  error's stack quotes the start of the body. A malformed recovery request
+  could therefore have put part of a code into the logs. A safe error
+  handler that never prints input now replaces it.)*
 - **Existing anonymous builds are untouched.** A visitor row created before
   this change behaves identically: it can still generate a recovery code
   going forward, and its existing build becomes a single-member room under

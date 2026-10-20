@@ -41,3 +41,24 @@ highlight; tool remains active; top-down deletion; refusal when supporting
 another plan; real stock unchanged for plans; real deletion returns stock.
 Also check toolbar Remove it and keyboard Enter/Delete/Backspace. Existing
 browser regression scripts were not rerun. The deployed site was not tested.
+
+## Addendum, 20 October 2026 (AEDT, added by Claude): deployment record
+
+The original text above is unchanged. It describes the state when it was
+written: implemented in the local checkout, not deployed.
+
+The author later reported that the change was pushed and deployed. The
+GitHub Actions record confirms it (read with `gh run view`, read-only):
+- Run 39204979166, triggered by the push of
+  [`f325e2e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/f325e2e),
+  whose history includes
+  [`0270a00`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0270a00).
+- Job `check` succeeded, 05:31:11–05:32:04 UTC on 19 Oct 2026.
+- Job `deploy` succeeded, 05:32:06–05:32:45 UTC (16:32–16:33 AEDT).
+
+Not checked:
+- the Fly release number (no `flyctl` command was run)
+- anything on the deployed site
+
+The limits listed above still stand. Browser acceptance of the Delete tool's
+pointer, highlight and touch behaviour was not done for that change.

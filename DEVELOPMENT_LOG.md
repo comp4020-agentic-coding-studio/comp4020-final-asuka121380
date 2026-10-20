@@ -2215,3 +2215,103 @@ could not be verified. No browser driver workaround was used. Pointer hit
 testing, visual deletion highlight and touch still need manual acceptance;
 passing store and HTTP tests are not browser evidence. Nothing pushed or
 deployed, and no existing user database was used for tests.
+
+### 2026-10-20 13:32 AEDT — [`eddc87d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/eddc87d) Safe structured logging: allowlisted event lines and an error handler that never prints input
+
+**Changes:**
+- `src/server/log.ts` (new): typed `Fields` allowlist, a validator per
+  field, `label` (8-hex visitor label), `safeId`, `commandRef` (hash for a
+  non-UUID command id), `classifyError`, `describeError` (class, code, own
+  `src/` frames only), and a test capture seam.
+- `src/server/index.ts`:
+  - a request id per request (`X-Request-Id`)
+  - a final error handler that logs only safe fields and sends the same
+    page Express sent in production: 400/413/500 status text, same CSP and
+    nosniff headers, never a stack
+  - uncaught exceptions and background timers logged the same way
+  - `listening` becomes `server.start`, without `DATA_DIR`
+  - the command line keeps its information under the new field names
+- `spec/server/helpers/server-process.ts` (new): starts the real server in
+  its own process on a free port with a temporary `DATA_DIR`, and captures
+  stdout and stderr.
+- `spec/server/log-format.test.ts` (12) and `spec/server/log-errors.test.ts`
+  (5) are new.
+
+**Why.** The investigation found that Express's default error handler
+printed full stacks to stderr even in production. The stack of a JSON parse
+error quotes the first characters of the body: `"x=1" is not valid JSON`,
+seen on the old server. The author asked for this fixed first, with
+allowlists rather than a denylist.
+
+**Who decided:** the author set the constraints (allowlist, no raw
+message, stack or URL, statuses kept, sentinel tests). The agent chose the
+field set, the HTML-page compatibility, and the frame filter.
+
+**Tests:**
+- The new server tests passed.
+- `log-errors.test.ts` failed 3/5 against the previous `index.ts`.
+- Full suite against an isolated server: 178/178.
+
+### 2026-10-20 13:37 AEDT — [`cd1b5fe`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cd1b5fe) Log who did what: rooms, commands with targets and attribution, snapshots, identity, social, SSE
+
+**Changes:**
+- `src/server/builds.ts`: `commandMeta` reads the target, part, position,
+  colour and original builder or proposer from state inside the
+  transaction. A duplicate reports its first revision.
+- `src/server/index.ts`: events for:
+  - visitors, accounts and recovery
+  - room create, join, leave, refused reads and invitations
+  - commands, including early refusals (`no_session`, `not_json`,
+    `too_fast`, `bad_envelope`)
+  - plan marks
+  - friends
+  - snapshots: save, publish, collect, continue, refused reads
+  - SSE open and close
+  - presence end (signed out, session replaced, expired)
+- The public responses are unchanged. A non-admitted command still answers
+  `bad_request`; the log says `not_admitted`.
+- Helper return types gained log-only fields:
+  - `rooms.ts`: `JoinOutcome.changed`, `leave` → boolean, `sweepPresence`
+    returns who expired
+  - `friends.ts`: `RespondOutcome.fromVisitor`
+  - `snapshots.ts`: publish `reason`, `snapshotExists`
+  - `realtime.ts`: `openConnections`
+- `visitor.new` carries its creating `route`, after a browser run showed
+  one first page load creating four visitors.
+- `spec/server/log-events.test.ts` (11) and
+  `spec/server/log-metadata.test.ts` (7) are new.
+
+**Why.** For Crit 10's "narrate who did what from server logs", using the
+coverage the author approved.
+
+**Who decided:** the author approved the coverage and the outcome
+semantics. The agent chose the event names, the field per event, and the
+`route` on `visitor.new`.
+
+**Tests:**
+- Server project: 50/50.
+- Full suite against an isolated server: 196/196; server stderr 0 bytes.
+- `multiplayer.ts` 17/17 and `plan-mode.ts` 42/42 (Playwright, local
+  Chrome).
+
+### 2026-10-20 13:42 AEDT — [`c365c02`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c365c02) Log the pre-join refusal, and a scripted local rehearsal of the Crit 10 permission procedure
+
+**Changes:**
+- `room.preview` now logs the editor's first request for a room link. An
+  invite-only room with no standing is refused there before any join, as
+  `denied no_invitation` with the same public 404.
+- `scripts/log-rehearsal.ts` (new) drives Procedure A through the visible
+  UI in two browser contexts. It refuses any non-local host. It writes the
+  run's server lines and checks they tell the story.
+
+**Why.** The first rehearsal run found no refusal line: the UI never
+reached `join`.
+
+**Tests:**
+- Rehearsal: 13/13 against an isolated server.
+- Server project: 50/50.
+
+**Observed, not changed:** on a cookie-less first visit, parallel lobby
+requests each create a visitor, and the browser keeps the last cookie. The
+script reads identities after the page settles. Recorded for the author in
+evidence 0010.

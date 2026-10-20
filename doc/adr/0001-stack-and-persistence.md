@@ -11,7 +11,8 @@ The course fixes one shared-cpu-1x machine with 256 MB, one volume at
 server-sent HTML. The game is an interactive 3D workbench whose durable state
 is a build: placed parts, stock and a revision. It continues past C8 into
 real-time co-op (C9), action logs (C10), material requests, planning and
-exhibit views.
+exhibit views. *(C10's action logs, as built: ADR 0013, structured server
+output on stdout. `room_activity` is unchanged.)*
 
 ## Options considered
 

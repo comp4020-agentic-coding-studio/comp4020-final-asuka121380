@@ -9,8 +9,9 @@ A browser 3D brick-building and cooperative-creation site that will hold
 several scenes. The first scene is a row of colourful beach houses; it is not
 the identity of the whole site (author, 6 Oct 2026 evening; ADR 0004).
 
-**Current milestone: C9, real-time shared rooms (author, 13 Oct 2026;
-supersedes the solo-only scope below).** A build now belongs to a room with
+**Current milestone: C10, fly by instruments (author, 20 Oct 2026): the
+server logs who did what (ADR 0013) on top of C9's real-time shared rooms
+(author, 13 Oct 2026; supersedes the solo-only scope below).** A build now belongs to a room with
 up to a scene's configured number of members (ADR 0007), not to one visitor.
 Real-time sync, shared inventory, transparent plans, live marks, durable
 contributor attribution and immutable snapshots are now in scope and
@@ -126,6 +127,14 @@ Each entry gives, in proportion to the change:
 - Publish a snapshot the publication policy doesn't clear, including through
   a derived room or a showcase preview; a restricted snapshot's restriction
   follows every room and snapshot derived from it (ADR 0009).
+- Log a request body, header, cookie, session token or its hash, password,
+  username, display name, recovery code, friend-link token, room label, IP
+  address, raw error message or stack, original URL or query string; or
+  build a log line any way other than `src/server/log.ts`'s allowlisted
+  fields. Never let a logging failure change an API response, and never let
+  Express's (or Node's) default handlers print an error (author, 20 Oct
+  2026; ADR 0013, after a malformed body's start was found in Express's
+  error output).
 - Store a recovery code anywhere but its hash, put one in a log or a URL, or
   let a friend-request link double as a recovery or login credential
   (ADR 0006).
@@ -186,6 +195,38 @@ Each entry gives, in proportion to the change:
   silently switch it away with no confirmation (ADR 0006/0010, corrected
   14 Oct 2026 after an independent review found recovery could fully
   bypass a password with the right sequence of calls).
+
+## Server logs (author, 20 Oct 2026; ADR 0013)
+
+- Server output is the diagnostic channel for "who did what": one JSON line
+  per event on stdout, read with
+  `mise exec -- flyctl logs -a comp4020-final-asuka121380`. It is not room
+  history, and it is never shown to players. There is no activity feed,
+  history API or admin page. `room_activity` stays as it is: committed
+  construction commands only.
+- Every line goes through `src/server/log.ts`:
+  - a typed `Fields` allowlist, with a validator per field
+  - client-supplied ids logged only when UUID-shaped (else "unrecognised",
+    or a hash for command ids)
+  - visitors shown as the 8-hex label (`actor`); never names, usernames or
+    IPs
+  - one server-generated request id (`req`, `X-Request-Id`) per HTTP
+    request
+- A new server action that changes state, or refuses someone, gets an event
+  in the same change, emitted after its transaction. Use the outcome
+  vocabulary in ADR 0013, and keep these apart:
+  - a commit from a no-op
+  - a duplicate from a second action
+  - a rule refusal from a permission refusal
+  - an expected refusal from an unexpected error
+- Attribution (`author`: original builder or plan proposer) comes from
+  server state, never the client. Public error codes and response shapes
+  don't change for the sake of the log.
+- No per-frame, heartbeat, pointer or preview lines. No client telemetry for
+  clicks the editor refuses locally.
+- Fly's retention is short and not ours to promise. Logging stays on in the
+  normal app. Excerpts worth keeping go into `doc/evidence/` after a check
+  against the never-logged list.
 
 ## Shape of the code
 
@@ -417,6 +458,12 @@ Each entry gives, in proportion to the change:
   WebKit build was used, say exactly which (author).
 - For visual changes, look at real browser screenshots, not only test counts
   (author).
+- After any change to a server route or the command path, run the logging
+  tests (`spec/server/log-*.test.ts`, in `pnpm check`). For a change that
+  adds or changes events, also run `node scripts/log-rehearsal.ts <local-url>
+  <server-stdout-file> <out-dir>` against a local server, and read the lines
+  it produced. Say whether log evidence came from a scripted local run or
+  from people using the deployed app (author, ADR 0013).
 - After any change to interaction, the camera or the dock, run
   `node scripts/interaction.ts <url> <out-dir>` against a running server, and
   add a check when adding a rule or shortcut (proposed).
