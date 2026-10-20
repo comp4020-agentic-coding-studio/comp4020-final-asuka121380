@@ -20,6 +20,16 @@ export interface ServerProcess {
   /** Waits until a line matching `pred` has been written (logs are written after the response is sent in some paths). */
   waitFor: (pred: (e: Record<string, unknown>) => boolean, ms?: number) => Promise<Record<string, unknown>>;
   stop: () => Promise<void>;
+  /** Resolves with the exit code (or signal) once the process has exited. */
+  exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  /** Sends a signal to the server process. */
+  kill: (signal: NodeJS.Signals) => void;
+}
+
+export interface StartOptions {
+  /** Extra arguments to node before the script, e.g. ["--import", "/tmp/x.mjs"] for a test-only preload. */
+  nodeArgs?: string[];
+  env?: Record<string, string>;
 }
 
 async function freePort(): Promise<number> {
@@ -33,16 +43,19 @@ async function freePort(): Promise<number> {
   });
 }
 
-export async function startServer(): Promise<ServerProcess> {
+export async function startServer(opts: StartOptions = {}): Promise<ServerProcess> {
   const dataDir = mkdtempSync(join(tmpdir(), "brick-log-test-"));
   const port = await freePort();
   let out = "";
   let err = "";
-  const child: ChildProcess = spawn(process.execPath, ["src/server/index.ts"], {
+  const child: ChildProcess = spawn(process.execPath, [...(opts.nodeArgs ?? []), "src/server/index.ts"], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, NODE_ENV: "production" },
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, NODE_ENV: "production", ...opts.env },
     stdio: ["ignore", "pipe", "pipe"],
   });
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) =>
+    child.once("exit", (code, signal) => resolve({ code, signal })),
+  );
   child.stdout!.setEncoding("utf8").on("data", (d: string) => (out += d));
   child.stderr!.setEncoding("utf8").on("data", (d: string) => (err += d));
 
@@ -78,7 +91,7 @@ export async function startServer(): Promise<ServerProcess> {
     await stop();
     throw e;
   }
-  return { base: `http://127.0.0.1:${port}`, stdout: () => out, stderr: () => err, events, waitFor, stop };
+  return { base: `http://127.0.0.1:${port}`, stdout: () => out, stderr: () => err, events, waitFor, stop, exited, kill: (sig) => void child.kill(sig) };
 }
 
 /** A tiny cookie-keeping client: one per simulated browser profile. */

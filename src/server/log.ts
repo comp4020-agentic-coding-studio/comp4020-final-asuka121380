@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { writeSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // Structured server logs (ADR 0013): one JSON line per event on stdout,
@@ -150,9 +151,28 @@ export function format(fields: Fields, at: Date = new Date()): string {
   return JSON.stringify(out);
 }
 
-let sink: (line: string) => void = (line) => {
-  process.stdout.write(`${line}\n`);
-};
+/**
+ * Writes one line to stdout synchronously. `process.stdout.write` to a pipe
+ * (how Fly collects output) is asynchronous: anything still queued when the
+ * process exits is lost, which in testing dropped the very line saying why a
+ * crashed process exited. A synchronous write is on its way before the next
+ * statement runs. If the pipe is full and non-blocking (EAGAIN), retry briefly;
+ * past the deadline the line is dropped rather than hang the server.
+ */
+export function writeLineSync(line: string, fd = 1, deadlineMs = 2000): void {
+  const buf = Buffer.from(`${line}\n`, "utf8");
+  const until = Date.now() + deadlineMs;
+  let off = 0;
+  while (off < buf.length) {
+    try {
+      off += writeSync(fd, buf, off, buf.length - off);
+    } catch (e) {
+      if ((e as { code?: unknown }).code !== "EAGAIN" || Date.now() > until) throw e;
+    }
+  }
+}
+
+let sink: (line: string) => void = (line) => writeLineSync(line);
 
 /** Writes one event line. A logging failure never propagates into the request it describes. */
 export function emit(fields: Fields): void {

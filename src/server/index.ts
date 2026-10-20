@@ -607,7 +607,7 @@ app.get("/api/rooms/:id/events", (req, res) => {
     try {
       markActive(db, room.id, visitorId);
     } catch (err) {
-      emit({ event: "background.error", outcome: "error", kind: "sse_keepalive", actor: label(visitorId), room: room.id, req: reqId, ...describeError(err) });
+      backgroundError("sse_keepalive", err, { actor: label(visitorId), room: room.id, req: reqId });
     }
   }, 10_000);
   const openedAt = Date.now();
@@ -1056,26 +1056,68 @@ const presenceSweep = setInterval(() => {
   try {
     for (const { roomId, visitorId } of sweepPresence(db)) emit({ event: "presence.end", outcome: "changed", reason: "expired", actor: label(visitorId), room: roomId });
   } catch (err) {
-    emit({ event: "background.error", outcome: "error", kind: "presence_sweep", ...describeError(err) });
+    backgroundError("presence_sweep", err);
   }
 }, 10_000);
 
-// Anything thrown outside a request would otherwise reach Node's default
-// handler, which prints the error's message and stack. Log it safely and exit
-// with the same status Node would have used, so Fly still restarts the app.
+/**
+ * A background timer's failure. The presence sweep and the SSE keep-alive
+ * each run one statement in one transaction, rolled back on failure and
+ * simply run again on the next tick, so a failure is recoverable and the
+ * server keeps serving. The exception: if the database was left inside a
+ * transaction (the rollback itself failed), the state can't be trusted and
+ * every later write would fail, so that is treated as fatal.
+ */
+function backgroundError(kind: "presence_sweep" | "sse_keepalive", err: unknown, extra: Pick<Fields, "actor" | "room" | "req"> = {}): void {
+  const stuck = db.isOpen && db.isTransaction;
+  emit({ ...extra, event: "background.error", outcome: "error", reason: stuck ? "fatal_open_transaction" : "recoverable", kind, ...describeError(err) });
+  if (stuck) shutdown(1, "open_transaction");
+}
+
+// ---- stopping (ADR 0013, reviewed 20 Oct 2026) ------------------------------
+//
+// One way out, for a signal or a fatal error alike: stop accepting
+// connections, end the open ones (SSE streams would otherwise keep the
+// process alive indefinitely), close the database so the WAL is
+// checkpointed, and exit. A hard deadline exits regardless, so shutdown can
+// never hang. Every SQLite call is synchronous, so no request can be part-way
+// through a transaction while this runs.
+const SHUTDOWN_DEADLINE_MS = 3000;
+let stopping = false;
+function shutdown(code: number, reason: string): void {
+  if (stopping) return; // a second signal, or an error while stopping: the first shutdown is already bounded
+  stopping = true;
+  emit({ event: "server.stop", outcome: code === 0 ? "ok" : "error", reason });
+  setTimeout(() => process.exit(code), SHUTDOWN_DEADLINE_MS).unref();
+  clearInterval(presenceSweep);
+  try {
+    server.close(() => {
+      try {
+        db.close();
+      } catch {
+        // already closed, or failing: exiting is all that's left
+      }
+      process.exit(code);
+    });
+    server.closeAllConnections();
+  } catch {
+    process.exit(code);
+  }
+}
+
+// Anything thrown or rejected outside a request is fatal: the process may be
+// in a state nobody planned for, so it never goes on serving. It is logged
+// safely (Node's default handler would print the message and stack) and the
+// process exits non-zero, so Fly restarts it. Request errors are handled by
+// the Express error handler above; the presence sweep and SSE keep-alive
+// catch their own errors, which are recoverable (each is one idempotent
+// statement, rolled back on failure and simply tried again next tick).
 for (const kind of ["uncaught_exception", "unhandled_rejection"] as const) {
   process.on(kind === "uncaught_exception" ? "uncaughtException" : "unhandledRejection", (err: unknown) => {
     emit({ event: "process.crash", outcome: "error", kind, ...describeError(err) });
-    process.exit(1);
+    shutdown(1, kind);
   });
 }
 
-// Fly stops idle machines with SIGINT; close cleanly so WAL is checkpointed.
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    clearInterval(presenceSweep);
-    server.close();
-    db.close();
-    process.exit(0);
-  });
-}
+// Fly stops idle machines with SIGINT; a deploy sends SIGTERM.
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => shutdown(0, signal.toLowerCase()));
