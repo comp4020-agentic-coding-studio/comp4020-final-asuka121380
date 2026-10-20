@@ -2315,3 +2315,43 @@ reached `join`.
 requests each create a visitor, and the browser keeps the last cookie. The
 script reads identities after the page settles. Recorded for the author in
 evidence 0010.
+
+### 2026-10-20 13:49 AEDT — [`0a200ba`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0a200ba) ADR 0013, CLAUDE.md, evidence 0010: server logs that say who did what
+
+**Changes:**
+- `doc/adr/0013-server-logs-who-did-what.md` (new) separates:
+  - Crit 10's requirements (course)
+  - the project's logging design: storage homes, line format, identifiers,
+    outcomes, the event table, the error handler
+  - a permissions table restating ADRs 0007 and 0009
+  - Procedures A and B, and alternatives
+- ADR 0006 is corrected and ADR 0001 annotated.
+- `CLAUDE.md`:
+  - the milestone is now C10
+  - a "Server logs" section
+  - a Never entry listing what may not be logged
+  - a verification step after route changes
+- `doc/evidence/0010-server-logs.md` and `doc/evidence/logs/`: a real
+  excerpt from a scripted local run, checked against the never-logged list.
+- `doc/evidence/0009-delete-plans.md`: a dated addendum. It cites CI run
+  39204979166, whose `check` and `deploy` jobs succeeded for `f325e2e`
+  (read-only `gh run view`). The original text is unchanged.
+
+**Who decided:** the author set the separation of course requirements from
+our choices, the two procedures, and the addendum rule. The agent wrote the
+text.
+
+**Tests:**
+- `pnpm check:evidence` clean; `git diff --check` clean.
+- No code changed in this commit.
+- Against a fresh isolated server at HEAD:
+  - `pnpm check` 196/196 (22 files)
+  - browser scripts: interaction 85/85, multiplayer 17/17, plan-mode
+    42/42, review-fixes 15/15, invites 7/7, session-revocation 5/5,
+    inactive-member 6/6
+  - server stderr 0 bytes
+
+**Limitations:**
+- Procedure B (two classmates, deployed app) has not happened.
+- The deployed app still runs the previous logging.
+- Nothing pushed or deployed.
