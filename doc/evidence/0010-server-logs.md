@@ -154,3 +154,34 @@ The full browser run also produced:
   is the reliable key.
 - **Browser runs used Playwright with local Chrome on one machine.** No
   Safari, no physical device, and no network between the two "people".
+
+## Follow-up, 20 October 2026 (later the same day)
+
+The text above is kept exactly as observed. Corrections and later results:
+
+- **The first-visit behaviour was an ownership bug, not only log noise.**
+  "For narration, the extra identities never act again" understated it. A
+  slow first response could leave something the player had just made (in
+  testing, a friend link) owned by an identity the browser then lost.
+  - Fixed in
+    [`a04c99e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/a04c99e).
+  - Details and tests are in
+    [evidence 0011](0011-identity-ordering-and-fatal-errors.md).
+- **Scope of "who did what".** The
+  [`cd1b5fe`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cd1b5fe)
+  commit message and the agent's handoff said every server-observed action
+  writes a line. What is covered is ADR
+  0013's table of defined significant events. Several things are
+  intentionally not all logged:
+  - routine reads such as lobby lists, snapshot views and showcase reads
+  - polling
+  - heartbeats
+  - pointer and preview movement
+  - clicks the editor refuses locally before sending anything
+- **Crash lines could be lost on a backed-up stdout pipe.** That is fixed
+  in
+  [`b9ec1ed`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b9ec1ed)
+  (evidence 0011, section 2).
+- **Rehearsal checks under the new client.** `log-rehearsal.ts` still
+  passes 13/13 with the identity fix. Its excerpt now begins with one
+  `visitor.new` per browser, from `/api/me`.

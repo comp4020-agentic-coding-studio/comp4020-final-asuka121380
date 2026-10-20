@@ -2355,3 +2355,96 @@ text.
 - Procedure B (two classmates, deployed app) has not happened.
 - The deployed app still runs the previous logging.
 - Nothing pushed or deployed.
+
+### 2026-10-20 14:38 AEDT — [`a04c99e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/a04c99e) Establish the browser's identity before anything acts as it (first-visit race)
+
+**Root cause** (code trace, then confirmed in Chrome against an isolated
+server): the cookie is issued by whichever request first arrives without
+one. The lobby sent five requests at once on a first visit; four created
+visitors, and the browser kept whichever cookie arrived last.
+
+**Confirmed impact:**
+- The lobby showed one identity as "you" while every later request ran as
+  another.
+- With one response held back 2.5 s by a local proxy, a friend link made
+  in that window belonged to the identity the browser then lost.
+- Three same-profile tabs created four visitors.
+- The direct room-link path was not affected: its only first request is
+  the preview.
+
+**Changes** (client only):
+- `src/client/state/identity.ts` (new): `ensureIdentity()`, one shared
+  `GET /api/me` under the Web Lock `brick-identity`, a 10 s timeout,
+  failures not cached; `resetIdentity()`.
+- `src/client/IdentityGate.tsx` (new): wraps the lobby and the editor (not
+  `?local`), with a retry on failure.
+- `store.start()` waits for identity before `load()` and SSE.
+- `whoAmI()` goes through it.
+- Account sign-in and sign-out, and the lobby's cross-tab handler, reset
+  it.
+
+**Who decided:** the author asked for the ordering (resolve identity,
+wait, then dependent work), a cross-tab check, a recoverable failure, and
+no server or identity-model change. The agent chose the shared promise,
+the Web Lock and the gate placement.
+
+**Tests:**
+- `spec/client/identity.test.ts`: 5/5.
+- `scripts/identity-race.ts` (new): 18/18 in Chrome.
+- The same script against the previous client failed 8 checks, then timed
+  out at the missing retry screen.
+
+Details: evidence 0011.
+
+### 2026-10-20 14:45 AEDT — [`498bdfe`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/498bdfe) Browser scripts: wait for the collection list with a valid locator
+
+`a04c99e` made `review-fixes.ts` and `showcase.ts` wait for the collection
+list, which now renders after identity is established. That wait mixed CSS
+and Playwright's text engine in one selector, failed silently, and left the
+count racing the list. This commit replaces it with
+`locator(".room-row").or(getByText(...))`.
+
+**Tests:** both scripts passed twice each on fresh servers (15/15, 16/16).
+
+### 2026-10-20 14:45 AEDT — [`b9ec1ed`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b9ec1ed) Fatal errors: synchronous log lines, one bounded shutdown, recoverable vs fatal background errors
+
+**Found:** with stdout a backed-up pipe, `process.exit(1)` dropped the
+queued `process.crash` line, because `process.stdout.write` is asynchronous
+on pipes. Fatal errors already exited 1 and never kept serving.
+
+**Changes:**
+- `log.ts`: `writeLineSync`. Lines are written synchronously, with EAGAIN
+  retried for at most 2 s.
+- `index.ts`: one `shutdown()` for signals and fatal errors. It stops
+  accepting, ends all connections including SSE, closes the database, and
+  exits, with a 3 s hard deadline and re-entry ignored.
+- Background timer errors are logged as `recoverable`, and as fatal if
+  the database is left mid-transaction.
+- `server-process.ts`: preload args, exit status and signals for tests.
+
+**Who decided:** the author set the requirements (no swallowing fatal
+errors, bounded shutdown, sanitized output, tests on real exit status, no
+unargued retries). The agent chose synchronous writes over a drain-on-exit,
+the 3 s deadline, and the open-transaction rule.
+
+**Tests:**
+- `spec/server/process-lifecycle.test.ts`: 8/8, using test-only
+  `--import` preloads with no hook in the server.
+- Against the previous server files, 4 of the first 6 failed.
+
+**Whole suite after all three commits:**
+- `pnpm build` passed.
+- `pnpm check`: 209/209.
+- Every browser script, each on a fresh isolated server: identity-race
+  18, log-rehearsal 13, interaction 85, multiplayer 17, plan-mode 42,
+  plan-geometry 61, review-fixes 15, invites 7, session-revocation 5,
+  inactive-member 6, accounts 13, pre-join 13, guest-preservation 12,
+  showcase 16.
+- Server stderr was 0 bytes in every run.
+
+**Correction to earlier records:** the `cd1b5fe` commit message (and the
+agent's handoff) said "every server-observed action" writes a line. What is
+logged is ADR 0013's table of defined significant events. Routine reads,
+polling, heartbeats, pointer and preview movement, and clicks the editor
+refuses locally are intentionally not all logged. ADR 0013 and CLAUDE.md
+now say so, and evidence 0010 has a dated follow-up.

@@ -199,7 +199,8 @@ Each entry gives, in proportion to the change:
 ## Server logs (author, 20 Oct 2026; ADR 0013)
 
 - Server output is the diagnostic channel for "who did what": one JSON line
-  per event on stdout, read with
+  per defined significant event (ADR 0013's table, not every request) on
+  stdout, read with
   `mise exec -- flyctl logs -a comp4020-final-asuka121380`. It is not room
   history, and it is never shown to players. There is no activity feed,
   history API or admin page. `room_activity` stays as it is: committed
@@ -224,6 +225,12 @@ Each entry gives, in proportion to the change:
   don't change for the sake of the log.
 - No per-frame, heartbeat, pointer or preview lines. No client telemetry for
   clicks the editor refuses locally.
+- Fatal errors (uncaught exception, unhandled rejection, a background
+  failure that leaves the database mid-transaction) stop the process with a
+  non-zero status through the one bounded `shutdown()`. It is never kept
+  serving, and nothing is retried in-process. Recoverable background errors
+  keep serving and say so. Log lines are written synchronously, so a crash
+  line can't be lost on exit (ADR 0013, reviewed 20 Oct 2026).
 - Fly's retention is short and not ours to promise. Logging stays on in the
   normal app. Excerpts worth keeping go into `doc/evidence/` after a check
   against the never-logged list.
@@ -369,7 +376,13 @@ Each entry gives, in proportion to the change:
 ## Rooms, realtime and cooperation (author, 13 Oct 2026; ADRs 0006–0009)
 
 - **Identity.** A visitor is still a browser cookie by default (ADR
-  0001/0003). A player may opt in to a single-use recovery code, generated
+  0001/0003). A page establishes it before anything acts as it: the lobby
+  and the editor wait on one shared `GET /api/me` (`state/identity.ts`, under
+  the Web Lock `brick-identity` across tabs). Only then may they send an
+  identity-dependent request or open a realtime stream. A new page entry
+  point goes through `IdentityGate`. Never fix identity problems by
+  suppressing `visitor.new`, letting commands create visitors, or weakening
+  admission (author, 20 Oct 2026). A player may opt in to a single-use recovery code, generated
   from an identity panel, to link a second browser to the same identity
   without registering anything. Recovery codes are stored only as a hash,
   rate-limited, never logged or put in a URL, and are a completely separate

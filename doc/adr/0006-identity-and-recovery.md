@@ -96,6 +96,19 @@ Option 3 (author).
   forget beyond the one code, and nothing the project depends on besides
   its own database.
 
+## Later change (ADR 0013, 20 Oct 2026): identity is established before it is used
+
+The model above is unchanged. A visitor is still created by the server, on
+the first request without a cookie. What changed is the client: the lobby
+and the editor now send exactly one identity request first, and send
+nothing identity-dependent until it has answered. Across tabs this runs
+under a Web Lock.
+
+Before this, a first visit's parallel requests each created a visitor. The
+browser kept whichever cookie arrived last, so the page could act as a
+different identity from the one it showed. Details: ADR 0013, "Identity is
+established first", and evidence 0011.
+
 ## Consequences
 
 - One new table (`recovery_codes`: visitor id, code hash, created_at) and

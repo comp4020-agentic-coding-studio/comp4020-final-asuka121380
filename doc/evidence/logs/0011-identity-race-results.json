@@ -1,0 +1,96 @@
+{
+  "base": "http://localhost:8405",
+  "at": "2026-10-20T03:40:52.378Z",
+  "results": [
+    {
+      "name": "first visit: exactly one visitor, created by /api/me",
+      "ok": true,
+      "detail": "[\"/api/me\"]"
+    },
+    {
+      "name": "only the identity request goes out without a cookie",
+      "ok": true,
+      "detail": "[\"/api/me:none\"]"
+    },
+    {
+      "name": "with a response held back 2.5 s, the page stays one identity",
+      "ok": true,
+      "detail": "{\"shown\":\"78346806\",\"after\":\"78346806\"}"
+    },
+    {
+      "name": "the friend link belongs to the identity the browser still holds",
+      "ok": true,
+      "detail": "78346806"
+    },
+    {
+      "name": "still exactly one visitor",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "same profile, three tabs at once: one shared identity",
+      "ok": true,
+      "detail": "[\"58bb757d\",\"58bb757d\",\"58bb757d\"]"
+    },
+    {
+      "name": "…and only one visitor created (Web Locks available here)",
+      "ok": true,
+      "detail": "{\"locks\":true,\"visitors\":1}"
+    },
+    {
+      "name": "two separate profiles at once: two distinct identities",
+      "ok": true,
+      "detail": "5f9b425f / 2888b009"
+    },
+    {
+      "name": "direct room link: one visitor, created before the preview",
+      "ok": true,
+      "detail": "[\"/api/me\"]"
+    },
+    {
+      "name": "the editor's 'you', its join, stream and command are all the same identity",
+      "ok": true,
+      "detail": "{\"selfShown\":\"06634206\",\"server\":\"06634206\",\"actors\":[\"06634206\"],\"res\":200}"
+    },
+    {
+      "name": "the realtime stream opened as that identity",
+      "ok": true,
+      "detail": "06634206"
+    },
+    {
+      "name": "refresh with an existing identity: same visitor, no new one",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "a failed first request shows 'Couldn't start your session' with a retry, not the lobby",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "…and nothing identity-dependent was sent meanwhile",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "retrying establishes one identity and opens the lobby",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "sign-out: one fresh anonymous identity, issued by the sign-out itself",
+      "ok": true,
+      "detail": "[\"/api/account/sign-out\"]"
+    },
+    {
+      "name": "sign-in again: back to the account's identity",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the lobby then shows the signed-in name",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

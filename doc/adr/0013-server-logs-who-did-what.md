@@ -133,7 +133,7 @@ keeping are saved as sanitized evidence (see "Capturing evidence" below).
 
 | Event | Fields beyond `actor`/`req` | Notes |
 |---|---|---|
-| `visitor.new` | `reason` (no_cookie, unknown_session), `route` | A first page load creates one per parallel request (see Consequences) |
+| `visitor.new` | `reason` (no_cookie, unknown_session), `route` | Since 20 Oct, a first visit to the lobby or editor creates exactly one, from `/api/me` (see "Identity is established first") |
 | `account.register`, `account.sign_in`, `account.sign_out` | `peer` on sign-in | Step one of sign-in is `ok` with reason `verified`; only the confirm step is `changed`. No usernames or passwords |
 | `identity.recovery_code`, `identity.recover` | `peer` on recover | Never the code |
 | `room.create` | `room`, `visibility` | Never the free-text label |
@@ -149,7 +149,13 @@ keeping are saved as sanitized evidence (see "Capturing evidence" below).
 | `friend.link`, `friend.link_open`, `friend.request`, `friend.response` | `peer`, `target` | Never the link token |
 | `snapshot.save`, `snapshot.publish`, `snapshot.collect`, `snapshot.continue`, `snapshot.read` | `room`, `target`, `source`, `rev` | `read` logs refusals only |
 | `http.refused`, `http.error` | `status`, `method`, `route`, `kind`; for errors also `error`, `errcode`, `where` | From the one error handler |
-| `server.start`, `background.error`, `process.crash` | `kind` | |
+| `server.start`, `server.stop` | `reason` (sigterm, sigint, uncaught_exception, unhandled_rejection, open_transaction) | `server.stop` outcome is `ok` for a signal and `error` for a fatal stop |
+| `background.error` | `kind` (presence_sweep, sse_keepalive), `reason` (recoverable, fatal_open_transaction), `error`, `errcode`, `where` | Recoverable: the server keeps serving |
+| `process.crash` | `kind` (uncaught_exception, unhandled_rejection), `error`, `errcode`, `where` | Always followed by a fatal `server.stop` |
+
+**Scope: the defined events, not every request.** The table lists the
+significant actions this design covers. Some things are intentionally left
+out, listed below.
 
 **Not logged:**
 - Reads that change nothing and refuse nothing, such as lobby lists,
@@ -177,6 +183,62 @@ There is one final Express error handler:
   instead of falling back to Express's default.
 - Uncaught exceptions and failures in background timers are logged the same
   way. An uncaught exception still exits with status 1.
+
+### Fatal and background errors, and stopping (reviewed 20 Oct 2026, agent)
+
+- **Every log line is written synchronously** (`writeLineSync`). Writing
+  to a pipe through `process.stdout.write` is asynchronous. In testing,
+  with the pipe backed up, `process.exit` dropped the queued
+  `process.crash` line, so the one line that says why the process died was
+  lost. If the pipe is full, a write is retried for at most 2 s, then
+  dropped rather than hanging the server.
+- **Fatal errors** (an uncaught exception or unhandled rejection anywhere
+  outside a request's own handling) never let the process go on serving:
+  - The process's state may be inconsistent, so it logs `process.crash`
+    and stops.
+  - It exits with status 1, and Fly restarts the machine.
+  - Nothing is retried in-process.
+- **Recoverable background errors.** The presence sweep and the SSE
+  keep-alive each run one idempotent statement in a transaction that rolls
+  back on failure. They are logged as `background.error` with reason
+  `recoverable`, and run again on the next tick while the server keeps
+  serving. If the database is left inside a transaction (the rollback
+  itself failed), every later write would fail, so that case is fatal
+  (`fatal_open_transaction`).
+- **One way to stop** (`shutdown()`), for SIGTERM, SIGINT and fatal errors:
+  1. log `server.stop`
+  2. stop accepting connections
+  3. end every open connection (SSE streams would otherwise keep the
+     process alive)
+  4. close the database, which checkpoints the WAL
+  5. exit
+
+  A hard 3 s deadline exits regardless. A second signal or error during
+  shutdown is ignored. Every SQLite call is synchronous, so no request can
+  be part-way through a transaction while this runs.
+
+### Identity is established first (20 Oct 2026, agent; ADR 0006 unchanged)
+
+**The problem.** The cookie is issued by whichever request first arrives
+without one. The lobby used to send several requests at once on a first
+visit. Each created a visitor, and the browser kept the last cookie. Two
+things followed:
+- The page could show one identity as "you" while acting as another.
+- With a slow response, something made in the meantime could end up owned
+  by an identity the browser had already lost. A friend link did, in
+  testing; rooms, membership and saved copies were exposed the same way.
+
+**The fix** (`src/client/state/identity.ts`):
+- The lobby and the editor first send one `GET /api/me`, shared by every
+  caller on the page.
+- They send nothing else that depends on identity, and open no realtime
+  stream, until it has answered.
+- A failure shows a retry and never a half-started page.
+- Across tabs of one browser, that request runs under the Web Lock
+  `brick-identity`, so a second tab waits for the first tab's cookie.
+  Without Web Locks only the in-page ordering applies.
+- The server is unchanged, and remains the only authority on who a request
+  is.
 
 ### Permissions, consolidated (decided in ADRs 0007 and 0009; restated here for Crit 10)
 
@@ -267,14 +329,20 @@ find their way unassisted.
     the real server in its own process with a temporary `DATA_DIR`,
     checking statuses, a two-actor journey, and that no sentinel, cookie
     token, password or label reaches stdout or stderr
-- **Two existing behaviours became visible, and neither was changed here:**
-  - **First visit.** A cookie-less first page load sends several lobby
-    requests at once, and each creates a visitor. The browser keeps the
-    last cookie, so for a moment early requests can disagree about who the
-    page is. The log shows these as several `visitor.new` lines with
-    different `route`s within a few milliseconds; only one of them goes on
-    to act.
+- **Two existing behaviours became visible:**
+  - **First visit** (as first recorded; *fixed 20 Oct 2026*, see "Identity
+    is established first"). A cookie-less first page load sent several
+    lobby requests at once, and each created a visitor. The browser kept
+    the last cookie, so for a moment early requests disagreed about who
+    the page was. The log showed this as several `visitor.new` lines with
+    different `route`s within a few milliseconds. Further investigation
+    showed it was an ownership bug, not just noise.
   - **Every editor load re-joins.** Each load produces `room.preview ok`,
     `room.join unchanged` and an `sse.open`. The filter above hides that.
 - **Response bodies and statuses are unchanged.** The only added header is
   `X-Request-Id`.
+- **Fatal-error and identity behaviour are protected by tests:**
+  - `spec/server/process-lifecycle.test.ts`
+  - `spec/client/identity.test.ts`
+  - `scripts/identity-race.ts` (real Chrome, with its own delaying and
+    failing proxy)
