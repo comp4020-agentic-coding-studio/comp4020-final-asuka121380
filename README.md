@@ -1,37 +1,35 @@
 # Brick Commons
 
-*Working title · C8, 7 October 2026*
-
-Brick Commons is a browser-based brick-building project about making something that belongs to a group. My definition of good is an experience where people can contribute different ideas, negotiate an aesthetic and build a lasting reminder of time spent together. Solo play should be satisfying, but cooperation is the project's central ambition, not an optional social layer around an otherwise finished game.
+Brick Commons is a browser-based brick-building space inspired by memories of building with friends—and sometimes strangers—as a child. What stayed with me was not simply the finished model, but how building something together could turn unfamiliar people into companions. My definition of good is an experience where people can suggest different ideas, influence a shared creation, and keep something that recalls their time together. Solo building should be worthwhile, but cooperation is the centre of the project.
 
 ## A shared building, a shared memory
 
-The aim is not simply to finish faster with more hands. A roof colour, a garden or an unusual window can emerge from different people's suggestions. The resulting building should express a group's particular taste, including choices no individual would have made alone.
+Cooperation should mean more than finishing faster with extra hands. A roof colour, a garden, or an unusual window can emerge from another person’s suggestion. The resulting building should contain choices that neither player would have made alone.
 
-Planned cooperation distributes complementary parts between players. Group material requests let others help, while transparent planning pieces make suggestions visible before construction. These mechanisms should support both practical contributions and creative decisions, rather than reduce some players to supplying somebody else's design. A future exhibition would preserve the building and credit its collaborators: an artefact around which they can remember what they made together.
+Players share one finite inventory within a room. Rather than allocating separate supplies and making cooperation depend on transfers, this gives everyone access to the same materials. Plan mode makes suggestions visible directly in the building space: transparent bricks can form a proposed design before anyone spends real stock. Plans obey collision and support rules, but their calculated remaining inventory can go below zero, revealing what the proposed design would need.
+
+Saving a creation and retaining contributor credits support the project’s ambition of shared memory. These records preserve participation; they do not, by themselves, prove that meaningful collaboration occurred.
 
 ## Build somewhere, not in a void
 
-The first scene is a colourful beachfront neighbourhood. Warm light, neighbouring houses and the sea give a small construction a setting: players add a home to a place, rather than inspect an isolated model. The beach keeps the foreground open. Scenery should invite experimentation without hiding the piece being placed.
+The current Beach Houses scene places construction in a colourful coastal neighbourhood. Warm light, nearby houses, and the sea give the work a setting: players add something to a place rather than inspect an isolated model. Neighbouring houses are scenery, not other players’ creations.
 
-The red, white and yellow site identity belongs to building together, not specifically to the beach. C8 contains one scene; other settings can follow.
+The reference house is adapted from the [official LEGO Classic 11035 instructions](https://www.lego.com/en-us/service/building-instructions/11035). It is an optional source of inspiration, not a task to complete. Players can borrow an idea, change its colours, or build something unrelated. Colours do not consume separate stock, and there is no required completion percentage or prescribed appearance.
 
-## Enough guidance, room for ownership
+## Join, build, and keep a creation
 
-The reference house is adapted from the [official LEGO Classic 11035 instructions](https://www.lego.com/en-us/service/building-instructions/11035). Its modest scale offers an understandable starting point. A finite kit contains the reference parts plus extras; colours do not consume separate stock. Players can follow the example, change its colours, or build something else. There is no compulsory completion percentage or prescribed colour scheme.
+Enter as a guest or register an account. Accounts provide a way to return to the same identity across devices; guest access depends on the browser’s session cookie. Build alone, or create or join a shared room. The current shared scene accommodates two players.
 
-Two official precedents clarify the design in retrospect. [LEGO Builder](https://www.lego.com/en-us/builder-app) combines rotatable instructions with shared building; this project instead proposes negotiating a design through complementary inventories. [LEGO Fortnite's building guide](https://www.lego.com/en-us/themes/fortnite/advanced-building) presents snapping as alignment assistance. Here, assistance must preserve intention, including access to valid lower placements. These comparisons were consulted after the first interface was built, not its original design process.
+Public rooms appear in the lobby; invite-only rooms require admission through an invitation. Admitted collaborators can work on the shared construction, including editing one another’s bricks. Friendship alone does not grant access to a private room.
 
-## What C8 actually offers
+Players can save creations to their collections and continue from saved versions. Publication remains subject to the work’s permissions. Keeping a shared memory should not mean making someone else’s private creation public.
 
-C8 is a server-saved solo experience. Each visitor receives the complete kit and can place, recolour, rotate and remove parts. Returning in the same browser resumes the build through a browser cookie; clearing that cookie or changing browsers does not currently recover it.
+## What is checked, and what needs judgement
 
-Cooperation and exhibitions are not implemented yet. Neighbours are scenery, not other players' creations. Solo play establishes an enjoyable foundation without requiring an existing community; it does not yet demonstrate the project's collective promise.
+The [harness](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/blob/main/CLAUDE.md) and [tests](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/tree/main/spec) protect inventory, construction rules, permissions, identity handling, command retries, and persistence. Server-side diagnostic logs help explain actions and failures without becoming a public player feed.
 
-## What can be checked, and what still needs judgement
+My two-device testing confirmed shared-room synchronisation. It did not establish whether newcomers understand the controls, respond to each other’s plans, or recognise their influence in the finished work. Those remain questions for human evaluation.
 
-The [harness](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/blob/main/CLAUDE.md) and [tests](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/tree/main/spec) protect inventory, collision and support rules, safe command retries and saved state. Rejected actions cost no parts; removing a sole support is refused. Browser checks cover preview accuracy, camera-relative controls and returning to a saved build.
-
-Whether the place feels welcoming and controls feel natural needs human judgement. Future group testing must ask whether people can influence the design and recognise their contributions, not just whether changes synchronise. My playthroughs drove revisions; independent newcomer testing is missing. Side-view occlusion and a tall mobile toolbar remain limitations. Survival systems, physical collapse, a vast catalogue and runtime AI generation are excluded to keep attention on creative construction.
+Survival systems, physical collapse, a vast catalogue, and runtime AI generation are deliberately excluded to keep attention on creative construction.
 
 This is an independent student project, not an official LEGO product.
