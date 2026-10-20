@@ -2448,3 +2448,23 @@ logged is ADR 0013's table of defined significant events. Routine reads,
 polling, heartbeats, pointer and preview movement, and clicks the editor
 refuses locally are intentionally not all logged. ADR 0013 and CLAUDE.md
 now say so, and evidence 0010 has a dated follow-up.
+
+### 2026-10-20 14:48 AEDT — [`94be2a7`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/94be2a7) ADR 0013/0006, CLAUDE.md, evidence 0011: identity ordering, fatal errors, logging scope
+
+**Changes:**
+- ADR 0013: new "Identity is established first" and "Fatal and background
+  errors, and stopping" sections; event rows for `server.stop`,
+  `background.error` and `process.crash`; the event table described as the
+  defined significant events.
+- ADR 0006: a later-change note.
+- `CLAUDE.md`: the identity-ordering rule, the fatal-error rule, and the
+  logging-scope wording.
+- `doc/evidence/0011-identity-ordering-and-fatal-errors.md` (new), with its
+  results file.
+- A dated follow-up appended to evidence 0010; the original text is kept.
+
+**Who decided:** the author set the documentation requirements (qualify
+the scope claim, append rather than rewrite). The agent wrote the text.
+
+**Tests:** `pnpm check:evidence` clean, `git diff --check` clean. No code
+changed in this commit.
