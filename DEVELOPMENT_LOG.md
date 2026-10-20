@@ -2528,3 +2528,24 @@ Details: evidence 0012.
 - ADR 0013 and evidence 0011 now carry dated corrections.
 - The claims "always delivered" and "shutdown can never hang" are
   withdrawn.
+
+### 2026-10-20 15:24 AEDT — [`23f1746`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/23f1746) ADR 0013, CLAUDE.md, evidence 0012: logging under backpressure and shutdown exit status
+
+**Changes:**
+- ADR 0013:
+  - a new "Output under backpressure" section, recording the superseded
+    synchronous design and its defect
+  - corrected shutdown steps and exit-status rules
+  - what the deadline does and doesn't guarantee
+  - the event table gains `log.dropped` and `escalated_<kind>`
+- `CLAUDE.md`: rules against synchronous log writes; the queue's limits and
+  overflow; the exit status only rises.
+- `doc/evidence/0012-log-backpressure-and-shutdown.md` (new).
+- A dated correction appended to evidence 0011; the original observations
+  are unchanged.
+
+**Who decided:** the author asked for honest claims and dated corrections.
+The agent wrote the text.
+
+**Tests:** `pnpm check:evidence` clean, `git diff --check` clean. No code
+changed in this commit.
