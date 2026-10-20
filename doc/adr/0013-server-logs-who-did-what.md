@@ -85,7 +85,9 @@ keeping are saved as sanitized evidence (see "Capturing evidence" below).
   - a command id that isn't a UUID becomes `h-` plus the first 16 hex
     digits of its SHA-256, so a retry can still be matched without logging
     the text
-- **Logging never fails a request.** A failing write is swallowed. Mutation
+- **Logging never fails or stalls a request.** A line is queued, never
+  written synchronously, and an output failure is absorbed (see "Output
+  under backpressure"). Mutation
   events are emitted after their transaction has committed.
 
 ### Identifiers (author)
@@ -149,7 +151,8 @@ keeping are saved as sanitized evidence (see "Capturing evidence" below).
 | `friend.link`, `friend.link_open`, `friend.request`, `friend.response` | `peer`, `target` | Never the link token |
 | `snapshot.save`, `snapshot.publish`, `snapshot.collect`, `snapshot.continue`, `snapshot.read` | `room`, `target`, `source`, `rev` | `read` logs refusals only |
 | `http.refused`, `http.error` | `status`, `method`, `route`, `kind`; for errors also `error`, `errcode`, `where` | From the one error handler |
-| `server.start`, `server.stop` | `reason` (sigterm, sigint, uncaught_exception, unhandled_rejection, open_transaction) | `server.stop` outcome is `ok` for a signal and `error` for a fatal stop |
+| `server.start`, `server.stop` | `reason` (sigterm, sigint, uncaught_exception, unhandled_rejection, open_transaction, escalated_<kind>) | `server.stop` outcome is `ok` for a signal and `error` for a fatal stop. A second, `escalated_` line means a fatal error arrived during a graceful shutdown |
+| `log.dropped` | `reason` (output_backpressure), `lost` | Written where lines were dropped because stdout couldn't keep up |
 | `background.error` | `kind` (presence_sweep, sse_keepalive), `reason` (recoverable, fatal_open_transaction), `error`, `errcode`, `where` | Recoverable: the server keeps serving |
 | `process.crash` | `kind` (uncaught_exception, unhandled_rejection), `error`, `errcode`, `where` | Always followed by a fatal `server.stop` |
 
@@ -184,14 +187,36 @@ There is one final Express error handler:
 - Uncaught exceptions and failures in background timers are logged the same
   way. An uncaught exception still exits with status 1.
 
-### Fatal and background errors, and stopping (reviewed 20 Oct 2026, agent)
+### Output under backpressure (corrected 20 Oct 2026, agent)
 
-- **Every log line is written synchronously** (`writeLineSync`). Writing
-  to a pipe through `process.stdout.write` is asynchronous. In testing,
-  with the pipe backed up, `process.exit` dropped the queued
-  `process.crash` line, so the one line that says why the process died was
-  lost. If the pipe is full, a write is retried for at most 2 s, then
-  dropped rather than hanging the server.
+*Superseded design, kept for the record:* the first review (`b9ec1ed`)
+made every line synchronous (`writeLineSync`), with a 2 s retry on EAGAIN,
+so that a crash line couldn't be lost on exit. That was wrong. Here
+stdout's pipe is in blocking mode, so with the pipe unread, `writeSync`
+blocked the whole server in the kernel. No requests were answered, no
+timers ran, and SIGTERM couldn't be handled; only SIGKILL ended it.
+
+**Now** (`bcd0b2c`), `log.ts` keeps a bounded in-memory queue in front of
+stdout:
+- Lines are handed to `process.stdout.write` one at a time. When a write
+  reports the stream full, the queue waits for `'drain'` before the next
+  one.
+- Logging never blocks the event loop, and lines that are kept arrive in
+  the order they were logged.
+- **Limits:** 1,000 lines or 1 MiB queued, whichever comes first.
+- **Overflow policy:** a new line that doesn't fit is dropped, and the
+  older queued lines are kept, so what survives is contiguous. The gap is
+  marked. When output reaches it, one line is written in its place:
+  `{"event":"log.dropped","outcome":"error","reason":"output_backpressure","lost":N}`.
+  A line logged while the queue is full is lost too, whatever it says.
+- **Failed output.** If the stream errors (EPIPE), closes, or its `write()`
+  throws, output stops for good. Later lines are counted, never retried,
+  and nothing logs about the logger.
+- **The honest trade-off:** a stalled or broken log pipe costs log lines,
+  never service. Delivery is not guaranteed.
+
+### Fatal and background errors, and stopping (reviewed, then corrected 20 Oct 2026, agent)
+
 - **Fatal errors** (an uncaught exception or unhandled rejection anywhere
   outside a request's own handling) never let the process go on serving:
   - The process's state may be inconsistent, so it logs `process.crash`
@@ -206,16 +231,40 @@ There is one final Express error handler:
   itself failed), every later write would fail, so that case is fatal
   (`fatal_open_transaction`).
 - **One way to stop** (`shutdown()`), for SIGTERM, SIGINT and fatal errors:
-  1. log `server.stop`
-  2. stop accepting connections
-  3. end every open connection (SSE streams would otherwise keep the
+  1. arm a 3 s deadline timer, before anything else
+  2. log `server.stop`
+  3. stop accepting connections
+  4. end every open connection (SSE streams would otherwise keep the
      process alive)
-  4. close the database, which checkpoints the WAL
-  5. exit
+  5. close the database, which checkpoints the WAL
+  6. wait one turn of the event loop, so an error raised during cleanup
+     has logged and counted itself
+  7. flush queued log lines for at most 1 s (best effort; an unread pipe is
+     not waited on beyond that)
+  8. exit with the status as it then stands
 
-  A hard 3 s deadline exits regardless. A second signal or error during
-  shutdown is ignored. Every SQLite call is synchronous, so no request can
-  be part-way through a transaction while this runs.
+  Every SQLite call is synchronous, so no request can be part-way through a
+  transaction while this runs.
+- **The exit status only rises.** A signal asks for 0, and anything fatal
+  raises the status to 1. `process.exitCode` is kept in step, so every way
+  out carries it.
+  - A fatal error during a graceful shutdown is not ignored. It logs
+    `process.crash`, then one `server.stop` with reason
+    `escalated_<kind>`. The running shutdown finishes and exits 1.
+  - A later signal never lowers the status. Repeated signals start no
+    second cleanup.
+  - *Corrected:* the first review ignored any second call while stopping,
+    so a fatal error during a graceful shutdown could still exit 0.
+- **What the deadline does and does not guarantee.** It is a JavaScript
+  timer, so it fires only while the event loop runs.
+  - Logging can no longer block the loop, and each SQLite call is short,
+    so in this app the deadline normally applies.
+  - A loop blocked some other way (a runaway synchronous computation, a
+    blocking system call) defeats any in-process timer. That case is
+    ended from outside: Fly sends SIGKILL a few seconds after its stop
+    signal.
+  - The earlier wording "shutdown can never hang" was wrong and is
+    withdrawn.
 
 ### Identity is established first (20 Oct 2026, agent; ADR 0006 unchanged)
 

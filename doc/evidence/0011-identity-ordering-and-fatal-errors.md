@@ -203,3 +203,23 @@ per-IP auth limiter is restarted between scripts), all with server stderr
 - Nothing ran against the deployed site. The deployed app runs neither this
   fix nor the ADR 0013 logging until the author authorizes a push.
 - The two-classmate rehearsal (Procedure B) has not happened.
+
+## Correction, 20 October 2026 (later the same day)
+
+The observations above stand as recorded. Two conclusions in section 2 were
+wrong, and were corrected in
+[`bcd0b2c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/bcd0b2c)
+([evidence 0012](0012-log-backpressure-and-shutdown.md)):
+
+- **"Arrives; log lines are written synchronously."** The synchronous
+  writes did deliver the crash line in the test above, whose reader kept
+  reading. With a pipe nobody reads, the same writes blocked the whole
+  server in the kernel, until SIGKILL. Logging now goes through a bounded
+  asynchronous queue. A crash line arrives when stdout is being read (the
+  same test, retitled, still passes). With stdout unread, it may be lost.
+- **"A second signal or error during shutdown is ignored."** That was true,
+  and it was a defect: a fatal error during a graceful shutdown could leave
+  the exit status at 0. The exit status now only rises.
+
+The withdrawn absolute claims are that the crash line is always delivered,
+and that shutdown can never hang.

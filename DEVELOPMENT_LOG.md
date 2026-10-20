@@ -2468,3 +2468,63 @@ the scope claim, append rather than rewrite). The agent wrote the text.
 
 **Tests:** `pnpm check:evidence` clean, `git diff --check` clean. No code
 changed in this commit.
+
+### 2026-10-20 15:22 AEDT — [`bcd0b2c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/bcd0b2c) Logging under backpressure: a bounded async queue; shutdown with an exit status that only rises
+
+**Verified review findings** against `b9ec1ed`; all six held:
+- the synchronous writer, and its 2 s EAGAIN loop
+- `emit` swallowing failures
+- `server.stop` emitted before the deadline timer was armed
+- the timer's dependence on a running event loop
+- an ignored fatal error during shutdown, which could leave exit 0
+
+One was worse than stated. With stdout unread, `fs.writeSync` blocked in
+the kernel, because the pipe fd is in blocking mode here. The server stopped
+answering entirely, and only SIGKILL ended it. `b9ec1ed` introduced this.
+
+**Changes:**
+- `src/server/log.ts`: `LineQueue`, a bounded asynchronous queue (1,000
+  lines or 1 MiB) in front of `process.stdout.write`, honouring `'drain'`.
+  Overflow drops new lines and writes one in-place `log.dropped` line with
+  `lost: N`. Stream errors or close stop output for good, counted and
+  never retried. `flushLogs(ms)` is bounded and best effort. A new `lost`
+  field. `writeLineSync` is removed.
+- `src/server/index.ts`: the deadline timer is armed first; the exit status
+  only rises (`process.exitCode` follows it); a fatal error during shutdown
+  is logged as `escalated_<kind>` and exits 1; cleanup waits one loop turn
+  and then flushes for at most 1 s.
+- Tests:
+  - `spec/server/log-queue.test.ts` (9, new)
+  - `spec/server/log-backpressure.test.ts` (7, new)
+  - the harness gained `pauseStdout`, `resumeStdout` and `closeStdout`
+  - `log-events.test.ts` waits for each line, since output is asynchronous
+  - one lifecycle test retitled to what it shows
+
+**Who decided:** the author set the requirements (no busy-wait on the
+request path, a bounded buffer with an explicit overflow policy, a
+monotonic exit status, a bounded flush, honest claims). The agent chose
+the limits, drop-newest with an in-place gap report, the one-turn wait
+before the final flush, and `process.exitCode`.
+
+**Tests:**
+- Stall repro: before, the server wedged; after, 3,000 requests answered
+  with stdout unread (p99 1 ms).
+- Unit 9/9; subprocess 7/7; lifecycle 8/8.
+- Against the previous code, 4 of the 7 subprocess tests failed.
+- `pnpm build` passed.
+- `pnpm check`: 225/225, three consecutive runs.
+- Browser runs, each on a fresh server: log-rehearsal 13/13, identity-race
+  18/18, session-revocation 5/5, multiplayer 17/17, interaction 85/85,
+  inactive-member 6/6. Server stderr 0 bytes throughout.
+
+Details: evidence 0012.
+
+**Correction to the `b9ec1ed` entry above:**
+- "Lines are written synchronously" was the defect described here, not a
+  fix.
+- Its tests showed the crash line arriving only while the reader kept
+  reading.
+- Its shutdown ignored a fatal error raised during a graceful shutdown.
+- ADR 0013 and evidence 0011 now carry dated corrections.
+- The claims "always delivered" and "shutdown can never hang" are
+  withdrawn.

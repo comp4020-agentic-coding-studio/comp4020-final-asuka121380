@@ -229,8 +229,15 @@ Each entry gives, in proportion to the change:
   failure that leaves the database mid-transaction) stop the process with a
   non-zero status through the one bounded `shutdown()`. It is never kept
   serving, and nothing is retried in-process. Recoverable background errors
-  keep serving and say so. Log lines are written synchronously, so a crash
-  line can't be lost on exit (ADR 0013, reviewed 20 Oct 2026).
+  keep serving and say so. The exit status only rises: a fatal error during
+  a graceful shutdown still ends non-zero, and a later signal never lowers
+  it. The 3 s shutdown deadline is a JS timer that fires only while the event
+  loop runs; never block the loop (ADR 0013, corrected 20 Oct 2026).
+- Never write log lines synchronously (`fs.writeSync` to stdout blocked the
+  whole server when the pipe went unread). Lines go through `log.ts`'s
+  bounded queue: 1,000 lines or 1 MiB. Overflow drops new lines and reports
+  `log.dropped` with a count; failed output stops writing and counts. Never
+  claim delivery is guaranteed, and never retry or log about the logger.
 - Fly's retention is short and not ours to promise. Logging stays on in the
   normal app. Excerpts worth keeping go into `doc/evidence/` after a check
   against the never-logged list.
