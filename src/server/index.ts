@@ -1,5 +1,6 @@
-import express, { type Request, type Response } from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { existsSync, readFileSync } from "node:fs";
+import { STATUS_CODES } from "node:http";
 import { join } from "node:path";
 import { accountForVisitor, authRateLimited, confirmSignIn, displayNamesFor, register, signOut, verifyCredentials, visitorHasOwnWork } from "./accounts.ts";
 import { buildFor, parseEnvelope, roomSnapshot, runCommand, summaryFor } from "./builds.ts";
@@ -7,6 +8,7 @@ import { openDatabase } from "./db.ts";
 import { createRecoveryCode, createSession, deleteSession, findVisitor, hashToken, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
+import { classifyError, describeError, emit, label, newRequestId, type Fields } from "./log.ts";
 import { markPlan, registerConnection, revokeSession, subscribe } from "./realtime.ts";
 import {
   admissionPreview,
@@ -77,10 +79,22 @@ function clearPresence(cleared: { roomId: string; visitorId: string }[]): void {
   for (const { roomId, visitorId } of cleared) leaveRoom(db, roomId, visitorId);
 }
 
-// One line per command: who (an opaque prefix), which room, what, and how it
-// went. Never the cookie, never a recovery code.
-function log(fields: Record<string, unknown>): void {
-  console.log(JSON.stringify({ t: new Date().toISOString(), ...fields }));
+// ---- structured logs (ADR 0013) --------------------------------------------
+//
+// One JSON line per event, built only from the allowlisted fields in log.ts.
+// Every HTTP request gets a server-generated id (also sent back as
+// X-Request-Id), so a player's report can be matched to the lines it caused.
+
+/** Emits an event for the request this response belongs to, tagged with its request id. */
+function ev(res: Response, fields: Fields): void {
+  emit({ ...fields, req: res.locals.req as string | undefined });
+}
+
+/** The matched route's template (never the URL the client sent), or a coarse prefix if no route matched. */
+function routeOf(req: Request): string {
+  const path = (req.route as { path?: unknown } | undefined)?.path;
+  if (typeof path === "string") return `${req.baseUrl}${path}`;
+  return req.originalUrl.startsWith("/api/") ? "/api/*" : "/*";
 }
 
 // A small per-visitor brake on command floods; real building is far slower.
@@ -93,6 +107,12 @@ function tooFast(visitorId: string): boolean {
   return times.length > 40;
 }
 
+app.use((_req, res, next) => {
+  const id = newRequestId();
+  res.locals.req = id;
+  res.setHeader("X-Request-Id", id);
+  next();
+});
 app.use("/api", express.json({ limit: "16kb" }));
 app.use("/api", (_req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
@@ -544,6 +564,8 @@ app.post("/api/rooms/:id/mark", (req, res) => {
 
 // ---- commands (unchanged path, now room-scoped: ADR 0007/0008) -----------
 
+const COMMAND_OUTCOME = { applied: "changed", duplicate: "duplicate", rejected: "rejected", conflict: "conflict", "no-build": "rejected", forbidden: "denied" } as const;
+
 function handleCommand(req: Request, res: Response, visitorId: string, roomId: string): void {
   if (!req.is("application/json")) {
     res.status(415).json({ ok: false, code: "bad_request", message: "Commands are JSON." });
@@ -559,14 +581,14 @@ function handleCommand(req: Request, res: Response, visitorId: string, roomId: s
     return;
   }
   const { result, outcome, roomId: committedRoomId } = runCommand(db, visitorId, roomId, envelope);
-  log({
+  ev(res, {
     event: "command",
-    visitor: visitorId.slice(0, 8),
-    room: committedRoomId?.slice(0, 8),
     type: envelope.command.type,
-    outcome,
-    code: result.ok ? undefined : result.code,
-    revision: result.ok ? result.snapshot.revision : undefined,
+    outcome: COMMAND_OUTCOME[outcome],
+    reason: result.ok ? undefined : result.code,
+    actor: label(visitorId),
+    room: committedRoomId,
+    rev: result.ok ? result.snapshot.revision : undefined,
   });
   const status = result.ok ? 200 : outcome === "forbidden" ? 403 : outcome === "conflict" ? 409 : 422;
   res.status(status).json(result);
@@ -787,13 +809,77 @@ app.use((_req, res) => {
   res.status(404).type("text").send("Not found");
 });
 
+// The one error handler (ADR 0013). It replaces Express's default, which
+// prints the whole stack, and for a malformed JSON body the stack's first
+// line quotes the start of that body. This logs only a fixed kind, the
+// route template, the status, the request id, and for an unexpected error
+// its class, code and the app's own file:line frames, never its message.
+// Responses keep their existing statuses: 400 malformed, 413 too large,
+// 500 otherwise.
+// Express recognises an error handler by its four parameters, so `_next` stays.
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const { status, kind } = classifyError(err);
+  const fields: Fields = {
+    event: status >= 500 ? "http.error" : "http.refused",
+    outcome: status >= 500 ? "error" : "invalid",
+    kind,
+    status,
+    method: req.method,
+    route: routeOf(req),
+    actor: label(findVisitorQuietly(req)),
+    ...(status >= 500 ? describeError(err) : {}),
+  };
+  if (res.headersSent) {
+    // a response already under way can't be replaced; end it without Express's default handler
+    ev(res, { ...fields, reason: "after_headers" });
+    res.end();
+    return;
+  }
+  ev(res, fields);
+  // The same response Express's own handler sends in production (NODE_ENV is
+  // production in the Dockerfile): the standard status text in a minimal
+  // HTML page, with its security headers. It now never includes the stack,
+  // which Express showed in development.
+  const body = `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>${STATUS_CODES[status] ?? "Error"}</pre>\n</body>\n</html>\n`;
+  res.status(status);
+  res.setHeader("Content-Security-Policy", "default-src 'none'");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.end(req.method === "HEAD" ? undefined : body);
+});
+
+/** The caller's visitor for an error line, if the cookie resolves; never creates one, and never throws. */
+function findVisitorQuietly(req: Request): string | null {
+  try {
+    return findVisitor(db, readCookie(req));
+  } catch {
+    return null;
+  }
+}
+
 const server = app.listen(PORT, "0.0.0.0", () => {
-  log({ event: "listening", port: PORT, data: DATA_DIR });
+  emit({ event: "server.start", outcome: "ok", port: PORT });
 });
 
 // ADR 0007: presence sweep, so a dropped connection's slot frees after a
 // grace period without needing its own cleanup codepath.
-const presenceSweep = setInterval(() => sweepPresence(db), 10_000);
+const presenceSweep = setInterval(() => {
+  try {
+    sweepPresence(db);
+  } catch (err) {
+    emit({ event: "background.error", outcome: "error", kind: "presence_sweep", ...describeError(err) });
+  }
+}, 10_000);
+
+// Anything thrown outside a request would otherwise reach Node's default
+// handler, which prints the error's message and stack. Log it safely and exit
+// with the same status Node would have used, so Fly still restarts the app.
+for (const kind of ["uncaught_exception", "unhandled_rejection"] as const) {
+  process.on(kind === "uncaught_exception" ? "uncaughtException" : "unhandledRejection", (err: unknown) => {
+    emit({ event: "process.crash", outcome: "error", kind, ...describeError(err) });
+    process.exit(1);
+  });
+}
 
 // Fly stops idle machines with SIGINT; close cleanly so WAL is checkpointed.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
