@@ -8,8 +8,8 @@ import { openDatabase } from "./db.ts";
 import { createRecoveryCode, createSession, deleteSession, findVisitor, hashToken, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
-import { classifyError, describeError, emit, label, newRequestId, type Fields } from "./log.ts";
-import { markPlan, registerConnection, revokeSession, subscribe } from "./realtime.ts";
+import { classifyError, commandRef, describeError, emit, known, label, newRequestId, safeId, type Fields } from "./log.ts";
+import { markPlan, openConnections, registerConnection, revokeSession, subscribe } from "./realtime.ts";
 import {
   admissionPreview,
   createRoom,
@@ -28,7 +28,17 @@ import {
   snapshotOf,
   sweepPresence,
 } from "./rooms.ts";
-import { canAccessSnapshot, collectSnapshot, getSnapshot, publishSnapshot, saveSnapshot, showcaseEntry, showcaseList, snapshotsSavedBy } from "./snapshots.ts";
+import {
+  canAccessSnapshot,
+  collectSnapshot,
+  getSnapshot,
+  publishSnapshot,
+  saveSnapshot,
+  showcaseEntry,
+  showcaseList,
+  snapshotExists,
+  snapshotsSavedBy,
+} from "./snapshots.ts";
 
 // One same-origin service: the built client (the homepage at / and the
 // editor at /build/), the build API, the realtime room stream, and /readme/.
@@ -69,14 +79,24 @@ function newCookieToken(res: Response): string {
 
 /** Resolves the caller's visitor id from the cookie, creating one if needed, and keeps the response's cookie in sync. */
 function identify(req: Request, res: Response): string {
-  const visitor = visitorFor(db, readCookie(req));
-  if (visitor.newToken) setCookie(req, res, visitor.newToken);
+  const cookie = readCookie(req);
+  const visitor = visitorFor(db, cookie);
+  if (visitor.newToken) {
+    setCookie(req, res, visitor.newToken);
+    // A new anonymous identity and its first session; the cookie itself is
+    // never logged. `route` says which request created it: a first page load
+    // sends several requests at once before any cookie is set, and each makes
+    // a visitor (only the last cookie the browser keeps goes on to act).
+    ev(res, { event: "visitor.new", outcome: "changed", reason: cookie ? "unknown_session" : "no_cookie", actor: label(visitor.id), route: routeOf(req) });
+  }
   return visitor.id;
 }
 
 /** After revoking a session's SSE connections, flips presence off for any (room, visitor) pair whose last live connection was just closed — reusing `leave`'s own active=0 + SSE-push logic, so other members see the departure immediately rather than waiting out the 30s presence sweep. */
-function clearPresence(cleared: { roomId: string; visitorId: string }[]): void {
-  for (const { roomId, visitorId } of cleared) leaveRoom(db, roomId, visitorId);
+function clearPresence(cleared: { roomId: string; visitorId: string }[], reason: "signed_out" | "session_replaced"): void {
+  for (const { roomId, visitorId } of cleared) {
+    if (leaveRoom(db, roomId, visitorId)) emit({ event: "presence.end", outcome: "changed", reason, actor: label(visitorId), room: roomId });
+  }
 }
 
 // ---- structured logs (ADR 0013) --------------------------------------------
@@ -162,6 +182,7 @@ app.use("/api", (req, res, next) => {
     next();
     return;
   }
+  ev(res, { event: "http.refused", outcome: "denied", reason: "cross_site", method: req.method, route: "/api/*", status: 403 });
   res.status(403).json({ ok: false, code: "bad_request", message: "Cross-site request refused." });
 });
 
@@ -201,17 +222,21 @@ app.get("/api/me", (req, res) => {
 app.post("/api/identity/recovery-code", (req, res) => {
   const visitorId = identify(req, res);
   if (accountForVisitor(db, visitorId)) {
+    ev(res, { event: "identity.recovery_code", outcome: "denied", reason: "account_linked", actor: label(visitorId) });
     res.status(400).json({
       ok: false,
       message: "This identity is signed in to an account; use the account's own username and password to reach it from another device.",
     });
     return;
   }
-  res.json({ code: createRecoveryCode(db, visitorId) });
+  const code = createRecoveryCode(db, visitorId);
+  ev(res, { event: "identity.recovery_code", outcome: "changed", actor: label(visitorId) });
+  res.json({ code });
 });
 
 app.post("/api/identity/recover", (req, res) => {
   if (recoveryRateLimited(req.ip ?? "unknown")) {
+    ev(res, { event: "identity.recover", outcome: "limited", actor: label(findVisitor(db, readCookie(req))) });
     res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
     return;
   }
@@ -224,6 +249,7 @@ app.post("/api/identity/recover", (req, res) => {
   // checking the code, so this never consumes a still-valid one by mistake.
   const priorVisitorId = findVisitor(db, readCookie(req));
   if (priorVisitorId && accountForVisitor(db, priorVisitorId)) {
+    ev(res, { event: "identity.recover", outcome: "denied", reason: "signed_in", actor: label(priorVisitorId) });
     res.status(400).json({
       ok: false,
       message: "This browser is signed in to an account; sign out first if you want to switch to a guest identity.",
@@ -233,10 +259,12 @@ app.post("/api/identity/recover", (req, res) => {
   const code = typeof req.body?.code === "string" ? req.body.code : "";
   const visitorId = code && redeemRecoveryCode(db, code);
   if (!visitorId) {
+    ev(res, { event: "identity.recover", outcome: "rejected", reason: "bad_code", actor: label(priorVisitorId) });
     res.status(400).json({ ok: false, message: "That code is invalid or has already been used." });
     return;
   }
   if (accountForVisitor(db, visitorId)) {
+    ev(res, { event: "identity.recover", outcome: "denied", reason: "account_linked", actor: label(priorVisitorId), peer: label(visitorId) });
     // the code is already consumed (redeemRecoveryCode deletes it on read)
     // and deliberately not reinstated: a code reaching this point is either
     // a bug elsewhere or an attempt to replay one generated before the
@@ -251,6 +279,8 @@ app.post("/api/identity/recover", (req, res) => {
   // a new session for the existing visitor, alongside any others they hold,
   // so redeeming the code never signs another of their devices out
   setCookie(req, res, createSession(db, visitorId));
+  // actor: the identity this browser now acts as; peer: the one it had before, if any
+  ev(res, { event: "identity.recover", outcome: "changed", actor: label(visitorId), peer: label(priorVisitorId) });
   res.json({ ok: true, message: "Recovered. This code is now spent — generate a new one if you want to link another device." });
 });
 
@@ -269,6 +299,7 @@ app.get("/api/account/migration-check", (req, res) => {
 
 app.post("/api/account/register", (req, res) => {
   if (authRateLimited(req.ip ?? "unknown")) {
+    ev(res, { event: "account.register", outcome: "limited", actor: label(findVisitor(db, readCookie(req))) });
     res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
     return;
   }
@@ -277,6 +308,8 @@ app.post("/api/account/register", (req, res) => {
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   const displayName = typeof req.body?.displayName === "string" ? req.body.displayName : username;
   const outcome = register(db, visitorId, username, password, displayName);
+  // the username, display name and password are never logged
+  ev(res, outcome.ok ? { event: "account.register", outcome: "changed", actor: label(visitorId) } : { event: "account.register", outcome: outcome.code === "already_linked" ? "denied" : "rejected", reason: outcome.code, actor: label(visitorId) });
   if (!outcome.ok) {
     const message =
       outcome.code === "username_taken"
@@ -301,6 +334,7 @@ app.post("/api/account/register", (req, res) => {
 // (or a page reload, or a retry) can never itself complete the switch.
 app.post("/api/account/sign-in", (req, res) => {
   if (authRateLimited(req.ip ?? "unknown")) {
+    ev(res, { event: "account.sign_in", outcome: "limited", actor: label(findVisitor(db, readCookie(req))) });
     res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
     return;
   }
@@ -309,12 +343,15 @@ app.post("/api/account/sign-in", (req, res) => {
   const outcome = verifyCredentials(db, username, password);
   if (!outcome.ok) {
     // non-enumerating: identical response whether the username doesn't
-    // exist or the password is simply wrong
+    // exist or the password is simply wrong (and the log doesn't say either)
+    ev(res, { event: "account.sign_in", outcome: "denied", reason: "bad_credentials", actor: label(findVisitor(db, readCookie(req))) });
     res.status(401).json({ ok: false, message: "Incorrect username or password." });
     return;
   }
   const priorVisitorId = findVisitor(db, readCookie(req));
   const priorHadOwnWork = !!priorVisitorId && priorVisitorId !== outcome.visitorId && visitorHasOwnWork(db, priorVisitorId);
+  // step one only checks the password; nothing switches until /confirm
+  ev(res, { event: "account.sign_in", outcome: "ok", reason: "verified", actor: label(priorVisitorId), peer: label(outcome.visitorId) });
   res.json({ ok: true, account: outcome.account, priorHadOwnWork });
 });
 
@@ -325,6 +362,7 @@ app.post("/api/account/sign-in", (req, res) => {
 // alone, since that response already left the browser unauthenticated.
 app.post("/api/account/sign-in/confirm", (req, res) => {
   if (authRateLimited(req.ip ?? "unknown")) {
+    ev(res, { event: "account.sign_in", outcome: "limited", reason: "confirm", actor: label(findVisitor(db, readCookie(req))) });
     res.status(429).json({ ok: false, message: "Too many attempts; wait a minute and try again." });
     return;
   }
@@ -332,9 +370,11 @@ app.post("/api/account/sign-in/confirm", (req, res) => {
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   const outcome = verifyCredentials(db, username, password);
   if (!outcome.ok) {
+    ev(res, { event: "account.sign_in", outcome: "denied", reason: "bad_credentials", actor: label(findVisitor(db, readCookie(req))) });
     res.status(401).json({ ok: false, message: "Incorrect username or password." });
     return;
   }
+  const priorVisitorId = findVisitor(db, readCookie(req));
   // This browser's PRIOR session, if any, is about to stop being the one
   // this cookie resolves to — so any room stream it opened must stop
   // receiving that room's private updates under the old identity right
@@ -345,22 +385,26 @@ app.post("/api/account/sign-in/confirm", (req, res) => {
   // room whose last live connection this was, rather than letting a
   // now-dead stream's own keep-alive keep renewing it.
   const priorToken = readCookie(req);
-  if (priorToken) clearPresence(revokeSession(hashToken(priorToken)));
+  if (priorToken) clearPresence(revokeSession(hashToken(priorToken)), "session_replaced");
   const session = confirmSignIn(db, outcome.visitorId);
   setCookie(req, res, session);
+  // actor: the account's visitor this browser now acts as; peer: the identity it switched away from
+  ev(res, { event: "account.sign_in", outcome: "changed", reason: "confirmed", actor: label(outcome.visitorId), peer: label(priorVisitorId) });
   res.json({ ok: true, account: outcome.account });
 });
 
 app.post("/api/account/sign-out", (req, res) => {
   const token = readCookie(req);
+  const signedOutVisitor = findVisitor(db, token);
   if (token) {
     signOut(db, token);
     // Close every SSE stream this specific session opened: logging out in
     // one tab must stop that tab's room stream immediately, not merely
     // once its socket eventually drops — "a stale stream must not keep
     // renewing the old identity's active presence" in the meantime.
-    clearPresence(revokeSession(hashToken(token)));
+    clearPresence(revokeSession(hashToken(token)), "signed_out");
   }
+  ev(res, { event: "account.sign_out", outcome: signedOutVisitor ? "changed" : "unchanged", actor: label(signedOutVisitor) });
   // a signed-out visit still needs an identity to act as (an anonymous one,
   // exactly like a brand-new visit); identify() issues a fresh cookie here
   identify(req, res);
@@ -387,14 +431,24 @@ app.post("/api/rooms", (req, res) => {
   const visitorId = identify(req, res);
   const visibility = req.body?.visibility === "public" ? "public" : "invite_only";
   const allowPublish = typeof req.body?.allowPublish === "boolean" ? req.body.allowPublish : visibility === "public";
-  const label = typeof req.body?.label === "string" ? req.body.label.slice(0, 80) : undefined;
-  const room = createRoom(db, visitorId, { visibility, allowPublish, label });
+  const roomLabel = typeof req.body?.label === "string" ? req.body.label.slice(0, 80) : undefined;
+  const room = createRoom(db, visitorId, { visibility, allowPublish, label: roomLabel });
+  // the room's free-text label is never logged
+  ev(res, { event: "room.create", outcome: "changed", actor: label(visitorId), room: room.id, visibility: room.visibility });
   res.json(snapshotOf(db, room));
 });
 
 app.post("/api/rooms/:id/join", (req, res) => {
   const visitorId = identify(req, res);
   const outcome = joinRoom(db, req.params.id, visitorId);
+  // `unchanged`: already held an active slot (a reload or second tab), so nobody new was admitted
+  ev(res, {
+    event: "room.join",
+    outcome: outcome.ok ? (outcome.changed ? "changed" : "unchanged") : outcome.code === "not_found" ? "rejected" : "denied",
+    reason: outcome.ok ? undefined : outcome.code === "forbidden" ? "no_invitation" : outcome.code,
+    actor: label(visitorId),
+    room: req.params.id,
+  });
   if (!outcome.ok) {
     const status = outcome.code === "not_found" ? 404 : outcome.code === "forbidden" ? 403 : 409;
     res.status(status).json({ ok: false, code: outcome.code });
@@ -406,7 +460,9 @@ app.post("/api/rooms/:id/join", (req, res) => {
 
 app.post("/api/rooms/:id/leave", (req, res) => {
   const visitorId = identify(req, res);
-  leaveRoom(db, req.params.id, visitorId);
+  const left = leaveRoom(db, req.params.id, visitorId);
+  // an explicit Leave; `unchanged` if this visitor wasn't active there anyway
+  ev(res, { event: "room.leave", outcome: left ? "changed" : "unchanged", actor: label(visitorId), room: req.params.id });
   res.json({ ok: true });
 });
 
@@ -429,10 +485,20 @@ app.post("/api/rooms/:id/invite", (req, res) => {
   const visitorId = identify(req, res);
   const to = typeof req.body?.to === "string" ? req.body.to : "";
   if (!to || !areFriends(db, visitorId, to)) {
+    ev(res, { event: "room.invite", outcome: "denied", reason: "not_friends", actor: label(visitorId), peer: label(to), room: req.params.id });
     res.status(400).json({ ok: false, message: "You can only invite a friend." });
     return;
   }
   const outcome = inviteToRoom(db, req.params.id, visitorId, to);
+  ev(res, {
+    event: "room.invite",
+    outcome: outcome.ok ? "changed" : outcome.code === "forbidden" ? "denied" : outcome.code === "already_invited" ? "unchanged" : "rejected",
+    reason: outcome.ok ? undefined : outcome.code === "forbidden" ? "not_host" : outcome.code,
+    actor: label(visitorId),
+    peer: label(to),
+    room: req.params.id,
+    target: outcome.ok ? outcome.id : undefined,
+  });
   if (!outcome.ok) {
     res.status(outcome.code === "not_found" ? 404 : outcome.code === "forbidden" ? 403 : 409).json({ ok: false, code: outcome.code });
     return;
@@ -444,6 +510,14 @@ app.post("/api/invites/:id/respond", (req, res) => {
   const visitorId = identify(req, res);
   const accept = req.body?.accept === true;
   const outcome = respondToInvite(db, req.params.id, visitorId, accept);
+  ev(res, {
+    event: "room.invite_response",
+    outcome: outcome.ok ? "changed" : outcome.code === "not_found" ? "rejected" : "denied",
+    reason: outcome.ok ? outcome.status : outcome.code === "forbidden" ? "not_invitee" : outcome.code,
+    actor: label(visitorId),
+    room: outcome.ok ? outcome.roomId : undefined,
+    target: req.params.id,
+  });
   if (!outcome.ok) {
     const status = outcome.code === "not_found" ? 404 : outcome.code === "room_full" ? 409 : 403;
     res.status(status).json({ ok: false, code: outcome.code });
@@ -456,6 +530,8 @@ app.get("/api/rooms/:id", (req, res) => {
   const visitorId = identify(req, res);
   const room = findRoom(db, req.params.id);
   if (!room || (room.visibility === "invite_only" && !isMember(db, room.id, visitorId))) {
+    // the response is the same 404 either way; the log says which
+    ev(res, { event: "room.read", outcome: room ? "denied" : "rejected", reason: room ? "not_member" : "not_found", actor: label(visitorId), room: req.params.id });
     res.status(404).json({ ok: false, message: "No such room." });
     return;
   }
@@ -502,11 +578,13 @@ app.get("/api/rooms/:id/events", (req, res) => {
   const visitorId = identify(req, res); // may issue a fresh cookie if `incomingToken` was absent/invalid
   const room = findRoom(db, req.params.id);
   if (!room || !isMember(db, room.id, visitorId)) {
+    ev(res, { event: "sse.open", outcome: room ? "denied" : "rejected", reason: room ? "not_member" : "not_found", actor: label(visitorId), room: req.params.id });
     res.status(404).json({ ok: false, message: "No such room." });
     return;
   }
   const admitted = markActive(db, room.id, visitorId);
   if (!admitted.ok) {
+    ev(res, { event: "sse.open", outcome: "denied", reason: admitted.code, actor: label(visitorId), room: room.id });
     res.status(409).json({ ok: false, code: admitted.code, message: "This room is already at capacity." });
     return;
   }
@@ -514,24 +592,46 @@ app.get("/api/rooms/:id/events", (req, res) => {
   // was already in the cookie, or (a brand-new visitor's very first
   // request) the fresh one `identify` just issued. Either way this
   // connection is now tied to one real, revocable session row.
+  const reqId = res.locals.req as string;
   const sessionToken = incomingToken ?? newCookieToken(res);
   const tokenHash = hashToken(sessionToken);
   const unsubscribe = subscribe(room.id, res, snapshotOf(db, room));
-  const keepAlive = setInterval(() => markActive(db, room.id, visitorId), 10_000);
+  const keepAlive = setInterval(() => {
+    try {
+      markActive(db, room.id, visitorId);
+    } catch (err) {
+      emit({ event: "background.error", outcome: "error", kind: "sse_keepalive", actor: label(visitorId), room: room.id, req: reqId, ...describeError(err) });
+    }
+  }, 10_000);
+  const openedAt = Date.now();
+  // "revoked" when a sign-out or account switch closed it; otherwise the
+  // browser went away (tab closed, navigated, network dropped). Neither is
+  // itself leaving the room: presence ends on Leave, sign-out, or expiry.
+  let closeReason: "revoked" | "client_gone" = "client_gone";
+  let closed = false;
+  const logClose = (): void => {
+    if (closed) return;
+    closed = true;
+    emit({ event: "sse.close", outcome: "ok", reason: closeReason, actor: label(visitorId), room: room.id, open: openConnections(room.id, visitorId), ms: Date.now() - openedAt, req: reqId });
+  };
   const deregister = registerConnection({
     tokenHash,
     roomId: room.id,
     visitorId,
     kill: () => {
+      closeReason = "revoked";
       clearInterval(keepAlive);
       unsubscribe();
       res.end();
     },
   });
+  // `changed` when this connection brought a lapsed member back into an active slot
+  ev(res, { event: "sse.open", outcome: admitted.changed ? "changed" : "ok", reason: admitted.changed ? "readmitted" : undefined, actor: label(visitorId), room: room.id, open: openConnections(room.id, visitorId) });
   req.on("close", () => {
     clearInterval(keepAlive);
     unsubscribe();
     deregister();
+    logClose();
   });
 });
 
@@ -544,6 +644,14 @@ app.post("/api/rooms/:id/mark", (req, res) => {
   // "look here" to people currently in the room — the same
   // currently-admitted check every other mutation now uses.
   if (!room || !isActiveMember(db, room.id, visitorId) || !planId) {
+    ev(res, {
+      event: "plan.mark",
+      outcome: !room || !planId ? "rejected" : "denied",
+      reason: !room ? "room_not_found" : !planId ? "no_plan" : "not_admitted",
+      actor: label(visitorId),
+      room: req.params.id,
+      target: planId ? safeId(planId) : undefined,
+    });
     res.status(404).json({ ok: false, message: "No such room or plan." });
     return;
   }
@@ -555,40 +663,64 @@ app.post("/api/rooms/:id/mark", (req, res) => {
   // authoritative list a member's own client reads.
   const isOpenPlanHere = snapshotOf(db, room).plans.some((p) => p.id === planId);
   if (!isOpenPlanHere) {
+    ev(res, { event: "plan.mark", outcome: "rejected", reason: "plan_not_open", actor: label(visitorId), room: room.id, target: planId });
     res.status(404).json({ ok: false, message: "That plan isn't open in this room." });
     return;
   }
   const sent = markPlan(room.id, planId, visitorId);
+  const proposer = snapshotOf(db, room).plans.find((p) => p.id === planId)?.proposedBy;
+  // a transient broadcast, never persisted (ADR 0009); `limited` if it fell inside the cooldown
+  ev(res, { event: "plan.mark", outcome: sent ? "ok" : "limited", reason: sent ? undefined : "cooldown", actor: label(visitorId), author: label(proposer), room: room.id, target: planId });
   res.json({ ok: true, sent });
 });
 
 // ---- commands (unchanged path, now room-scoped: ADR 0007/0008) -----------
 
+const COMMAND_TYPES: ReadonlySet<string> = new Set(["place", "remove", "recolour", "rotate", "propose-plan", "withdraw-plan", "realize-plan"]);
 const COMMAND_OUTCOME = { applied: "changed", duplicate: "duplicate", rejected: "rejected", conflict: "conflict", "no-build": "rejected", forbidden: "denied" } as const;
 
+/** The command type and id the client sent, as safe log values (a known type, a UUID-shaped id), for refusals before parsing succeeds. */
+function claimed(body: unknown): Pick<Fields, "type" | "cmd"> {
+  const b = typeof body === "object" && body !== null ? (body as { commandId?: unknown; command?: { type?: unknown } }) : {};
+  return { type: known(b.command?.type, COMMAND_TYPES), cmd: commandRef(b.commandId) };
+}
+
 function handleCommand(req: Request, res: Response, visitorId: string, roomId: string): void {
+  const refused = (outcome: "invalid" | "limited", reason: string, extra: Pick<Fields, "type" | "cmd"> = {}): void =>
+    ev(res, { event: "command", outcome, reason, actor: label(visitorId), room: roomId, ...extra });
   if (!req.is("application/json")) {
+    refused("invalid", "not_json");
     res.status(415).json({ ok: false, code: "bad_request", message: "Commands are JSON." });
     return;
   }
   if (tooFast(visitorId)) {
+    refused("limited", "too_fast", claimed(req.body));
     res.status(429).json({ ok: false, code: "bad_request", message: "That's a lot of changes at once; wait a moment." });
     return;
   }
   const envelope = parseEnvelope(req.body);
   if (!envelope) {
+    refused("invalid", "bad_envelope", claimed(req.body));
     res.status(400).json({ ok: false, code: "bad_request", message: "That command isn't one the server understands." });
     return;
   }
-  const { result, outcome, roomId: committedRoomId } = runCommand(db, visitorId, roomId, envelope);
+  const { result, outcome, roomId: committedRoomId, meta } = runCommand(db, visitorId, roomId, envelope);
+  // after the transaction: an `applied` command is committed by the time this line is written
   ev(res, {
     event: "command",
     type: envelope.command.type,
     outcome: COMMAND_OUTCOME[outcome],
-    reason: result.ok ? undefined : result.code,
+    // the public code for a non-admitted member stays `bad_request`; the log is precise
+    reason: result.ok ? undefined : outcome === "forbidden" ? "not_admitted" : outcome === "no-build" ? "room_not_found" : result.code,
     actor: label(visitorId),
-    room: committedRoomId,
-    rev: result.ok ? result.snapshot.revision : undefined,
+    author: label(meta?.author),
+    room: committedRoomId ?? roomId,
+    target: meta?.target,
+    part: meta?.part,
+    at: meta?.at,
+    colour: meta?.colour,
+    rev: outcome === "duplicate" ? meta?.firstRevision : result.ok ? result.snapshot.revision : undefined,
+    cmd: commandRef(envelope.commandId),
   });
   const status = result.ok ? 200 : outcome === "forbidden" ? 403 : outcome === "conflict" ? 409 : 422;
   res.status(status).json(result);
@@ -600,6 +732,7 @@ function handleCommand(req: Request, res: Response, visitorId: string, roomId: s
 app.post("/api/rooms/:id/command", (req, res) => {
   const visitorId = findVisitor(db, readCookie(req));
   if (!visitorId) {
+    ev(res, { event: "command", outcome: "denied", reason: "no_session", room: req.params.id, ...claimed(req.body) });
     res.status(401).json({ ok: false, code: "bad_request", message: "No visitor session; reload the page." });
     return;
   }
@@ -611,6 +744,7 @@ app.post("/api/rooms/:id/command", (req, res) => {
 app.post("/api/command", (req, res) => {
   const visitorId = findVisitor(db, readCookie(req));
   if (!visitorId) {
+    ev(res, { event: "command", outcome: "denied", reason: "no_session", ...claimed(req.body) });
     res.status(401).json({ ok: false, code: "bad_request", message: "No visitor session; reload the page." });
     return;
   }
@@ -627,12 +761,24 @@ app.get("/api/friends", (req, res) => {
 
 app.post("/api/friends/link", (req, res) => {
   const visitorId = identify(req, res);
-  res.json({ token: createFriendLink(db, visitorId) });
+  const token = createFriendLink(db, visitorId);
+  // the link's token is a credential-like secret and is never logged
+  ev(res, { event: "friend.link", outcome: "changed", actor: label(visitorId) });
+  res.json({ token });
 });
 
 app.get("/api/friends/link/:token", (req, res) => {
   const visitorId = identify(req, res);
   const outcome = openFriendLink(db, req.params.token, visitorId);
+  // read-only: opening a link never makes a friendship by itself
+  ev(res, {
+    event: "friend.link_open",
+    outcome: outcome.ok ? "ok" : "rejected",
+    reason: outcome.ok ? undefined : outcome.code,
+    actor: label(visitorId),
+    peer: outcome.ok ? label(outcome.fromVisitor) : undefined,
+    target: outcome.ok ? outcome.requestId : undefined,
+  });
   if (!outcome.ok) {
     res.status(400).json({ ok: false, code: outcome.code });
     return;
@@ -644,10 +790,19 @@ app.post("/api/friends/requests", (req, res) => {
   const visitorId = identify(req, res);
   const to = typeof req.body?.to === "string" ? req.body.to : "";
   if (!to || areFriends(db, visitorId, to)) {
+    ev(res, { event: "friend.request", outcome: to ? "unchanged" : "invalid", reason: to ? "already_friends" : "no_recipient", actor: label(visitorId), peer: label(to) });
     res.status(400).json({ ok: false, message: "Can't send that request." });
     return;
   }
   const outcome = requestFriend(db, visitorId, to);
+  ev(res, {
+    event: "friend.request",
+    outcome: outcome.ok ? "changed" : outcome.code === "self" ? "rejected" : "unchanged",
+    reason: outcome.ok ? undefined : outcome.code,
+    actor: label(visitorId),
+    peer: label(to),
+    target: outcome.ok ? outcome.requestId : undefined,
+  });
   if (!outcome.ok) {
     res.status(409).json({ ok: false, code: outcome.code });
     return;
@@ -659,6 +814,14 @@ app.post("/api/friends/requests/:id/respond", (req, res) => {
   const visitorId = identify(req, res);
   const accept = req.body?.accept === true;
   const outcome = respondToRequest(db, req.params.id, visitorId, accept);
+  ev(res, {
+    event: "friend.response",
+    outcome: outcome.ok ? "changed" : outcome.code === "forbidden" ? "denied" : outcome.code === "already_resolved" ? "unchanged" : "rejected",
+    reason: outcome.ok ? outcome.status : outcome.code === "forbidden" ? "not_recipient" : outcome.code,
+    actor: label(visitorId),
+    peer: outcome.ok ? label(outcome.fromVisitor) : undefined,
+    target: req.params.id,
+  });
   if (!outcome.ok) {
     res.status(outcome.code === "not_found" ? 404 : 403).json({ ok: false, code: outcome.code });
     return;
@@ -671,14 +834,17 @@ app.post("/api/friends/requests/:id/respond", (req, res) => {
 app.post("/api/rooms/:id/save", (req, res) => {
   const visitorId = identify(req, res);
   if (!isMember(db, req.params.id, visitorId)) {
+    ev(res, { event: "snapshot.save", outcome: "denied", reason: "not_member", actor: label(visitorId), room: req.params.id });
     res.status(403).json({ ok: false, message: "Not a member of this room." });
     return;
   }
   const summary = saveSnapshot(db, req.params.id, visitorId);
   if (!summary) {
+    ev(res, { event: "snapshot.save", outcome: "rejected", reason: "not_found", actor: label(visitorId), room: req.params.id });
     res.status(404).json({ ok: false, message: "No such room." });
     return;
   }
+  ev(res, { event: "snapshot.save", outcome: "changed", actor: label(visitorId), room: summary.roomId, target: summary.id, rev: summary.revision });
   res.json(summary);
 });
 
@@ -691,6 +857,8 @@ app.get("/api/snapshots/:id", (req, res) => {
   const visitorId = identify(req, res);
   const snapshot = getSnapshot(db, req.params.id);
   if (!snapshot || !canAccessSnapshot(db, req.params.id, visitorId)) {
+    // the same 404 either way, so possessing an id reveals nothing; the log says which
+    ev(res, { event: "snapshot.read", outcome: snapshot ? "denied" : "rejected", reason: snapshot ? "no_access" : "not_found", actor: label(visitorId), target: req.params.id });
     res.status(404).json({ ok: false, message: "No such snapshot." });
     return;
   }
@@ -704,6 +872,13 @@ app.get("/api/snapshots/:id", (req, res) => {
 app.post("/api/snapshots/:id/publish", (req, res) => {
   const visitorId = identify(req, res);
   const outcome = publishSnapshot(db, req.params.id, visitorId);
+  ev(res, {
+    event: "snapshot.publish",
+    outcome: outcome.ok ? "changed" : outcome.code === "not_allowed" ? "denied" : outcome.code === "already_published" ? "unchanged" : "rejected",
+    reason: outcome.ok ? undefined : outcome.code === "not_allowed" ? outcome.reason : outcome.code,
+    actor: label(visitorId),
+    target: req.params.id,
+  });
   if (!outcome.ok) {
     res.status(outcome.code === "not_found" ? 404 : 403).json({ ok: false, code: outcome.code });
     return;
@@ -719,14 +894,18 @@ app.post("/api/snapshots/:id/publish", (req, res) => {
 app.post("/api/snapshots/:id/collect", (req, res) => {
   const visitorId = identify(req, res);
   if (!canAccessSnapshot(db, req.params.id, visitorId)) {
+    const exists = snapshotExists(db, req.params.id);
+    ev(res, { event: "snapshot.collect", outcome: exists ? "denied" : "rejected", reason: exists ? "no_access" : "not_found", actor: label(visitorId), source: req.params.id });
     res.status(404).json({ ok: false, message: "No such snapshot." });
     return;
   }
   const summary = collectSnapshot(db, req.params.id, visitorId);
   if (!summary) {
+    ev(res, { event: "snapshot.collect", outcome: "rejected", reason: "not_found", actor: label(visitorId), source: req.params.id });
     res.status(404).json({ ok: false, message: "No such snapshot." });
     return;
   }
+  ev(res, { event: "snapshot.collect", outcome: "changed", actor: label(visitorId), target: summary.id, source: req.params.id });
   res.json(summary);
 });
 
@@ -744,12 +923,14 @@ app.post("/api/snapshots/:id/continue", (req, res) => {
   const visitorId = identify(req, res);
   const snapshot = getSnapshot(db, req.params.id);
   if (!snapshot || !canAccessSnapshot(db, req.params.id, visitorId)) {
+    ev(res, { event: "snapshot.continue", outcome: snapshot ? "denied" : "rejected", reason: snapshot ? "no_access" : "not_found", actor: label(visitorId), source: req.params.id });
     res.status(404).json({ ok: false, message: "No such snapshot." });
     return;
   }
   const visibility = req.body?.visibility === "public" ? "public" : "invite_only";
   const allowPublish = typeof req.body?.allowPublish === "boolean" ? req.body.allowPublish : visibility === "public";
   const room = createRoom(db, visitorId, { visibility, allowPublish, fromSnapshotId: snapshot.id });
+  ev(res, { event: "snapshot.continue", outcome: "changed", actor: label(visitorId), room: room.id, source: snapshot.id, visibility: room.visibility });
   res.json(snapshotOf(db, room));
 });
 
@@ -862,10 +1043,11 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 });
 
 // ADR 0007: presence sweep, so a dropped connection's slot frees after a
-// grace period without needing its own cleanup codepath.
+// grace period without needing its own cleanup codepath. A background
+// event: no request id.
 const presenceSweep = setInterval(() => {
   try {
-    sweepPresence(db);
+    for (const { roomId, visitorId } of sweepPresence(db)) emit({ event: "presence.end", outcome: "changed", reason: "expired", actor: label(visitorId), room: roomId });
   } catch (err) {
     emit({ event: "background.error", outcome: "error", kind: "presence_sweep", ...describeError(err) });
   }

@@ -70,6 +70,11 @@ export interface LiveConnection {
 
 const connections = new Set<LiveConnection>();
 
+/** How many live SSE connections this visitor has open in this room (for the log, ADR 0013). */
+export function openConnections(roomId: string, visitorId: string): number {
+  return [...connections].filter((c) => c.roomId === roomId && c.visitorId === visitorId).length;
+}
+
 /** Called once per opened SSE connection. The returned function deregisters it (also safe to call after `revokeSession` already did). */
 export function registerConnection(conn: LiveConnection): () => void {
   connections.add(conn);

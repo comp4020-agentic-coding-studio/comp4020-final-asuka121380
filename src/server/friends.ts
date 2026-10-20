@@ -70,7 +70,10 @@ export function openFriendLink(db: Db, token: string, viewer: string): OpenLinkO
   return { ok: true, requestId: row.id, fromVisitor: row.from_visitor };
 }
 
-export type RespondOutcome = { ok: true; status: "accepted" | "declined" } | { ok: false; code: "not_found" | "forbidden" | "already_resolved" };
+/** `fromVisitor` is for the log (ADR 0013); the route returns only `ok` and `status`. */
+export type RespondOutcome =
+  | { ok: true; status: "accepted" | "declined"; fromVisitor: string }
+  | { ok: false; code: "not_found" | "forbidden" | "already_resolved" };
 
 export function respondToRequest(db: Db, requestId: string, respondent: string, accept: boolean): RespondOutcome {
   return transaction(db, (): RespondOutcome => {
@@ -83,15 +86,15 @@ export function respondToRequest(db: Db, requestId: string, respondent: string, 
     if (row.status !== "pending") return { ok: false, code: "already_resolved" };
     if (!accept) {
       // a link stays open for someone else to use; a direct request is resolved
-      if (row.token) return { ok: true, status: "declined" };
+      if (row.token) return { ok: true, status: "declined", fromVisitor: row.from_visitor };
       db.prepare("UPDATE friend_requests SET status = 'declined' WHERE id = ?").run(requestId);
-      return { ok: true, status: "declined" };
+      return { ok: true, status: "declined", fromVisitor: row.from_visitor };
     }
     const [a, b] = pairKey(row.from_visitor, respondent);
     db.prepare("INSERT OR IGNORE INTO friendships (visitor_a, visitor_b, created_at) VALUES (?, ?, ?)").run(a, b, now());
     // a direct request is consumed; a link stays usable for other people
     if (!row.token) db.prepare("UPDATE friend_requests SET status = 'accepted' WHERE id = ?").run(requestId);
-    return { ok: true, status: "accepted" };
+    return { ok: true, status: "accepted", fromVisitor: row.from_visitor };
   });
 }
 

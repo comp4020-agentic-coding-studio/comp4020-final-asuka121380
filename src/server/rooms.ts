@@ -229,7 +229,8 @@ export function isActiveMember(db: Db, roomId: string, visitorId: string): boole
   return !!isDefault;
 }
 
-export type JoinOutcome = { ok: true } | { ok: false; code: "room_full" | "not_found" | "forbidden" };
+/** `changed` (ADR 0013, for the log): false when the visitor already held an active slot, so nothing was admitted. */
+export type JoinOutcome = { ok: true; changed?: boolean } | { ok: false; code: "room_full" | "not_found" | "forbidden" };
 
 /**
  * Joining is capacity-checked inside the caller's transaction (runCommand's
@@ -317,18 +318,31 @@ export function markActive(db: Db, roomId: string, visitorId: string): AdmitOutc
   return outcome;
 }
 
-/** 30s grace (ADR 0007) so a reload or brief drop doesn't flip presence off; called by a periodic sweep. */
-export function sweepPresence(db: Db, graceMs = 30_000): void {
+/**
+ * 30s grace (ADR 0007) so a reload or brief drop doesn't flip presence off;
+ * called by a periodic sweep. Returns whose presence actually expired, for
+ * the log (ADR 0013).
+ */
+export function sweepPresence(db: Db, graceMs = 30_000): { roomId: string; visitorId: string }[] {
   const cutoff = new Date(Date.now() - graceMs).toISOString();
-  const affected = db.prepare("SELECT DISTINCT room_id FROM room_members WHERE active = 1 AND last_seen_at < ?").all(cutoff) as { room_id: string }[];
-  db.prepare("UPDATE room_members SET active = 0 WHERE active = 1 AND last_seen_at < ?").run(cutoff);
-  for (const { room_id } of affected) pushRoomState(db, room_id);
+  const expired = transaction(db, () => {
+    const rows = db.prepare("SELECT room_id, visitor_id FROM room_members WHERE active = 1 AND last_seen_at < ?").all(cutoff) as {
+      room_id: string;
+      visitor_id: string;
+    }[];
+    db.prepare("UPDATE room_members SET active = 0 WHERE active = 1 AND last_seen_at < ?").run(cutoff);
+    return rows.map((r) => ({ roomId: r.room_id, visitorId: r.visitor_id }));
+  });
+  for (const roomId of new Set(expired.map((e) => e.roomId))) pushRoomState(db, roomId);
+  return expired;
 }
 
-export function leave(db: Db, roomId: string, visitorId: string): void {
+/** Returns whether the visitor was active (so leaving changed anything), for the log (ADR 0013). */
+export function leave(db: Db, roomId: string, visitorId: string): boolean {
   const row = db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(roomId, visitorId) as { active: number } | undefined;
   db.prepare("UPDATE room_members SET active = 0 WHERE room_id = ? AND visitor_id = ?").run(roomId, visitorId);
   if (row?.active) pushRoomState(db, roomId);
+  return !!row?.active;
 }
 
 // ---- room invitations (ADR 0007: a room invitation, not friendship, gates

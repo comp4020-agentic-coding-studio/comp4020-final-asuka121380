@@ -91,6 +91,60 @@ export interface Outcome {
   roomId?: string;
   /** For the action log: what happened, without anything private. */
   outcome: "applied" | "duplicate" | "rejected" | "conflict" | "no-build" | "forbidden";
+  /** For the action log (ADR 0013): what the command was aimed at, read from authoritative state. */
+  meta?: CommandMeta;
+}
+
+/**
+ * What a command is about, for the log: the target id, the part and its
+ * position, and the original builder or plan proposer. Taken from the
+ * room's state as the server read it inside the transaction (before a
+ * removal or realization makes it unavailable), never from the client's
+ * idea of who built what. A placement's or plan's part and position are the
+ * client's requested values, which is what was attempted.
+ */
+export interface CommandMeta {
+  target?: string;
+  part?: string;
+  /** "x,y,z,rot", only when all four are integers. */
+  at?: string;
+  colour?: string;
+  /** Visitor id of the original builder (real parts) or proposer (plans). */
+  author?: string;
+  /** For a duplicate: the revision at which the first delivery of this command id committed. */
+  firstRevision?: number;
+}
+
+const where = (p: { x: number; y: number; z: number; rot: number }): string | undefined =>
+  [p.x, p.y, p.z, p.rot].every(Number.isInteger) ? `${p.x},${p.y},${p.z},${p.rot}` : undefined;
+
+function commandMeta(state: BuildState, command: Command): CommandMeta {
+  switch (command.type) {
+    case "place":
+    case "propose-plan": {
+      const p = command.type === "place" ? command.placement : command.plan;
+      return { part: p.partId, at: where(p), colour: p.colour };
+    }
+    case "remove":
+    case "recolour":
+    case "rotate": {
+      const part = state.parts.find((p) => p.id === command.placedId);
+      if (!part) return { target: command.placedId };
+      return {
+        target: part.id,
+        part: part.partId,
+        at: where(part),
+        colour: command.type === "recolour" ? command.colour : part.colour,
+        author: part.placedBy,
+      };
+    }
+    case "withdraw-plan":
+    case "realize-plan": {
+      const plan = (state.plans ?? []).find((p) => p.id === command.planId);
+      if (!plan) return { target: command.planId };
+      return { target: plan.id, part: plan.partId, at: where(plan), colour: plan.colour, author: plan.proposedBy };
+    }
+  }
 }
 
 /** True once this visitor has ever placed a real part in this room (ADR 0009: distinct from mere membership). */
@@ -128,18 +182,22 @@ export function runCommand(db: Db, visitorId: string, roomId: string, envelope: 
     }
 
     // a retry of a command that already committed: report the current state, change nothing
-    const seen = db.prepare("SELECT 1 FROM commands WHERE build_id = ? AND command_id = ?").get(room.id, envelope.commandId);
-    if (seen) return { outcome: "duplicate", roomId, result: { ok: true, snapshot: snapshotOf(db, room) } };
+    const seen = db.prepare("SELECT revision FROM commands WHERE build_id = ? AND command_id = ?").get(room.id, envelope.commandId) as
+      | { revision: number }
+      | undefined;
+    if (seen) return { outcome: "duplicate", roomId, meta: { firstRevision: seen.revision }, result: { ok: true, snapshot: snapshotOf(db, room) } };
 
     const snapshot = snapshotOf(db, room);
     const state: BuildState = snapshot;
     const { command } = envelope;
+    const meta = commandMeta(state, command);
     const rejection = validateCommand(scene, state, command);
     if (rejection) {
       const conflict = rejection.code === "part_conflict";
       return {
         outcome: conflict ? "conflict" : "rejected",
         roomId,
+        meta,
         result: { ok: false, code: rejection.code, message: rejection.message, snapshot },
       };
     }
@@ -151,6 +209,7 @@ export function runCommand(db: Db, visitorId: string, roomId: string, envelope: 
       const p = command.placement;
       const id = randomUUID();
       objectId = id;
+      meta.target = id;
       db.prepare(
         "INSERT INTO parts (id, build_id, part_id, x, y, z, rot, colour, placed_by, rev, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
       ).run(id, room.id, p.partId, p.x, p.y, p.z, p.rot, p.colour, visitorId, t);
@@ -186,6 +245,7 @@ export function runCommand(db: Db, visitorId: string, roomId: string, envelope: 
       const p = command.plan;
       const id = randomUUID();
       objectId = id;
+      meta.target = id;
       db.prepare(
         "INSERT INTO plans (id, room_id, part_id, x, y, z, rot, colour, proposed_by, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')",
       ).run(id, room.id, p.partId, p.x, p.y, p.z, p.rot, p.colour, visitorId, t);
@@ -219,7 +279,7 @@ export function runCommand(db: Db, visitorId: string, roomId: string, envelope: 
 
     const after = snapshotOf(db, { ...room, revision });
     emitRoomEvent(room.id, { type: "snapshot", snapshot: after });
-    return { outcome: "applied", roomId: room.id, result: { ok: true, snapshot: after } };
+    return { outcome: "applied", roomId: room.id, meta, result: { ok: true, snapshot: after } };
   });
 }
 

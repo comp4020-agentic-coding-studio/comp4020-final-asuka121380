@@ -303,6 +303,11 @@ export function snapshotsSavedBy(db: Db, visitorId: string): SnapshotSummary[] {
  * make a direct `/api/snapshots/:id` request to the same snapshot
  * permissible, since publishing *is* the act of making it public).
  */
+/** Whether a snapshot id exists at all; lets the log tell "no access" from "no such snapshot" (ADR 0013). Never changes a response. */
+export function snapshotExists(db: Db, snapshotId: string): boolean {
+  return !!db.prepare("SELECT 1 FROM snapshots WHERE id = ?").get(snapshotId);
+}
+
 export function canAccessSnapshot(db: Db, snapshotId: string, visitorId: string): boolean {
   const row = db.prepare("SELECT saved_by, room_id FROM snapshots WHERE id = ?").get(snapshotId) as
     | { saved_by: string; room_id: string }
@@ -316,7 +321,11 @@ export function canAccessSnapshot(db: Db, snapshotId: string, visitorId: string)
 
 // ---- publication (author's policy, ADR 0009) -------------------------------
 
-export type PublishOutcome = { ok: true; id: string } | { ok: false; code: "not_found" | "not_allowed" | "already_published" };
+/** `reason` refines `not_allowed` for the log only (ADR 0013); the route returns just `code`. */
+export type PublishOutcome =
+  | { ok: true; id: string }
+  | { ok: false; code: "not_found" | "already_published" }
+  | { ok: false; code: "not_allowed"; reason: "not_saver" | "publish_disallowed" };
 
 /**
  * Any member may publish their own saved snapshot, if its (lineage-checked)
@@ -329,8 +338,8 @@ export function publishSnapshot(db: Db, snapshotId: string, publishedBy: string)
       | { allow_publish: number; saved_by: string }
       | undefined;
     if (!row) return { ok: false, code: "not_found" };
-    if (row.saved_by !== publishedBy) return { ok: false, code: "not_allowed" };
-    if (!row.allow_publish) return { ok: false, code: "not_allowed" };
+    if (row.saved_by !== publishedBy) return { ok: false, code: "not_allowed", reason: "not_saver" };
+    if (!row.allow_publish) return { ok: false, code: "not_allowed", reason: "publish_disallowed" };
     const existing = db.prepare("SELECT id FROM publications WHERE snapshot_id = ?").get(snapshotId);
     if (existing) return { ok: false, code: "already_published" };
     const id = randomUUID();
