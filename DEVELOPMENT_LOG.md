@@ -2584,3 +2584,23 @@ Checks: `git diff --check` and `pnpm check:evidence` passed. This was a
 documentation-only change; no application/browser tests were rerun.
 PROCESS and reflections were not changed. Further design-source discussion
 remains a possible README follow-up. Nothing pushed or deployed.
+
+## 21 October 2026 (Australia/Sydney) — Author-approved C10 PROCESS update
+
+Commit: [`c30f47d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/c30f47d)
+— `docs: update PROCESS with approved C10 account`.
+
+The author reviewed the English draft and Chinese translation, requested
+generic "the agent" / "agent-assisted review" wording rather than tool
+names, and explicitly approved updating PROCESS without pushing or deploying.
+The approved account replaces the C9 overview with the cooperation and Plan
+design changes, agent-recommended stack, logging investigation, identity
+ordering, backpressure correction, and current evidence limitations. It
+retains the AI-assistance disclosure and distinguishes the author's reported
+two-device test from agent-run checks and the outstanding classmate rehearsal.
+
+Verification: `git diff --check` passed; `pnpm check:evidence` passed with
+15 PROCESS commit citations resolving; no Claude or Codex names remain in
+PROCESS. Documentation only: no application or browser tests were rerun.
+README, reflections and application code were unchanged in this turn.
+Nothing pushed or deployed.
