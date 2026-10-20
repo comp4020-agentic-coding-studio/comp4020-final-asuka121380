@@ -65,7 +65,7 @@ const snapshotId = new URL(pageA.url()).searchParams.get("snapshot")!;
 // the list renders once the page's identity is established (state/identity.ts), so wait for it before counting
 const collectionRow = await pageA
   .goto(`${base}/build/?view=collection`, { waitUntil: "domcontentloaded" })
-  .then(() => pageA.waitForSelector(".room-row, text=Nothing saved yet", { timeout: 10000 }).catch(() => {}))
+  .then(() => pageA.locator(".room-row").first().or(pageA.getByText("Nothing saved yet")).waitFor({ timeout: 10000 }))
   .then(() => pageA.locator(".room-row").count());
 check("the saved version also appears by browsing the collection page", collectionRow >= 1, collectionRow);
 

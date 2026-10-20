@@ -168,7 +168,7 @@ check("saving a published version to B's collection creates no room as a side ef
 // the list renders once the page's identity is established (state/identity.ts), so wait for it before counting
 const bCollectionCount = await pageB
   .goto(`${base}/build/?view=collection`, { waitUntil: "domcontentloaded" })
-  .then(() => pageB.waitForSelector(".room-row, text=Nothing saved yet", { timeout: 10000 }).catch(() => {}))
+  .then(() => pageB.locator(".room-row").first().or(pageB.getByText("Nothing saved yet")).waitFor({ timeout: 10000 }))
   .then(() => pageB.locator(".room-row").count());
 check("the collected copy appears in B's own collection", bCollectionCount >= 1, bCollectionCount);
 
