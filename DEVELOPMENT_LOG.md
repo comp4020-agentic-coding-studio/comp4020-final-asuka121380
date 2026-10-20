@@ -2565,3 +2565,22 @@ created one visitor row. Details: evidence 0012, "Live deployment".
 
 **Not done:** the two-classmate rehearsal and browser runs against the
 live app.
+
+## 21 October 2026, 09:54 AEDT — Author-approved README update (Codex)
+
+Commit: [`d395546`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/d395546)
+— `docs: update README with author-approved C10 draft`.
+
+The author reviewed the English draft and its Chinese translation, approved
+the content, and explicitly requested that the English version replace the
+README without pushing or deploying. Codex applied that approved text.
+It replaces C8-only and complementary-inventory descriptions with the
+current shared inventory, Plan mode, rooms, accounts and saved creations;
+adds the author's approved childhood motivation; and treats the reference
+house as optional inspiration. The two-device synchronisation observation
+is the author's report, not a new test run by Codex or a two-classmate trial.
+
+Checks: `git diff --check` and `pnpm check:evidence` passed. This was a
+documentation-only change; no application/browser tests were rerun.
+PROCESS and reflections were not changed. Further design-source discussion
+remains a possible README follow-up. Nothing pushed or deployed.
