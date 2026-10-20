@@ -549,9 +549,16 @@ app.get("/api/rooms/:id/preview", (req, res) => {
   const visitorId = identify(req, res);
   const preview = admissionPreview(db, req.params.id, visitorId);
   if (!preview) {
+    // The UI's first contact with a room link: an invite-only room with no
+    // standing is refused here, before any join is attempted. Same 404 for
+    // "missing" and "not yours"; the log says which.
+    const exists = !!findRoom(db, req.params.id);
+    ev(res, { event: "room.preview", outcome: exists ? "denied" : "rejected", reason: exists ? "no_invitation" : "not_found", actor: label(visitorId), room: req.params.id });
     res.status(404).json({ ok: false, message: "No such room." });
     return;
   }
+  // a read: shown so the narrator sees who looked at a room before joining
+  ev(res, { event: "room.preview", outcome: "ok", reason: preview.canJoin ? undefined : preview.reason, actor: label(visitorId), room: preview.id });
   res.json(preview);
 });
 

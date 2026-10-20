@@ -71,6 +71,10 @@ describe("a two-person journey, narrated from the server log alone", () => {
     const created = await A().req("POST", "/api/rooms", { visibility: "invite_only", label: SECRET.label });
     state.roomId = created.body.roomId;
     expect(lineFor(created.reqId, "room.create")).toMatchObject({ outcome: "changed", actor: state.aLabel, room: state.roomId, visibility: "invite_only" });
+    // the editor's first request for a room link: refused before any join is tried
+    const look = await B().req("GET", `/api/rooms/${state.roomId}/preview`);
+    expect(look.status).toBe(404);
+    expect(lineFor(look.reqId, "room.preview")).toMatchObject({ outcome: "denied", reason: "no_invitation", actor: state.bLabel, room: state.roomId });
     const refused = await B().req("POST", `/api/rooms/${state.roomId}/join`);
     expect(refused.status).toBe(403);
     expect(lineFor(refused.reqId, "room.join")).toMatchObject({ outcome: "denied", reason: "no_invitation", actor: state.bLabel, room: state.roomId });
