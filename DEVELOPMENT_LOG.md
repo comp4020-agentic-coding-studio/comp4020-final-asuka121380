@@ -2316,7 +2316,7 @@ requests each create a visitor, and the browser keeps the last cookie. The
 script reads identities after the page settles. Recorded for the author in
 evidence 0010.
 
-### 2026-10-20 13:49 AEDT — [`0a200ba`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0a200ba) ADR 0013, CLAUDE.md, evidence 0010: server logs that say who did what
+### 2026-10-20 13:48 AEDT — [`0a200ba`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0a200ba) ADR 0013, CLAUDE.md, evidence 0010: server logs that say who did what
 
 **Changes:**
 - `doc/adr/0013-server-logs-who-did-what.md` (new) separates:
