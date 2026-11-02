@@ -2621,3 +2621,107 @@ Checks: `git diff --check` and `pnpm check:evidence` passed; the latter now
 recognises all three reflection files and resolves all 15 PROCESS citations.
 Documentation only; no application or browser tests were rerun. README,
 PROCESS and application code were unchanged. Nothing pushed or deployed.
+
+## 2 November 2026, 15:19 AEDT — The homepage as a building table, phase 1 (ADR 0014)
+
+Commits:
+- [`2b0f545`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/2b0f545)
+  — `Read-only /api/me/peek for the homepage sign`
+- [`09a3f3b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/09a3f3b)
+  — `Homepage as a building table: full composition and the Sign in entrance`
+- [`5d52995`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/5d52995)
+  — `Browser checks and evidence for the table homepage, phase 1`
+
+**Who decided.**
+- The author asked for the redesign and set the phase-1 scope: the whole
+  table composed, and one entrance (Sign in) working end to end.
+- The author also gave the refinements. The physical sign is clickable, the
+  focused view keeps the sign visible, Quick links stay reachable, only
+  Beach Houses is shown, the sign is state-aware, the panel opens on camera
+  arrival, the panel's accessibility is complete, the fallback covers more
+  than the WebGL probe, game presentation is protected, and the production
+  build is validated.
+- The author explicitly authorised superseding ADR 0004's no-three.js
+  homepage rule.
+- Implementation choices are the agent's and are marked in ADR 0014.
+
+**Implemented.**
+- `src/server/index.ts`: `GET /api/me/peek`. It resolves an existing cookie
+  only, creates no visitor, sets no cookie, and returns
+  `{ account: { displayName } | null }`.
+  - Why: the cookie is `HttpOnly`, so the old homepage's `document.cookie`
+    check never succeeded and a signed-in visitor always saw "Sign in".
+  - Calling `/api/me` would create a visitor just for viewing the page.
+  - No log event: the route changes nothing and refuses no one (ADR 0013).
+- `src/client/home/`: the old static page and `main.ts` are replaced.
+  - `main.tsx`: the entry; it imports no three.js.
+  - `HomeApp.tsx`: the WebGL probe, the lazy scene, focus state in the URL,
+    the error boundary, the 15 s load timeout and the fallback.
+  - `tabletop/build.ts`: the objects as `Batch` geometry, with `PLACES` for
+    the wide and narrow arrangements.
+  - `tabletop/destinations.ts`: camera poses and easing.
+  - `tabletop/TableScene.tsx`: the canvas, the light, the camera rig with
+    arrival reporting, the sign with its 3D hit box and HTML face, the
+    narrow-screen touch pad, painted labels, and context-loss handling.
+  - `tabletop/AccountPanel.tsx`: the modal nameplate around the unchanged
+    `AccountPage`.
+  - `tabletop/QuickLinks.tsx`
+  - `home.css`: scoped under `body.home`.
+- `src/client/index.html`: a minimal shell with a `<noscript>` link list.
+- `src/client/lobby/Account.tsx`:
+  - an optional `onAccountChange` callback
+  - **fix:** `afterRegister` now calls `resetIdentity()` as sign-in does.
+    Before, a later `whoAmI()` on the same page returned the cached guest
+    answer. This was found when the reopened panel showed "Guest mode" for a
+    visitor who had just registered.
+- `src/client/lobby/LobbyApp.tsx`: `id="friends"` on the Friends card, for
+  the `/build/#friends` link.
+- `CLAUDE.md`: the homepage rule now points to ADR 0014.
+- `vite.config.ts`: the comment is updated.
+- `doc/adr/0014-…`, `doc/evidence/0013-…`, `scripts/tabletop.ts`, and
+  `doc/evidence/shots/tabletop/`.
+
+**Commit hygiene.** `2b0f545` also contains the deletion of the old
+`src/client/home/main.ts`. It was staged earlier with `git rm` and swept
+in. On its own, that commit leaves `index.html` pointing at a missing
+script; `09a3f3b` restores a working tree. Nothing has been pushed, so the
+author can squash these three before pushing if preferred. The agent did
+not rewrite them without asking.
+
+**Tests run** (production build, local server, fresh temporary
+`DATA_DIR`):
+- `pnpm typecheck`: passed.
+- `APP_URL=http://localhost:8090 pnpm check`: 227/227, including the 2 new
+  peek tests and the logging tests.
+  - The first run failed 1 test with 429. The new test's registration shared
+    the per-IP auth budget with the other account specs; it now sends its
+    own `X-Forwarded-For`. The limiter is unchanged.
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+- `node scripts/tabletop.ts`: 57/57, in Chrome with swiftshader. The mobile
+  run is emulated 390×844, not a physical phone.
+- `curl` on the built app: all direct routes, with no cookie set by the
+  homepage or the peek.
+- Build comparison with `254aa99`: the editor's and lobby's CSS files are
+  byte-identical.
+
+**Observed while developing.**
+- The first composition had the sign covering the Beach Houses tray and
+  objects cropped at the right edge. They were moved.
+- The first phone views were wrong: a cropped overview, and the camera
+  inside the sign. They were redone with a separate narrow arrangement and
+  poses fitted by projecting the objects' corners.
+- Two touch-pad sizing approaches went stale after a resize. They were
+  replaced by sizing the pad from the sign's projected corners.
+- Escape didn't close the panel after registration (focus had dropped to
+  `<body>`). It is now a document-level listener, and focus is pulled back
+  into the dialog.
+
+**Known limitations.**
+- Six entrances are still decoration.
+- The lobby, collection, showcase and friends pages are not restyled yet.
+- The homepage fetches the editor's shared three.js chunk, including part
+  geometry it doesn't use.
+- Not checked in Safari, on a physical phone, with a screen reader, or by
+  real visitors.
+- Nothing pushed or deployed.
