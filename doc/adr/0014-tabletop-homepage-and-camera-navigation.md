@@ -73,7 +73,7 @@ so this decision keeps them by other means.
 
 - There are a few designed destinations, not free orbit: `overview` and
   `sign-in`, per layout, in `home/tabletop/destinations.ts`.
-- A move lasts 650 ms with an ease-in-out curve and starts from wherever
+- A move lasts 700 ms (650 ms in phase 1) with an ease-in-out curve and starts from wherever
   the camera is. Repeated or reversed activation therefore never jumps.
 - **The panel opens on arrival.** The frame that lands reports it; there is
   no timer.
@@ -88,7 +88,7 @@ so this decision keeps them by other means.
   left third with the tabletop behind it, and the panel stands on the right.
 - Narrow screens (under 760 px wide, or narrower than 4:5) use their own
   arrangement of the same objects. Objects are drawn in towards the centre
-  and stacked in depth, and the sign is 1.35× larger.
+  and stacked in depth, and the sign is 1.45× larger (1.35× in phase 1).
 - The poses were fitted by projecting the objects' corners at 390×844. A
   phone recomposes the table rather than shrinking the desktop view.
 - Focusing on a phone puts the whole sign above a bottom sheet.
@@ -152,6 +152,78 @@ so this decision keeps them by other means.
 - `scene/Plot.tsx` imports the editor's store and is not used.
 - In the build, the editor's and lobby's CSS files are byte-identical to
   before. The homepage's styles are all scoped under `body.home`.
+
+## Art-direction pass (author's brief, 2 Nov 2026; mechanisms agent)
+
+The author's art-direction brief refined phase 1 without adding entrances.
+Evidence: doc/evidence/0014.
+
+**Light and materials**
+- Bright warm daylight from one side, with a soft-radius shadow, a sky/
+  table hemisphere fill, and a weak cool fill from the other side.
+- Environment reflections built locally from three Lightformers. Nothing
+  is fetched.
+- Contact shadows under everything, and a faint window pattern on the wall.
+- A pale wood table and a cream wall. Exposure is unchanged at 1.0.
+- Plastic is slightly glossy with a light clearcoat. Wood, paper and cork
+  are matte.
+
+**Composition**
+- The objects are arranged round a turned central baseplate. Each object
+  is turned toward the centre.
+- There are three implied working places:
+  - the parts tray, with loose bricks
+  - a roof experiment and a waiting window section
+  - an open front seat with two blank nameplates
+- Clear table is left between them.
+- The sign is a small nameplate near the front left, not the largest
+  object.
+- The props imply that builders stepped away, never that anyone is there
+  now. There are no names, figures or counts, and nothing moves on its own.
+
+**Objects**
+- The house has a door in a real opening, windows, a step, a flowerbed,
+  and a stepped gable. One roof slope is missing, with a proposed slope
+  drawn as a plan where it would go.
+- The sign is a brick frame with seams on stacked 1×1 posts.
+- The noticeboard has cork, brick frame and feet, and blank cards with
+  clips.
+- The shelf holds three small models, with empty space left on it.
+- The booklet lies open, with page thickness and a parts diagram.
+- The trays have real lips.
+
+**Labels**
+- The decorative labels are no longer DOM overlays. They are text drawn
+  into textures on planes in the scene, so nearer objects hide them.
+- They were never focusable or announced, and they are no longer in the
+  DOM at all.
+- The sign's face stays a real `<button>`.
+
+**Camera**
+- A destination is now a *viewing* of an object, not a fixed pose:
+  - which object
+  - a target in the object's own frame
+  - a distance and an elevation along the object's face normal
+  - a field of view
+- Moving or turning an object in `PLACES` moves its camera with it. Later
+  entrances add one viewing each: the booklet steep and downward, the board
+  frontal, a tray elevated.
+- The sign is never turned to face the camera; the camera goes to the
+  sign's face.
+- A move follows a quadratic curve. Its control point is lifted, in 1-unit
+  steps up to 14, until no sample enters an expanded obstacle box (the
+  house, board, shelf, sign and props). The current paths need no lift.
+- The field of view changes only between each layout's designed values
+  (wide: 34° overview, 36° focused). It is not a zoom effect.
+
+**Panel**
+- The panel is framed as the sign's enlarged nameplate: cream, inside a
+  red brick border.
+- The panel's own guest explanation was removed, because the account card
+  below it already explains guest building once. A short line remains for
+  signed-in visitors.
+- The account flow's migration and identity-switch warnings are unchanged.
+- On a phone it is a bottom sheet with a solid red edge.
 
 ## Consequences
 

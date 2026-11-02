@@ -1,0 +1,135 @@
+# Evidence 0014: the building table, art-direction pass
+
+Collected by the agent on 2 November 2026 (AEDT) against the **production
+build** (`pnpm build`), served by `node src/server/index.ts` on port 8090
+with a fresh temporary `DATA_DIR`. No production data was touched. Nothing
+was pushed or deployed. Decision record: ADR 0014, "Art-direction pass".
+The phase-1 record, evidence 0013, still describes the interaction
+contract; this pass changes how the table looks and frames, not what it
+does.
+
+## What this pass covers
+
+The author's art-direction brief, applied to the existing phase-1 table:
+- light and materials
+- composition and the narrative props
+- the craftsmanship of each object
+- the camera destination
+- the panel's framing
+
+**Not covered:**
+- The six other entrances are still decoration, as before.
+- The concept image the brief mentions was not attached to the
+  conversation. The work follows the brief's text only.
+
+## Checks run, and their results
+
+| Check | How | Result |
+|---|---|---|
+| Typecheck | `mise exec -- pnpm typecheck` | passed |
+| Production build | `mise exec -- pnpm build` | built |
+| Full spec, including logging tests | `APP_URL=http://localhost:8090 mise exec -- pnpm check` | 26 files, **227/227** passed |
+| Evidence | `mise exec -- pnpm check:evidence` | passed |
+| Whitespace | `git diff --check` | clean |
+| Browser checks | `node scripts/tabletop.ts http://localhost:8090 doc/evidence/shots/tabletop` | **60/60** passed; `shots/tabletop/results.json` |
+| No cookie on view | `curl -D -` on `/` and `/?focus=sign-in` | no `Set-Cookie` on either |
+
+The browser setup is the same as evidence 0013:
+- Chrome, with swiftshader software WebGL, through Playwright.
+- Device emulation at 390×844.
+- Emulated reduced motion.
+- **Not checked:** Safari or WebKit, a physical phone, a real GPU, or a
+  screen reader.
+
+### Browser checks: what changed since 0013 (57 → 60)
+
+**New**
+- **Desktop:** "the camera's path kept clear of the house, board, shelf
+  and sign". The page's `?debug` hook tests the last path against the
+  obstacle boxes. Result: clear, with no lift needed.
+- **Mobile:** the same check for the phone's path. Result: clear, with no
+  lift needed.
+- **Desktop:** "the probe point is outside the HTML face". The hover and
+  click checks must reach the 3D hit area, not the button. The element
+  under the probe point is the `<canvas>`.
+
+**Changed**
+- **The hover and click probe point.** It was 30 px below the face, which
+  missed the smaller, turned sign's stand. It is now 8 px below the face's
+  box.
+- **"The panel waits for the camera to arrive".** This now reads the
+  camera state and the dialog's presence in one `page.evaluate`.
+  - With the heavier scene under software rendering, the move once
+    finished between two separate round trips, and the check failed (one
+    run: 59/60).
+  - A sampling script then clicked the stand and read both every 30 ms.
+    The camera was moving with no dialog for the whole move, and the
+    dialog appeared only once it stopped. The page behaved correctly; the
+    check was racy.
+- **"Camera arrived nearer the sign".** This now compares the camera's
+  distance to its target, not its z coordinate, because the sign's
+  destination is derived from its turned face.
+
+### An aborted browser run (recorded, not counted)
+
+The first evidence run stopped after 40 checks, with a time-out waiting
+for "Signed in as".
+- The server log showed `account.register` with `outcome: limited`.
+- `pnpm check` had registered accounts from the same address seconds
+  before, which used up the per-IP auth limit.
+- The rerun, after the limit's window, passed 60/60. The limiter is
+  unchanged.
+
+## What was looked at (screenshots reviewed by the agent)
+
+Each of these was inspected during the pass, and again after the final
+build (`doc/evidence/shots/tabletop/`):
+- `overview-desktop.png`, `overview-mobile.png`
+- `hover-desktop.png`
+- `focused-sign-in-desktop.png`, `focused-sign-in-mobile.png`
+- `register-desktop.png`, `signed-in-desktop.png`
+- `sign-in-form-mobile.png`
+- the Quick links and fallback shots
+
+Defects found by looking at renders during this pass, and fixed:
+- **Window light.** The wall's window light first rendered as a
+  blown-out patch. It is now a faint pattern, at 0.16 opacity with normal
+  blending.
+- **House roof.** The first roof read as a lid. It was rebuilt as a
+  stepped gable with one slope missing.
+- **A loose brick.** A tipped 2×2 read as a cube. It was changed to a 2×1
+  on its side.
+- **Labels through solid objects.** Painted labels, then drei `Html`
+  overlays, showed through solid objects. The "Beach Houses" label
+  appeared across the sign's face in the focused view.
+  - Labels are now drawn into textures on real planes, so nearer geometry
+    hides them.
+  - Two labels that real occlusion then hid were moved: "Beach Houses" to
+    the tray's front edge, and "About" to the booklet's upper page.
+- **Mobile sheet stripes.** The panel's brick-seam gradient showed as red
+  stripes through the mobile sheet. The sheet now has a solid red top edge
+  and no gradient.
+- **Sign posts and frame.** The top post brick overlapped the frame's
+  bottom bar, causing z-fighting stripes. Posts now stop at the frame.
+- **Mobile sign.** On the phone overview, the sign was small and seen
+  nearly edge-on.
+  - The narrow camera is lower and further back: (0, 50, 44), was
+    (0, 58, 34).
+  - The sign is turned less and is 1.45× larger, was 1.35×.
+
+## Known limitations
+
+- **Software rendering only.** Lighting and shadows were judged in
+  swiftshader. Softness and highlights on a real GPU may differ, and were
+  not seen.
+- **Small painted labels on a phone.** They are decoration. The sign's
+  label, the one that matters, is a real button.
+- **Desktop focused view.** The house and loose bricks fill the right of
+  the frame behind the panel. The panel is opaque, so legibility is
+  unaffected.
+- **The proposed slope** is a translucent blue outline. It reads as a plan
+  in the game's own convention, but a first-time visitor may not know that
+  convention.
+- **The house is unfinished on purpose:** a missing back slope and a low
+  back-right wall. Whether that reads as "work in progress" rather than
+  "broken" needs people to judge; no user evaluation was done.

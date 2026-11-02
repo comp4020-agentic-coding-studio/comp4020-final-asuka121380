@@ -31,6 +31,12 @@
   },
   {
     "run": "desktop 1920×1080",
+    "name": "the probe point is outside the HTML face (it reaches the 3D hit area)",
+    "ok": true,
+    "detail": "CANVAS"
+  },
+  {
+    "run": "desktop 1920×1080",
     "name": "hovering the sign's post lights the face",
     "ok": true,
     "detail": ""
@@ -39,19 +45,25 @@
     "run": "desktop 1920×1080",
     "name": "clicking the sign's post starts a camera move",
     "ok": true,
-    "detail": "{\"position\":[-0.07163300044621153,21.69914139812591,38.74212119839364],\"target\":[-0.1604579209995138,1.5487104403034238,-1.2851009986613655],\"moving\":true}"
+    "detail": "{\"position\":[-0.3233401423651293,18.69629258755601,38.094200674362405],\"target\":[-3.93877586595714,2.06181587534589,2.123382444905304],\"moving\":true,\"lastPathClear\":true,\"lastPathLift\":0,\"dialog\":false}"
   },
   {
     "run": "desktop 1920×1080",
     "name": "the panel waits for the camera to arrive",
     "ok": true,
-    "detail": ""
+    "detail": "{\"moving\":true,\"dialog\":false}"
   },
   {
     "run": "desktop 1920×1080",
     "name": "camera arrived nearer the sign",
     "ok": true,
-    "detail": "{\"from\":[0,22,39],\"to\":[-2.5,11.5,30]}"
+    "detail": "{\"from\":[1,25,44],\"to\":[-2.2246032806617917,9.63965918379098,29.6092479395772]}"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "the camera's path kept clear of the house, board, shelf and sign",
+    "ok": true,
+    "detail": "{\"clear\":true,\"lift\":0}"
   },
   {
     "run": "desktop 1920×1080",
@@ -69,7 +81,7 @@
     "run": "desktop 1920×1080",
     "name": "the sign stays visible beside the panel",
     "ok": true,
-    "detail": "{\"signRight\":770,\"panelLeft\":1392,\"onScreen\":true}"
+    "detail": "{\"signRight\":786,\"panelLeft\":1408,\"onScreen\":true}"
   },
   {
     "run": "desktop 1920×1080",
@@ -123,7 +135,7 @@
     "run": "desktop 1920×1080",
     "name": "camera back at the overview",
     "ok": true,
-    "detail": "[0,22,39]"
+    "detail": "[1,25,44]"
   },
   {
     "run": "desktop 1920×1080",
@@ -165,7 +177,7 @@
     "run": "desktop 1920×1080",
     "name": "reversing mid-move settles at the overview, no panel",
     "ok": true,
-    "detail": "[0,22,39]"
+    "detail": "[1,25,44]"
   },
   {
     "run": "desktop 1920×1080",
@@ -225,7 +237,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "the sign has a thumb-sized touch area (≥ 44px each way)",
     "ok": true,
-    "detail": "{\"x\":23.970687866210938,\"y\":479.489501953125,\"width\":176,\"height\":88}"
+    "detail": "{\"x\":27.57892608642578,\"y\":488.269775390625,\"width\":189.99999237060547,\"height\":104}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -237,13 +249,19 @@
     "run": "mobile 390×844 (emulated)",
     "name": "the pad covers the sign it stands for",
     "ok": true,
-    "detail": "{\"pad\":{\"x\":23.970687866210938,\"y\":479.489501953125,\"width\":176,\"height\":88},\"face\":{\"x\":30.298582077026367,\"y\":509.0628967285156,\"width\":153.03302192687988,\"height\":26.474945068359375}}"
+    "detail": "{\"pad\":{\"x\":27.57892608642578,\"y\":488.269775390625,\"width\":189.99999237060547,\"height\":104},\"face\":{\"x\":52.417015075683594,\"y\":515.1553955078125,\"width\":135.44359588623047,\"height\":38.60137939453125}}"
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "the camera's path kept clear of the objects",
+    "ok": true,
+    "detail": "{\"clear\":true,\"lift\":0}"
   },
   {
     "run": "mobile 390×844 (emulated)",
     "name": "bottom sheet spans the width, sign visible above it",
     "ok": true,
-    "detail": "{\"signBottom\":326,\"panelTop\":455,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
+    "detail": "{\"signBottom\":310,\"panelTop\":565,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -291,7 +309,7 @@
     "run": "fallbacks",
     "name": "no WebGL: the three.js chunk is never fetched",
     "ok": true,
-    "detail": "[\"/assets/home-DQAjkBRf.js\",\"/assets/preload-helper-DcBYVSmg.js\",\"/assets/Account-BY81a99d.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/home-CMZ6byNb.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
+    "detail": "[\"/assets/home-GgnxOh2a.js\",\"/assets/preload-helper-DcBYVSmg.js\",\"/assets/Account-BY81a99d.js\",\"/assets/geometry-EnDdiTcy.js\",\"/assets/scenery-BgLB-_W-.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/home-BN-hgsC6.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
   },
   {
     "run": "fallbacks",
