@@ -1,0 +1,344 @@
+[
+  {
+    "run": "desktop 1920×1080",
+    "name": "overview renders, no console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "viewing the homepage never asks /api/me (no visitor created)",
+    "ok": true,
+    "detail": "[\"/api/me/peek\"]"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "the sign reads Sign in for a fresh visitor",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "no identity cookie after viewing",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick links present and collapsed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "hovering the sign's post lights the face",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "clicking the sign's post starts a camera move",
+    "ok": true,
+    "detail": "{\"position\":[-0.07163300044621153,21.69914139812591,38.74212119839364],\"target\":[-0.1604579209995138,1.5487104403034238,-1.2851009986613655],\"moving\":true}"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "the panel waits for the camera to arrive",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "camera arrived nearer the sign",
+    "ok": true,
+    "detail": "{\"from\":[0,22,39],\"to\":[-2.5,11.5,30]}"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "URL records the focused view",
+    "ok": true,
+    "detail": "http://localhost:8090/?focus=sign-in"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "focus moved into the dialog heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "the sign stays visible beside the panel",
+    "ok": true,
+    "detail": "{\"signRight\":770,\"panelLeft\":1392,\"onScreen\":true}"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "visiting the panel establishes identity (the first identity-dependent act)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "Tab stays inside the dialog",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "the table behind is inert",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "registration completes in the panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "the sign now names the account, no reload",
+    "ok": true,
+    "detail": "Table Tester"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "Escape closes the panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "focus returns to the sign",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "URL returns to the plain homepage",
+    "ok": true,
+    "detail": "http://localhost:8090/?debug"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "camera back at the overview",
+    "ok": true,
+    "detail": "[0,22,39]"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "Enter on the sign opens the panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "browser Back closes the focused view",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "browser Forward reopens it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "signing out updates the sign without a reload",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "Back to table closes the panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "direct link /?focus=sign-in opens the panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "reversing mid-move settles at the overview, no panel",
+    "ok": true,
+    "detail": "[0,22,39]"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "a double click adds one history entry, not two",
+    "ok": true,
+    "detail": "1"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick links list the lobby, friends, collection, showcase and README",
+    "ok": true,
+    "detail": "[\"/build/\",\"/build/#friends\",\"/build/?view=collection\",\"/build/?view=showcase\",\"/readme/\"]"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick link /build/ answers",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick link /build/#friends answers",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick link /build/?view=collection answers",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick link /build/?view=showcase answers",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "quick link /readme/ answers",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "desktop 1920×1080",
+    "name": "Escape closes quick links",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "overview renders, no console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "the sign has a thumb-sized touch area (≥ 44px each way)",
+    "ok": true,
+    "detail": "{\"x\":23.970687866210938,\"y\":479.489501953125,\"width\":176,\"height\":88}"
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "the touch pad is hidden from assistive technology",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "the pad covers the sign it stands for",
+    "ok": true,
+    "detail": "{\"pad\":{\"x\":23.970687866210938,\"y\":479.489501953125,\"width\":176,\"height\":88},\"face\":{\"x\":30.298582077026367,\"y\":509.0628967285156,\"width\":153.03302192687988,\"height\":26.474945068359375}}"
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "bottom sheet spans the width, sign visible above it",
+    "ok": true,
+    "detail": "{\"signBottom\":326,\"panelTop\":455,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "form inputs at ≥ 16px (no zoom-on-focus, readable)",
+    "ok": true,
+    "detail": "16"
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "Back to table on touch closes it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "mobile 390×844 (emulated)",
+    "name": "quick links open on touch",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "reduced motion",
+    "name": "the camera cuts instead of travelling",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "reduced motion",
+    "name": "panel available at once",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "reduced motion",
+    "name": "return is a cut too",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "fallbacks",
+    "name": "no WebGL: fallback lists account, lobby, friends, collection, showcase, README",
+    "ok": true,
+    "detail": "[\"/build/?view=account\",\"/build/\",\"/build/#friends\",\"/build/?view=collection\",\"/build/?view=showcase\",\"/readme/\"]"
+  },
+  {
+    "run": "fallbacks",
+    "name": "no WebGL: the three.js chunk is never fetched",
+    "ok": true,
+    "detail": "[\"/assets/home-DQAjkBRf.js\",\"/assets/preload-helper-DcBYVSmg.js\",\"/assets/Account-BY81a99d.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/home-CMZ6byNb.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
+  },
+  {
+    "run": "fallbacks",
+    "name": "lazy-load failure falls back to links",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "fallbacks",
+    "name": "WebGL context loss falls back to links",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "fallbacks",
+    "name": "no JavaScript: the noscript links show",
+    "ok": true,
+    "detail": "{\"noscript\":1,\"links\":6}"
+  },
+  {
+    "run": "other pages unchanged",
+    "name": "/build/ loads without console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "other pages unchanged",
+    "name": "/build/?view=account loads without console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "other pages unchanged",
+    "name": "/readme/ loads without console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "other pages unchanged",
+    "name": "lobby keeps its own paper background (home styles don't leak)",
+    "ok": true,
+    "detail": "rgb(255, 250, 241)"
+  },
+  {
+    "run": "other pages unchanged",
+    "name": "/build/#friends lands on the Friends card",
+    "ok": true,
+    "detail": ""
+  }
+]
