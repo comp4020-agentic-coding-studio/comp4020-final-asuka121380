@@ -7,8 +7,8 @@
  */
 
 body.home {
-  --wall: #f1e6d0;
-  --wall-deep: #e6d6b8;
+  --wall: #f6efe2;
+  --wall-deep: #eadfcb;
   --table-ink: #3b302a;
   --nameplate: #fffdf7;
   margin: 0;
@@ -232,24 +232,46 @@ body.home {
   color: #3b302a;
 }
 
-/* the sign's face: its label, painted on the red board, and a real button */
+/* the sign's face: printed on the cream nameplate inside the red brick
+   frame, and a real button. Transparent, so the panel's plastic shows. */
 .home .sign-face {
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 4px;
+  gap: 2px;
   margin: 0;
-  padding: 0 24px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 10px;
-  background: #e32a20;
-  box-shadow:
-    inset 0 -8px 0 rgb(0 0 0 / 0.12),
-    inset 0 6px 0 rgb(255 255 255 / 0.14);
-  color: #fffdf3;
+  border-radius: 6px;
+  background: transparent;
+  color: #c41f16;
   cursor: pointer;
   font-family: var(--font-display);
-  transition: background-color 150ms;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+.home .sign-face.is-active {
+  background: rgb(255 214 92 / 0.28);
+  color: #a8170f;
+}
+.home .sign-face:focus-visible {
+  outline: 8px solid var(--blue);
+  outline-offset: 10px;
+}
+.home .sign-face-label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 84px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home .sign-face-hint {
+  color: #6a5a4c;
+  font: 700 30px/1.1 var(--font-body);
 }
 /* phones: a thumb-sized pad over the whole sign, in screen pixels */
 .home .sign-touch {
@@ -258,27 +280,6 @@ body.home {
   border-radius: 16px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-.home .sign-face.is-active {
-  background: #ef3a2f;
-}
-.home .sign-face:focus-visible {
-  outline: 10px solid var(--yellow);
-  outline-offset: 12px;
-}
-.home .sign-face-label {
-  max-width: 100%;
-  overflow: hidden;
-  font-size: 88px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.home .sign-face-hint {
-  color: #ffe58a;
-  font: 700 34px/1.1 var(--font-body);
 }
 
 /* ---- the focused panel ---------------------------------------------------- */
@@ -294,18 +295,25 @@ body.home {
   padding: 4.5rem clamp(1.5rem, 5vw, 6rem) 2.5rem;
   pointer-events: none;
 }
+/* the panel is the sign's nameplate, enlarged: a cream panel in a red brick
+   frame, with the frame's seams and a row of studs along the top */
 .home .table-panel {
   position: relative;
-  width: min(28rem, 44vw);
+  width: min(27rem, 40vw);
   max-height: 100%;
   overflow: auto;
-  padding: 1.6rem 1.5rem 1.4rem;
-  border: 3px solid #d9281e;
-  border-radius: 20px;
-  background: var(--nameplate);
+  padding: 1.5rem 1.5rem 1.35rem;
+  border: 9px solid #d6261c;
+  border-radius: 14px;
+  /* the frame's brick seams, drawn into the border */
+  background-image: repeating-linear-gradient(90deg, transparent 0 62px, #b31d14 62px 64px);
+  background-origin: border-box;
+  background-clip: border-box;
+  background-color: #fbf6ea;
   box-shadow:
-    0 6px 0 #a8170f,
-    0 26px 50px rgb(59 48 42 / 0.22);
+    inset 0 0 0 999px #fbf6ea,
+    0 5px 0 #a8170f,
+    0 22px 44px rgb(84 60 32 / 0.2);
   pointer-events: auto;
   animation: panel-in 220ms ease-out both;
 }
@@ -321,12 +329,7 @@ body.home {
 }
 /* a row of studs along the nameplate's top edge, like the sign's board */
 .home .nameplate-studs {
-  position: absolute;
-  top: -11px;
-  left: 1.4rem;
-  right: 1.4rem;
-  height: 11px;
-  background: radial-gradient(circle at 50% 100%, #d9281e 0 8px, transparent 8.5px) 0 0 / 26px 22px repeat-x;
+  display: none;
 }
 .home .table-panel-head {
   display: flex;
@@ -499,7 +502,9 @@ body.home {
     max-height: 64%;
     max-height: 64dvh;
     padding: 1.4rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
-    border-width: 3px 0 0;
+    /* a sheet scrolls; a solid red edge, no seams, so nothing shows through */
+    background-image: none;
+    border-width: 6px 0 0;
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -12px 34px rgb(59 48 42 / 0.2);
     animation-name: sheet-in;

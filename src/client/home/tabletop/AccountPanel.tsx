@@ -74,9 +74,8 @@ export function AccountPanel({ onClose, onAccountChange, returnFocus, signedIn }
             <span aria-hidden="true">←</span> Back to table
           </button>
         </header>
-        <p className="table-panel-lede">
-          {signedIn ? "This browser is signed in. Everything you build stays yours from any device you sign in on." : "You can build as a guest. An account lets you come back to the same rooms, friends and collection from another device."}
-        </p>
+        {/* the guest card below already explains guest building and accounts once */}
+        {signedIn && <p className="table-panel-lede">Your rooms, friends and collection follow you to any device you sign in on.</p>}
         <div className="table-panel-body account-scope">
           <IdentityGate>
             <AccountPage onAccountChange={onAccountChange} />

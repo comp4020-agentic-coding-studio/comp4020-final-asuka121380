@@ -22,7 +22,7 @@ function check(name: string, ok: boolean, detail: unknown = ""): void {
   console.log(`${ok ? "PASS" : "FAIL"}  [${run}] ${name}${d ? `  — ${d}` : ""}`);
 }
 
-type Cam = { position: number[]; target: number[]; moving: boolean };
+type Cam = { position: number[]; target: number[]; moving: boolean; lastPathClear: boolean | null; lastPathLift: number | null };
 const cam = (page: Page): Promise<Cam> => page.evaluate(() => (window as any).__tableCamera());
 const url = (q = "") => `${base}/${q ? `?${q}&debug` : "?debug"}`;
 
@@ -70,23 +70,30 @@ async function desktop(browser: Browser): Promise<void> {
   check("quick links present and collapsed", (await page.locator(".quick-links-toggle").getAttribute("aria-expanded")) === "false");
   const overview = await cam(page);
 
-  // hover: the 3D hit area around the sign (beside the face, on the post)
+  // hover: the 3D hit area around the sign, on its stand below the face (the
+  // face's box is axis-aligned round a turned sign, so step just past it)
   const face = await signFaceCentre(page);
   const faceBox = (await page.locator(".sign-face").boundingBox())!;
-  await page.mouse.move(face.x, faceBox.y + faceBox.height + 30);
+  const onPost = { x: face.x, y: faceBox.y + faceBox.height + 8 };
+  const hitTarget = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName ?? null, onPost);
+  check("the probe point is outside the HTML face (it reaches the 3D hit area)", hitTarget === "CANVAS", hitTarget);
+  await page.mouse.move(onPost.x, onPost.y);
   await page.waitForTimeout(350);
   check("hovering the sign's post lights the face", (await page.locator(".sign-face.is-active").count()) === 1);
   await page.screenshot({ path: `${out}/hover-desktop.png` });
 
   // click the physical sign (post, not the HTML face)
-  await page.mouse.click(face.x, faceBox.y + faceBox.height + 30);
+  await page.mouse.click(onPost.x, onPost.y);
   await page.waitForTimeout(120);
-  const mid = await cam(page);
+  // read the camera and the dialog in the same instant: under software
+  // rendering, separate round trips can straddle the end of the move
+  const mid = await page.evaluate(() => ({ ...(window as any).__tableCamera(), dialog: !!document.querySelector('[role="dialog"]') }));
   check("clicking the sign's post starts a camera move", mid.moving, mid);
-  check("the panel waits for the camera to arrive", (await page.locator('[role="dialog"]').count()) === 0);
+  check("the panel waits for the camera to arrive", mid.moving && !mid.dialog, { moving: mid.moving, dialog: mid.dialog });
   const there = await settled(page);
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 });
-  check("camera arrived nearer the sign", there.position[2] < overview.position[2] - 5, { from: overview.position, to: there.position });
+  check("camera arrived nearer the sign", Math.hypot(...there.position.map((v, i) => v - there.target[i])) < Math.hypot(...overview.position.map((v, i) => v - overview.target[i])) - 5, { from: overview.position, to: there.position });
+  check("the camera's path kept clear of the house, board, shelf and sign", there.lastPathClear === true, { clear: there.lastPathClear, lift: there.lastPathLift });
   check("URL records the focused view", page.url().includes("focus=sign-in"), page.url());
   await page.waitForSelector(".account-scope .context-actions", { timeout: 8000 });
   await page.waitForTimeout(300);
@@ -210,7 +217,8 @@ async function mobile(browser: Browser): Promise<void> {
   check("the pad covers the sign it stands for", covers, { pad, face });
   // tap the pad below the face, on the posts: the same action as the face
   await page.tap(".sign-touch", { position: { x: pad!.width / 2, y: pad!.height - 8 } });
-  await settled(page);
+  const arrived = await settled(page);
+  check("the camera's path kept clear of the objects", arrived.lastPathClear === true, { clear: arrived.lastPathClear, lift: arrived.lastPathLift });
   await page.waitForSelector(".account-scope .context-actions", { timeout: 8000 });
   await page.waitForTimeout(300);
   const layout = await page.evaluate(() => {
