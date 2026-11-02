@@ -40,22 +40,23 @@ export interface Viewing {
 export const VIEWINGS: Record<Layout, Partial<Record<Exclude<Focus, "overview">, Viewing>>> = {
   wide: {
     // Square to the sign's face, a little above it; looking a few studs to
-    // its right puts the sign in the left of the frame and leaves clear
-    // tabletop on the right for the panel.
-    "sign-in": { object: "sign", target: [5.2, signFaceY - 0.6, 0], distance: 23, elevation: 16, fov: 36 },
+    // its right puts the sign in the left of the frame and leaves the
+    // table's quiet right-hand end, and the wall behind it, for the panel.
+    "sign-in": { object: "sign", target: [5.4, signFaceY - 1.4, 0], distance: 26, elevation: 27, fov: 36 },
   },
   narrow: {
-    // Square to the face and higher; looking below the sign raises it into
-    // the band above the sheet.
-    "sign-in": { object: "sign", target: [0, signFaceY - 3.6, 0], distance: 26, elevation: 22, fov: 40 },
+    // Square to the face and steep, so the tabletop (not the house) is
+    // behind the sign; looking below the sign raises it into the band above
+    // the sheet.
+    "sign-in": { object: "sign", target: [0, signFaceY - 5.5, -1.5], distance: 34, elevation: 44, fov: 40 },
   },
 };
 
 const OVERVIEW: Record<Layout, Pose> = {
   // a seat in front of the table, slightly raised, looking at the house
-  wide: { position: [1, 25, 44], target: [0, 1.2, -2.5], fov: 34 },
+  wide: { position: [-2, 36, 56], target: [-1, 1, -5], fov: 36 },
   // looking down over the table, so a tall screen holds all of it
-  narrow: { position: [0, 50, 44], target: [0, 0, 0], fov: 52 },
+  narrow: { position: [0, 52, 40], target: [0, 0, -2], fov: 52 },
 };
 
 function poseFromViewing(v: Viewing, place: Place): Pose {
