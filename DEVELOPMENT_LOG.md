@@ -2812,3 +2812,86 @@ Commits:
   with a screen reader or real visitors.
 - The six other entrances are still decoration.
 - Nothing pushed or deployed.
+
+## 2 November 2026, 17:17 AEDT — The building table, room and reference pass (ADR 0014)
+
+Commits:
+- [`1a11b82`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/1a11b82)
+  — `Building table room pass: window light, quiet wall, re-framed sign-in`
+- [`22cbe6d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/22cbe6d)
+  — `Evidence 0015 and ADR 0014 amendment for the table's room pass`
+
+**Who decided.**
+- The author's brief set:
+  - the reference image, used as art direction only
+  - the room: a window at the left, a quiet wall, sketches, storage at the
+    right, the table's edge
+  - the light and materials, with no exposure increase and no
+    depth-of-field blur
+  - working positions with visible relationships
+  - the object fixes
+  - the sign-in framing, with a quiet background behind the panel
+  - the scope: no new entrances, no push or deploy
+- Mechanisms are the agent's, recorded in ADR 0014's new "Room and
+  reference pass" section.
+- The agent viewed the reference image before the visual changes. It stays
+  outside the repository; nothing from it is committed or served.
+
+**Implemented** (`1a11b82`).
+- `tabletop/room.ts` (new), with all surfaces built from code and canvas
+  textures:
+  - the table top, with a bevelled edge, an apron and legs
+  - the back wall, its gap from the table, and a skirting board
+  - the left wall with a window, a sill plant and the view outside
+  - three taped sketches
+  - a wall shelf with two parts boxes
+- `tabletop/build.ts`:
+  - a new palette
+  - the house rebuilt, with a stepped slope-brick roof on stepped gables
+    and a window waiting by its opening
+  - new arrangements for both layouts, with the sign at the front right
+  - the Friends envelope and stand, and one blank nameplate
+  - more obstacle boxes
+- `tabletop/TableScene.tsx`:
+  - window-side sun, with shadows from the window frame only
+  - a hemisphere fill and light fog
+  - wood grain and the window view
+  - the sketches
+  - dark-ink printed labels
+  - the booklet print redrawn
+- `tabletop/destinations.ts`: the sign viewings re-aimed (wide 27°,
+  distance 26; narrow 44°, distance 34), and the overview poses adjusted.
+
+**Documentation** (`22cbe6d`).
+- ADR 0014: the "Room and reference pass" section.
+- `doc/evidence/0015-tabletop-room-and-reference.md`.
+- Regenerated `doc/evidence/shots/tabletop/`.
+- A superseded-shots note in evidence 0014.
+
+**Tests run** (production build, local server, fresh temporary
+`DATA_DIR`):
+- `pnpm typecheck`: passed.
+- `APP_URL=http://localhost:8090 pnpm check`: 227/227.
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+- `node scripts/tabletop.ts`: 60/60, run about 70 s after `pnpm check` to
+  clear the auth rate limit.
+- `curl` on `/` and `/?focus=sign-in`: no `Set-Cookie`.
+
+**Observed.**
+- The agent compared renders of the overview and the focused sign-in view,
+  at 1920×1080 and 390×844, against the reference over several rounds.
+- Defects seen in renders and fixed are listed in evidence 0015, among
+  them:
+  - an envelope tilted under the table surface
+  - wall-shadow stripes across the table
+  - a cropped roof behind the focused panel
+
+**Known limitations.**
+- Checked only in Chrome with swiftshader software WebGL and device
+  emulation. Not in Safari or WebKit, not on a real GPU or phone, and not
+  with a screen reader or real visitors.
+- In the focused views, the edges of the shelf (desktop) and the house
+  (phone) remain at the frame's corner.
+- The six other entrances are still decoration.
+- Nothing pushed or deployed.
