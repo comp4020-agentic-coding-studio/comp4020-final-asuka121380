@@ -45,7 +45,7 @@
     "run": "desktop 1920×1080",
     "name": "clicking the sign's post starts a camera move",
     "ok": true,
-    "detail": "{\"position\":[-0.3233401423651293,18.69629258755601,38.094200674362405],\"target\":[-3.93877586595714,2.06181587534589,2.123382444905304],\"moving\":true,\"lastPathClear\":true,\"lastPathLift\":0,\"dialog\":false}"
+    "detail": "{\"position\":[5.859672226741376,28.279531669741587,48.908349584867686],\"target\":[7.602780846486327,1.0000000000000002,0.5761227026028415],\"moving\":true,\"lastPathClear\":true,\"lastPathLift\":0,\"dialog\":false}"
   },
   {
     "run": "desktop 1920×1080",
@@ -57,7 +57,7 @@
     "run": "desktop 1920×1080",
     "name": "camera arrived nearer the sign",
     "ok": true,
-    "detail": "{\"from\":[1,25,44],\"to\":[-2.2246032806617917,9.63965918379098,29.6092479395772]}"
+    "detail": "{\"from\":[-2,36,56],\"to\":[21.614486915155158,12.803752993228215,34.693044556588625]}"
   },
   {
     "run": "desktop 1920×1080",
@@ -81,7 +81,7 @@
     "run": "desktop 1920×1080",
     "name": "the sign stays visible beside the panel",
     "ok": true,
-    "detail": "{\"signRight\":786,\"panelLeft\":1408,\"onScreen\":true}"
+    "detail": "{\"signRight\":791,\"panelLeft\":1408,\"onScreen\":true}"
   },
   {
     "run": "desktop 1920×1080",
@@ -135,7 +135,7 @@
     "run": "desktop 1920×1080",
     "name": "camera back at the overview",
     "ok": true,
-    "detail": "[1,25,44]"
+    "detail": "[-2,36,56]"
   },
   {
     "run": "desktop 1920×1080",
@@ -177,7 +177,7 @@
     "run": "desktop 1920×1080",
     "name": "reversing mid-move settles at the overview, no panel",
     "ok": true,
-    "detail": "[1,25,44]"
+    "detail": "[-2,36,56]"
   },
   {
     "run": "desktop 1920×1080",
@@ -237,7 +237,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "the sign has a thumb-sized touch area (≥ 44px each way)",
     "ok": true,
-    "detail": "{\"x\":27.57892608642578,\"y\":488.269775390625,\"width\":189.99999237060547,\"height\":104}"
+    "detail": "{\"x\":192.84194946289062,\"y\":534.4525146484375,\"width\":178,\"height\":93}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -249,7 +249,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "the pad covers the sign it stands for",
     "ok": true,
-    "detail": "{\"pad\":{\"x\":27.57892608642578,\"y\":488.269775390625,\"width\":189.99999237060547,\"height\":104},\"face\":{\"x\":52.417015075683594,\"y\":515.1553955078125,\"width\":135.44359588623047,\"height\":38.60137939453125}}"
+    "detail": "{\"pad\":{\"x\":192.84194946289062,\"y\":534.4525146484375,\"width\":178,\"height\":93},\"face\":{\"x\":219.17953491210938,\"y\":552.0811767578125,\"width\":129.45025634765625,\"height\":55.42401123046875}}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -261,7 +261,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "bottom sheet spans the width, sign visible above it",
     "ok": true,
-    "detail": "{\"signBottom\":310,\"panelTop\":565,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
+    "detail": "{\"signBottom\":338,\"panelTop\":565,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -309,7 +309,7 @@
     "run": "fallbacks",
     "name": "no WebGL: the three.js chunk is never fetched",
     "ok": true,
-    "detail": "[\"/assets/home-GgnxOh2a.js\",\"/assets/preload-helper-DcBYVSmg.js\",\"/assets/Account-BY81a99d.js\",\"/assets/geometry-EnDdiTcy.js\",\"/assets/scenery-BgLB-_W-.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/home-BN-hgsC6.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
+    "detail": "[\"/assets/home-TGXGYIMe.js\",\"/assets/preload-helper-DcBYVSmg.js\",\"/assets/Account-BY81a99d.js\",\"/assets/geometry-EnDdiTcy.js\",\"/assets/scenery-BgLB-_W-.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/home-BN-hgsC6.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
   },
   {
     "run": "fallbacks",

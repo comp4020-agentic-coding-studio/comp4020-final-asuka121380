@@ -1,0 +1,127 @@
+# Evidence 0015: the building table, room and reference pass
+
+Collected by the agent on 2 November 2026 (AEDT) against the **production
+build** (`pnpm build`), served by `node src/server/index.ts` on port 8090
+with a fresh temporary `DATA_DIR`. No production data was touched. Nothing
+was pushed or deployed. Decision record: ADR 0014, "Room and reference
+pass". Evidence 0013 still describes the interaction contract, and
+evidence 0014 the first art-direction pass. This pass changes how the
+table and its room look and frame, not what the sign does.
+
+## The reference image
+
+The author's brief named a reference image held outside the repository
+(`../references/`, beside the repo, not inside it).
+- The agent opened it with an image-viewing tool before making visual
+  decisions.
+- It shows:
+  - a honey-coloured wood table with fine grain, a visible front edge and
+    legs
+  - a warm wall with window light
+  - stepped slope-brick roofs on gables
+  - large dark-text cream nameplates
+  - an open booklet with an isometric diagram
+- It was used only as art direction. It is not in the repository, is not
+  served, and was not traced, sampled or used as a background or texture.
+  Every surface in the scene is built from code: geometry, canvas-drawn
+  textures and flat colours.
+
+## Checks run, and their results
+
+| Check | How | Result |
+|---|---|---|
+| Typecheck | `mise exec -- pnpm typecheck` | passed (exit 0) |
+| Production build | `mise exec -- pnpm build` | built |
+| Full spec, including logging tests | `APP_URL=http://localhost:8090 mise exec -- pnpm check` | 26 files, **227/227** passed |
+| Evidence | `mise exec -- pnpm check:evidence` | passed |
+| Whitespace | `git diff --check` | clean |
+| Browser checks | `node scripts/tabletop.ts http://localhost:8090 doc/evidence/shots/tabletop` | **60/60** passed; `shots/tabletop/results.json` |
+| No cookie on view | `curl -D -` on `/` and `/?focus=sign-in` | no `Set-Cookie` on either |
+
+The browser setup is the same as in evidence 0013 and 0014:
+- Chrome, with swiftshader software WebGL, through Playwright.
+- Device emulation at 390×844.
+- Emulated reduced motion.
+- **Not checked:** Safari or WebKit, a physical phone, a real GPU, or a
+  screen reader.
+
+The browser checks cover:
+- the 3D hit area and the button
+- keyboard activation, and focus returning to the sign
+- the panel waiting for the camera to arrive
+- reduced motion
+- Back and Forward
+- the direct link `/?focus=sign-in`
+- the no-WebGL fallback
+- Quick links
+- resizing between layouts
+- that viewing never calls `/api/me`
+- that camera paths stay clear of the obstacle boxes on desktop and mobile
+
+`scripts/tabletop.ts` was not changed in this pass. Its checks follow the
+sign wherever `PLACES` puts it, because they find the sign through the page,
+not by fixed coordinates.
+
+## What was looked at (screenshots reviewed by the agent)
+
+During the pass, renders at 1920×1080 and 390×844 were compared with the
+reference, round by round:
+- the overview
+- the focused sign-in view
+
+After the final build, the regenerated shots were reviewed as well
+(`doc/evidence/shots/tabletop/`).
+
+### Defects found in renders, and fixed
+
+**First render**
+- **Camera too close.** The overview cropped the sign and the Friends
+  stand. The overview was widened.
+- **Wall shadows striping the table.** The full side wall cast shadow
+  stripes across the table. Plain walls no longer cast shadows; only the
+  window frame does, so its soft bars fall across the wall and table.
+- **Unlit back wall.** The back wall rendered grey because the light came
+  from the wrong side. The sun was moved to the window side.
+- **Booklet diagram.** It read as a jumble and was redrawn as:
+  - an isometric house on the left page
+  - a step box and a brick being lowered on the right page
+
+**Later renders**
+- **Hidden envelope.** The Friends envelope was tilted the wrong way. It
+  lay flat under its own label stand, invisible. It now leans back against
+  a brick, with its flap and seal facing the room.
+- **Desktop focused view.** With the sign at the front left, the house
+  roof and noticeboard filled the frame behind the panel, cropped.
+  - The sign moved to the front right, and the booklet to the front left.
+  - The creation shelf moved inwards.
+  - The camera was raised (elevation 27°).
+  - The panel now sits over the quiet corner of the table and the plain
+    wall. The sign stands in the left half against open tabletop.
+- **Mobile focused view.** The giant roof was cropped behind the sign.
+  - The phone's sign stands front right, turned slightly, scale 1.45.
+  - The camera is steeper (44°) and further back.
+  - Only low objects (the booklet, loose bricks) are behind the sign now.
+    The house shows only at the frame's edge.
+- **Mobile floor.** The floor was too dark and brown. It was lightened to
+  a pale oak.
+
+## Known limitations
+
+- **Software rendering only.** Lighting and shadow softness were judged in
+  swiftshader. On a real GPU, contact shadows and the window pattern may
+  look different. This was not seen.
+- **Edges in the focused views.** On desktop, a corner of the creation
+  shelf and two roof samples remain at the top-left edge. On the phone,
+  the house's corner shows at the top-left. Neither is behind the panel or
+  crossing the sign.
+- **The room's surroundings are simplified.** The window view is a flat
+  painted plane of sky and greenery. That is acceptable at the distance
+  and angle it is seen from, but it would not survive a camera moved near
+  it. No camera destination goes there.
+- **The unfinished house.** The unfinished roof, with its proposed slope
+  drawn as a plan, and the window waiting beside an empty opening, are
+  meant to read as "work in progress". No visitor has judged whether they
+  do.
+- **Small labels on a phone.** The printed labels on a phone overview
+  ("Friends", "Beach Houses") are small. They are decoration; the sign's
+  label is a real button.

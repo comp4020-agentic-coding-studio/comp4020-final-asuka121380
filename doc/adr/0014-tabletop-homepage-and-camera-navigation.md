@@ -225,6 +225,89 @@ Evidence: doc/evidence/0014.
 - The account flow's migration and identity-switch warnings are unchanged.
 - On a phone it is a bottom sheet with a solid red edge.
 
+## Room and reference pass (author's brief, 2 Nov 2026; mechanisms agent)
+
+A second art-direction pass added the room around the table. Evidence:
+doc/evidence/0015. Some of it supersedes the pass above:
+- the warm-cream wall
+- the wall's window-light pattern
+- the sign at the front left
+- two blank nameplates
+
+**The reference image (author's).**
+- The author supplied a reference image. The agent viewed it, and it shaped
+  the decisions below.
+- It stays outside the repository and is never served, traced or used as a
+  background. The scene is built from code alone.
+
+**The room** (`tabletop/room.ts`, new).
+- A small corner of a sunlit room, kept quieter than the table.
+- The left wall:
+  - a window opening with a white frame, a transom and a deep sill
+  - one potted plant on the sill
+  - a painted plane of sky and greenery outside the window
+- The back wall:
+  - plain, off-white and cooler than the table, with a skirting board
+  - standing behind the table, so there is a gap with shading
+  - three taped sketches: a roof idea, a window arrangement and colour
+    swatches, slightly tilted, with no text or names
+- The right side: a short wall shelf with two parts boxes. One box's lid
+  is ajar over a few bricks.
+- The table:
+  - a rounded top with a bevelled front edge
+  - an apron and four legs to the floor
+  - a procedural wood-grain canvas texture, restrained
+- The walls cast no shadows. Only the window frame does, so its soft bars
+  fall across the wall and the table, as the light does in the reference.
+
+**Light** (supersedes "bright warm daylight from one side").
+- The sun comes through the window side.
+- A sky-and-table hemisphere fill keeps colour in the shadows.
+- A weak fill from the right.
+- Exposure is unchanged. Nothing was brightened globally.
+- A light fog lowers the room's contrast against the table. There is no
+  depth-of-field blur.
+
+**Arrangement and objects.**
+- The house is light blue, with white quoins and a grey base course.
+  - The roof is built from stepped rows of slope bricks on stepped gables:
+    one side complete, the other part-built.
+  - A chimney stands on the roof.
+  - The right-hand window waits on a plate beside its empty opening.
+- Loose bricks link the parts tray to the house.
+- Roof samples stand beside the open roof.
+- The booklet lies open towards the left seat.
+- There is one blank nameplate at the free front seat (was two).
+- A Friends envelope leans on a brick beside its name stand. It names no
+  one.
+- The sign now stands at the front **right**. Its focused view looks
+  across open table towards the quiet end of the room, so the panel sits
+  over plain wall and table, not over the house.
+- The phone layout keeps the same relationships, recomposed:
+  - the sign front right, turned slightly
+  - the booklet behind the sign, the house to one side
+
+**Labels.**
+- Printed labels use dark ink on cream, sized to fill their strip.
+- The labels are "Join a room", "Our creations", "Beach Houses",
+  "Friends" and "About".
+- They are still textures on real planes, so nearer objects hide them.
+- The sign's face stays a real `<button>`.
+
+**Camera.**
+- The sign's viewings were re-aimed (wide: elevation 27°, distance 26;
+  narrow: 44°, distance 34) for the new placement.
+- The sign is still never turned to face the camera.
+- The obstacle boxes now include the props and the Friends stand. The
+  path checks still pass with no lift.
+- Everything else is unchanged:
+  - the panel waiting for the camera to arrive
+  - reduced motion
+  - history
+  - the direct link
+  - focus handling
+  - the return to the table
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with
