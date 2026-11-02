@@ -2725,3 +2725,90 @@ not rewrite them without asking.
 - Not checked in Safari, on a physical phone, with a screen reader, or by
   real visitors.
 - Nothing pushed or deployed.
+
+## 2 November 2026, 16:11 AEDT — The building table, art-direction pass (ADR 0014)
+
+Commits:
+- [`f88424e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/f88424e)
+  — `Building table art direction: daylight, composition, crafted objects, face-led camera`
+- [`cf29c6a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/cf29c6a)
+  — `Evidence and ADR 0014 amendment for the table's art-direction pass`
+
+**Who decided.**
+- The author's art-direction brief set:
+  - the light, the materials and the composition
+  - the narrative props, and their limits
+  - the craftsmanship of each object
+  - the face-led camera, with no passing through objects and no FOV
+    gimmicks
+  - the panel framing
+  - the scope: no new entrances, no push or deploy
+- Mechanisms are the agent's, recorded in ADR 0014's new "Art-direction
+  pass" section.
+- The concept image the brief mentions was not attached; the work follows
+  the text.
+
+**Implemented** (`f88424e`).
+- `tabletop/build.ts`:
+  - New palette.
+  - A new arrangement for both layouts: objects turned toward a turned
+    central baseplate.
+  - Three implied working places.
+  - Rebuilt house, sign, noticeboard, shelf, booklet and trays.
+  - Obstacle boxes for camera paths.
+  - Phone sign scale 1.35 → 1.45.
+- `tabletop/destinations.ts`:
+  - Destinations as per-object viewings along the face normal.
+  - Curved paths lifted only as much as needed to clear obstacles.
+  - Move time 650 → 700 ms.
+- `tabletop/TableScene.tsx`:
+  - New daylight rig, a local Lightformer environment, contact shadows and
+    a window light.
+  - Plastic and matte materials.
+  - Painted labels as textures on planes rather than DOM overlays.
+  - The debug hook reports path clearance.
+- `tabletop/AccountPanel.tsx`: the guest explanation above the account
+  card removed; a short line remains for signed-in visitors.
+- `home.css`: the nameplate panel frame, the printed sign face, and a
+  solid-edged mobile sheet.
+- `scripts/tabletop.ts`:
+  - 57 → 60 checks: path clearance on desktop and mobile, and the probe
+    point reaching the 3D hit area.
+  - The arrival check now reads camera and dialog state together.
+  - "Nearer" is measured as the distance to the target.
+
+**Documentation** (`cf29c6a`).
+- ADR 0014: the art-direction section, and the move time and phone scale
+  updated.
+- `doc/evidence/0014-tabletop-art-direction.md`.
+- Regenerated `doc/evidence/shots/tabletop/`.
+- A note in evidence 0013 that its shots were superseded.
+
+**Tests run** (production build, local server, fresh temporary
+`DATA_DIR`):
+- `pnpm typecheck`: passed.
+- `APP_URL=http://localhost:8090 pnpm check`: 227/227.
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+- `node scripts/tabletop.ts`: 60/60.
+- Three earlier runs are recorded in evidence 0014:
+  - 59/60: a racy arrival check, since fixed in the script; the page was
+    verified correct by sampling.
+  - 39/40, aborted: registration rate-limited right after `pnpm check`.
+    The server logged `outcome: limited`.
+  - Its rerun: 60/60.
+
+**Observed.**
+- The agent reviewed screenshots of the overview, hover, focused, register
+  and signed-in states at 1920×1080, and the overview, focused and sign-in
+  form at 390×844.
+- Defects seen in renders and fixed are listed in evidence 0014: labels
+  showing through objects, stripes on the mobile sheet, post/frame
+  z-fighting, and a too-small phone sign.
+
+**Known limitations.**
+- Checked only in Chrome with swiftshader software WebGL and device
+  emulation. Not in Safari or WebKit, not on a real GPU or phone, and not
+  with a screen reader or real visitors.
+- The six other entrances are still decoration.
+- Nothing pushed or deployed.
