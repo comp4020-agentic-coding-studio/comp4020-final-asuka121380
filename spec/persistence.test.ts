@@ -227,6 +227,35 @@ describe("the homepage's summary", () => {
   });
 });
 
+describe("the homepage sign's read-only account peek (ADR 0014)", () => {
+  it("answers null, and creates no visitor, for a browser without a cookie", async () => {
+    const res = await fetch(new URL("/api/me/peek", baseUrl));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(await res.json()).toEqual({ account: null });
+  });
+
+  it("answers null for a guest, and only the display name once that visitor has an account", async () => {
+    const { cookie } = await newVisitor();
+    const guest = await fetch(new URL("/api/me/peek", baseUrl), { headers: { cookie } });
+    expect(guest.headers.get("set-cookie")).toBeNull();
+    expect(await guest.json()).toEqual({ account: null });
+
+    const username = `peek${randomUUID().slice(0, 8)}`;
+    // its own source address (the server trusts the proxy's header), so this
+    // registration doesn't spend the per-IP sign-in budget other specs use
+    const ip = `10.40.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+    const reg = await fetch(new URL("/api/account/register", baseUrl), {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json", "x-forwarded-for": ip },
+      body: JSON.stringify({ username, password: "a-peek-password-1", displayName: "Peek Tester" }),
+    });
+    expect(reg.status, await reg.text()).toBe(200);
+    const signedIn = await fetch(new URL("/api/me/peek", baseUrl), { headers: { cookie } });
+    expect(await signedIn.json()).toEqual({ account: { displayName: "Peek Tester" } });
+  });
+});
+
 describe("the three pages (ADR 0007: a room lobby sits between home and the editor)", () => {
   it("serves the homepage at /, the room lobby at /build/, and a room's editor at /build/room/:id", async () => {
     const home = await fetch(new URL("/", baseUrl));

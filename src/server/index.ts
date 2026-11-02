@@ -198,6 +198,15 @@ app.get("/api/summary", (req, res) => {
   res.json(summaryFor(db, () => findVisitor(db, readCookie(req))));
 });
 
+// the homepage sign's "Sign in" or name, read-only in the same way: the
+// cookie is HttpOnly, so the page can't tell whether it exists, and /api/me
+// would create a visitor just for viewing the homepage (ADR 0004/0010/0014)
+app.get("/api/me/peek", (req, res) => {
+  const visitorId = findVisitor(db, readCookie(req));
+  const account = visitorId ? accountForVisitor(db, visitorId) : undefined;
+  res.json({ account: account ? { displayName: account.displayName } : null });
+});
+
 // who the server resolves this request's cookie to; the lobby UI uses this
 // to mark "you" in a member list without the server trusting a client-sent id
 app.get("/api/me", (req, res) => {
