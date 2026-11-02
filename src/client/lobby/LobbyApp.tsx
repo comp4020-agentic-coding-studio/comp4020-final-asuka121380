@@ -478,7 +478,7 @@ function Friends({ selfId }: { selfId: string | null }) {
   const names = useDisplayNames([...pending.map((p) => p.fromVisitor), ...(friends ?? [])]);
 
   return (
-    <div className="card lobby-card">
+    <div className="card lobby-card" id="friends">
       <h2>Friends</h2>
       <p className="lobby-hint">Friendship never opens an invite-only room by itself; you still need a specific invitation.</p>
       {pending.length > 0 && (

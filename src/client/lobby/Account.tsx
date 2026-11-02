@@ -208,7 +208,8 @@ function MigrationWarning({
   );
 }
 
-export function AccountPage() {
+/** `onAccountChange` lets a host page (the homepage's sign) show who is signed in without reloading. */
+export function AccountPage({ onAccountChange }: { onAccountChange?: (account: Account | null) => void } = {}) {
   const [mode, setMode] = useState<Mode>("loading");
   const [account, setAccount] = useState<Account | null>(null);
   const [migration, setMigration] = useState<{ hasOwnWork: boolean; alreadyLinked: boolean } | null>(null);
@@ -221,6 +222,7 @@ export function AccountPage() {
   const refresh = () =>
     void whoAmI().then((r) => {
       setAccount(r.account);
+      onAccountChange?.(r.account);
       if (r.account) {
         setMode("signed-in");
       } else {
@@ -233,8 +235,12 @@ export function AccountPage() {
   useEffect(refresh, []);
 
   const afterRegister = (a: Account) => {
+    // registering links this visitor to the account: a cached "who am I"
+    // would still say guest, so the next ask must go to the server
+    resetIdentity();
     setAccount(a);
     setMode("signed-in");
+    onAccountChange?.(a);
   };
 
   const finishSignIn = async (username: string, password: string) => {
@@ -248,6 +254,7 @@ export function AccountPage() {
     resetIdentity(); // the confirm response set the account's cookie; "who am I" must be asked again
     setAccount(r.account);
     setMode("signed-in");
+    onAccountChange?.(r.account);
     // this browser's identity just changed (this tab's own cookie is
     // already up to date; every OTHER open tab needs to notice and refresh
     // its own authentication state, stopping any stale editing under the
@@ -272,6 +279,7 @@ export function AccountPage() {
     setAccount(null);
     setPending(null);
     setJustSignedOut(true);
+    onAccountChange?.(null);
     broadcastIdentityChange();
     refresh();
   };

@@ -1,418 +1,544 @@
-/* The homepage's own composition, built from the shared tokens and components (ui/theme.css). */
+/*
+ * The homepage's table (ADR 0014), built from the shared tokens in
+ * ui/theme.css. Everything here is scoped under body.home, so none of it
+ * reaches the lobby or the editor; the account form's classes are restyled
+ * inside .account-scope only, rather than importing lobby.css (which sets
+ * html, body and bare input rules for its own page).
+ */
 
-html {
-  scroll-behavior: smooth;
-}
 body.home {
+  --wall: #f1e6d0;
+  --wall-deep: #e6d6b8;
+  --table-ink: #3b302a;
+  --nameplate: #fffdf7;
   margin: 0;
-  background: var(--paper);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--wall);
   color: var(--ink);
-  font: 400 1.0625rem/1.55 var(--font-body);
+  font: 400 1rem/1.5 var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
-.home h1,
-.home h2,
-.home h3 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  margin: 0;
-}
-.home a:not(.btn) {
-  color: inherit;
-}
 
-.skip {
+/* ---- the stage ----------------------------------------------------------- */
+
+.home .table-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--wall);
+}
+.home .table-stage,
+.home .table-canvas {
   position: absolute;
-  left: -999px;
+  inset: 0;
 }
-.skip:focus {
-  left: 1rem;
-  top: 1rem;
-  z-index: 10;
-  background: var(--white);
-  padding: 0.5rem 0.8rem;
-  border-radius: 8px;
+.home .table-page[data-status="loading"] .table-stage {
+  opacity: 0;
+}
+.home .table-stage {
+  transition: opacity 400ms ease-out;
 }
 
-/* ---- the red band ------------------------------------------------------ */
+/* ---- the corner: brand and quick links ----------------------------------- */
 
-.masthead {
+.home .table-corner {
+  position: absolute;
+  top: max(0.9rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+  right: max(1rem, env(safe-area-inset-right));
+  z-index: 30;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.85rem max(1.25rem, calc((100vw - 1200px) / 2));
-  background-color: var(--red);
-  color: var(--white);
+  pointer-events: none;
 }
-.masthead nav {
-  display: flex;
-  gap: 0.25rem;
+.home .table-corner > * {
+  pointer-events: auto;
 }
-.masthead nav a {
-  padding: 0.45rem 0.75rem;
-  border-radius: 10px;
-  font-weight: 800;
-  text-decoration: none;
-}
-.masthead nav a:hover {
-  background: rgb(255 255 255 / 0.16);
-}
-.brand .mark {
+.home .table-brand {
   display: inline-flex;
-}
-.brand .mark svg {
-  width: 38px;
-  height: 38px;
-}
-
-/* ---- hero ------------------------------------------------------------ */
-
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   align-items: center;
-  gap: clamp(1.5rem, 4vw, 4rem);
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: clamp(2.5rem, 6vw, 5.5rem) 1.25rem clamp(2rem, 5vw, 4.5rem);
+  min-height: 44px;
+  padding: 0 0.2rem;
+  color: var(--table-ink);
+  font: 700 1.15rem/1 var(--font-display);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  opacity: 0.82;
 }
-.hero h1 {
-  font-size: clamp(2.5rem, 5.4vw, 4.6rem);
-  line-height: 1.02;
-}
-.hero .hl {
-  display: block;
-  color: var(--red);
-}
-.lede {
-  max-width: 34rem;
-  margin: 1.25rem 0 1.75rem;
-  font-size: 1.2rem;
-  color: var(--ink-soft);
-}
-.cta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-}
-.cta-note {
-  margin: 0.9rem 0 0;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-.hero-art svg {
-  width: 100%;
-  height: auto;
-  max-height: 520px;
-  overflow: visible;
-  filter: drop-shadow(0 18px 18px rgb(27 27 31 / 0.12));
-}
-.hero-art .brick {
-  animation: drop 620ms cubic-bezier(0.22, 1.25, 0.36, 1) both;
-  animation-delay: calc(var(--z) * 55ms + var(--i) * 28ms + 150ms);
-}
-.hero-art .brick.float {
-  animation:
-    drop 620ms cubic-bezier(0.22, 1.25, 0.36, 1) 1.5s both,
-    hover 2.6s ease-in-out 2.1s infinite;
-}
-@keyframes drop {
-  from {
-    transform: translateY(-70px);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-@keyframes hover {
-  0%,
-  100% {
-    transform: translateY(-10px);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
+.home .table-brand:hover {
+  opacity: 1;
 }
 
-/* ---- how it works -------------------------------------------------------- */
-
-.how,
-.scenes,
-.about {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: clamp(2.5rem, 5vw, 4rem) 1.25rem;
-}
-.home h2 {
-  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
-}
-.steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.25rem;
-  margin: 1.5rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-.step {
-  padding: 0 1.4rem 1.4rem;
-}
-.step h3 {
-  font-size: 1.3rem;
-  margin: 1.1rem 0 0.4rem;
-}
-.step p {
-  margin: 0.4rem 0 0;
-  color: var(--ink-soft);
-}
-.step-art {
-  display: grid;
-  place-items: center;
-  height: 150px;
-  margin: 0 -1.4rem;
-  background: var(--yellow-soft);
-  border-bottom: 2px solid var(--line);
-}
-.step:nth-child(2) .step-art {
-  background: var(--red-soft);
-}
-.step:nth-child(3) .step-art {
-  background: #e8f1fb;
-}
-.step-art svg {
-  height: 120px;
-  width: auto;
-}
-.planned-line {
-  font-size: 0.95rem;
-}
-
-/* ---- together (planned) -------------------------------------------------- */
-
-.together {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(1.5rem, 4vw, 3.5rem);
-  align-items: center;
-  max-width: 1200px;
-  margin: clamp(1rem, 3vw, 2rem) auto;
-  padding: clamp(1.75rem, 4vw, 3rem);
-  background: var(--white);
-  border: 3px dashed var(--yellow-edge);
-  border-radius: 26px;
-}
-.together h2 {
-  margin: 0.6rem 0 0.75rem;
-}
-.together-text > p {
-  color: var(--ink-soft);
-  margin: 0;
-}
-.coop {
-  margin: 1.1rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.65rem;
-}
-.coop li {
-  padding-left: 1.6rem;
+.home .quick-links {
   position: relative;
 }
-.coop li::before {
+.home .quick-links-toggle {
+  min-height: 44px;
+  padding: 0.45rem 0.95rem;
+  border: 2px solid rgb(59 48 42 / 0.18);
+  border-radius: 999px;
+  background: rgb(255 253 247 / 0.78);
+  color: var(--table-ink);
+  font: 700 0.92rem/1 var(--font-body);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.home .quick-links-toggle::after {
   content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-0.15rem) rotate(45deg);
+}
+.home .quick-links.is-open .quick-links-toggle::after {
+  transform: translateY(0.1rem) rotate(-135deg);
+}
+.home .quick-links-toggle:hover {
+  background: var(--nameplate);
+}
+.home .quick-links nav {
   position: absolute;
-  left: 0;
-  top: 0.42em;
-  width: 0.85rem;
-  height: 0.85rem;
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: inset 0 -2px 0 var(--yellow-edge);
-}
-.coop-figure {
-  margin: 0;
-}
-.coop-diagram {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-areas:
-    "a b"
-    "build build"
-    "req plan";
-  gap: 0.75rem;
-  padding: 1.1rem;
-  background: var(--paper);
-  border-radius: 18px;
-}
-.kit-card,
-.note-card {
-  padding: 0.6rem 0.75rem;
-  border-radius: 12px;
-  background: var(--white);
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 0.85rem;
   border: 2px solid var(--line);
-  font-size: 0.9rem;
+  border-radius: var(--radius-lg);
+  background: var(--nameplate);
+  box-shadow: var(--lift);
 }
-.kit-card .who {
-  display: block;
-  font: 700 1rem var(--font-display);
+.home .quick-links nav[hidden] {
+  display: none;
 }
-.kit-card .pieces b {
-  font-family: ui-monospace, monospace;
+.home .quick-links-note {
+  margin: 0 0 0.6rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.home .link-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home .link-list a {
+  display: grid;
+  gap: 0.05rem;
+  min-height: 44px;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius);
+  color: var(--ink);
+  text-decoration: none;
+}
+.home .link-list a:hover {
+  background: var(--yellow-soft);
+}
+.home .link-label {
+  font-weight: 800;
+}
+.home .link-note {
+  color: var(--ink-soft);
   font-size: 0.82rem;
 }
-.kit-a {
-  grid-area: a;
-  border-left: 6px solid var(--red);
+
+/* ---- the intro line, loading, and legal line ----------------------------- */
+
+.home .table-intro {
+  position: absolute;
+  left: 50%;
+  bottom: max(2.6rem, calc(env(safe-area-inset-bottom) + 2.2rem));
+  z-index: 20;
+  width: min(36rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.6rem 1rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgb(255 253 247 / 0.82);
+  color: var(--table-ink);
+  font-size: 0.95rem;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
-.kit-b {
-  grid-area: b;
-  border-left: 6px solid var(--blue);
-}
-.coop-build {
-  grid-area: build;
-  display: grid;
-  place-items: center;
-}
-.coop-build svg {
-  height: 170px;
-  width: auto;
-}
-.request {
-  grid-area: req;
-}
-.plan {
-  grid-area: plan;
-  border-style: dashed;
-}
-.tag-plan {
-  background: #dce8f8;
-  color: var(--blue);
-}
-.coop-figure figcaption {
-  margin-top: 0.6rem;
-  font-size: 0.88rem;
+.home .table-intro-hint {
   color: var(--ink-soft);
 }
-
-/* ---- scenes -------------------------------------------------------------- */
-
-.scenes .sub {
-  margin: 0.4rem 0 1.5rem;
-  color: var(--ink-soft);
+.home .table-legal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(0.5rem, env(safe-area-inset-bottom));
+  z-index: 20;
+  margin: 0;
+  padding: 0 1rem;
+  color: rgb(59 48 42 / 0.55);
+  font-size: 0.7rem;
+  text-align: center;
+  pointer-events: none;
 }
-.scene-card {
+.home .table-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  place-content: center;
+  justify-items: center;
+  gap: 1rem;
+  padding: 5rem 1rem 3rem;
+  color: var(--table-ink);
 }
-.scene-card img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  min-height: 260px;
-  object-fit: cover;
-  background: linear-gradient(#f6c6a8, #8fc9d9);
+.home .table-loading > p {
+  margin: 0;
+  font: 700 1.1rem var(--font-display);
 }
-.scene-body {
-  padding: 1.6rem 1.6rem 1.8rem;
+.home .loading-links {
+  width: min(22rem, 100%);
+  padding: 0.6rem;
+  border-radius: var(--radius-lg);
+  background: rgb(255 253 247 / 0.7);
 }
-.scene-body h3 {
-  font-size: 1.9rem;
-  margin: 0.5rem 0 0.1rem;
+
+/* ---- labels on the table's objects --------------------------------------- */
+
+/* drei draws these at 400/4.4 ≈ 91 CSS px per stud, so sizes are large here */
+.home .painted-label {
+  display: inline-block;
+  padding: 0.12em 0.5em;
+  border-radius: 0.2em;
+  font: 700 46px/1.1 var(--font-display);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  user-select: none;
 }
-.scene-body .setting {
-  margin: 0 0 0.8rem;
+.home .painted-small {
+  font-size: 30px;
+}
+.home .painted-paper {
+  color: #2d63ad;
+}
+.home .painted-cream {
+  color: #8f2a1f;
+}
+.home .painted-yellow {
+  color: #3b302a;
+}
+
+/* the sign's face: its label, painted on the red board, and a real button */
+.home .sign-face {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 10px;
+  background: #e32a20;
+  box-shadow:
+    inset 0 -8px 0 rgb(0 0 0 / 0.12),
+    inset 0 6px 0 rgb(255 255 255 / 0.14);
+  color: #fffdf3;
+  cursor: pointer;
+  font-family: var(--font-display);
+  transition: background-color 150ms;
+}
+/* phones: a thumb-sized pad over the whole sign, in screen pixels */
+.home .sign-touch {
+  width: 120px;
+  height: 88px;
+  border-radius: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.home .sign-face.is-active {
+  background: #ef3a2f;
+}
+.home .sign-face:focus-visible {
+  outline: 10px solid var(--yellow);
+  outline-offset: 12px;
+}
+.home .sign-face-label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 88px;
   font-weight: 700;
-  color: var(--red-edge);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.scene-body p {
-  margin: 0 0 0.9rem;
+.home .sign-face-hint {
+  color: #ffe58a;
+  font: 700 34px/1.1 var(--font-body);
 }
-.scene-body .meta {
+
+/* ---- the focused panel ---------------------------------------------------- */
+
+/* Desktop: the panel stands on the right; the camera keeps the sign on the left. */
+.home .table-panel-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4.5rem clamp(1.5rem, 5vw, 6rem) 2.5rem;
+  pointer-events: none;
+}
+.home .table-panel {
+  position: relative;
+  width: min(28rem, 44vw);
+  max-height: 100%;
+  overflow: auto;
+  padding: 1.6rem 1.5rem 1.4rem;
+  border: 3px solid #d9281e;
+  border-radius: 20px;
+  background: var(--nameplate);
+  box-shadow:
+    0 6px 0 #a8170f,
+    0 26px 50px rgb(59 48 42 / 0.22);
+  pointer-events: auto;
+  animation: panel-in 220ms ease-out both;
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* a row of studs along the nameplate's top edge, like the sign's board */
+.home .nameplate-studs {
+  position: absolute;
+  top: -11px;
+  left: 1.4rem;
+  right: 1.4rem;
+  height: 11px;
+  background: radial-gradient(circle at 50% 100%, #d9281e 0 8px, transparent 8.5px) 0 0 / 26px 22px repeat-x;
+}
+.home .table-panel-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+}
+.home .table-panel-head h2 {
+  margin: 0;
+  font: 700 1.45rem/1.15 var(--font-display);
+}
+.home .table-panel-head h2:focus {
+  outline: none;
+}
+.home .table-panel-head h2:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+.home .back-to-table {
+  white-space: nowrap;
+}
+.home .table-panel-lede {
+  margin: 0.55rem 0 0.9rem;
   color: var(--ink-soft);
   font-size: 0.92rem;
 }
-.scene-body .meta span {
-  padding: 0.15rem 0.55rem;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-}
 
-/* ---- about and footer ---------------------------------------------------- */
+/* ---- the account form, inside the panel only ------------------------------ */
 
-.about {
-  border-top: 2px solid var(--line);
+.home .account-scope .card {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  overflow: visible;
 }
-.about p {
-  max-width: 44rem;
-  color: var(--ink-soft);
+.home .account-scope .lobby-card {
+  padding: 0;
 }
-.foot {
-  padding: 1.5rem 1.25rem 2.25rem;
-  text-align: center;
-  font-size: 0.85rem;
+.home .account-scope .lobby-card > h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  padding-top: 0.9rem;
+  border-top: 2px dashed var(--line);
+  font: 700 1.1rem var(--font-display);
+}
+.home .account-scope .lobby-hint {
+  margin: 0.35rem 0;
   color: var(--ink-soft);
-  border-top: 6px solid var(--red);
+  font-size: 0.92rem;
+}
+.home .account-scope .lobby-hint.fineprint {
+  font-size: 0.8rem;
+}
+.home .account-scope .lobby-error {
+  margin: 0.45rem 0;
+  padding: 0.45rem 0.65rem;
+  border-left: 4px solid var(--danger);
+  border-radius: 6px;
+  background: var(--red-soft);
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.home .account-scope .field {
+  display: block;
+  margin: 0.7rem 0;
+}
+.home .account-scope .field > span {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.home .account-scope input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.45rem 0.7rem;
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius);
   background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+.home .account-scope input:focus-visible {
+  border-color: var(--blue);
+}
+.home .account-scope .field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+.home .account-scope .context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.9rem 0 0.3rem;
+}
+.home .account-scope .room-tag {
+  font-size: 0.62rem;
+}
+.home .account-scope .room-tag-muted {
+  background: var(--line);
+  color: var(--ink-soft);
+}
+.home .account-scope code {
+  font-size: 0.88em;
+}
+.home .account-scope .identity-gate {
+  display: block;
+  min-height: 0;
+  padding: 0;
+}
+.home .account-scope .access-card {
+  padding: 0.5rem 0;
+}
+.home .account-scope .access-card h1 {
+  margin: 0 0 0.4rem;
+  font: 700 1.1rem var(--font-display);
 }
 
-/* ---- phones -------------------------------------------------------------- */
+/* ---- fallback (no WebGL, failed load, lost context) and <noscript> -------- */
 
-@media (max-width: 860px) {
-  .hero,
-  .together,
-  .scene-card {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .hero-art {
-    order: -1;
-    max-width: 420px;
-    margin: 0 auto;
-  }
-  .steps {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .together {
-    margin: 1rem;
-  }
+.home .fallback {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 2rem 1rem;
+  background: radial-gradient(120% 90% at 50% 20%, #f8efdc 0%, var(--wall) 60%, var(--wall-deep) 100%);
 }
-@media (max-width: 520px) {
-  .masthead {
-    flex-wrap: wrap;
-    padding: 0.7rem 1rem;
+.home .fallback-card {
+  width: min(30rem, 100%);
+  padding: 1.6rem 1.4rem;
+  border: 3px solid #d9281e;
+  border-radius: 20px;
+  background: var(--nameplate);
+  box-shadow: 0 6px 0 #a8170f;
+}
+.home .fallback-card h1 {
+  margin: 0 0 0.4rem;
+  font: 700 1.7rem/1.1 var(--font-display);
+}
+.home .fallback-lede {
+  margin: 0 0 1rem;
+  color: var(--ink-soft);
+}
+.home .fallback-note {
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+/* ---- phones and narrow windows ------------------------------------------- */
+
+@media (max-width: 759px), (max-aspect-ratio: 4/5) {
+  /* a bottom sheet, below the sign the camera keeps in the upper third */
+  .home .table-panel-layer {
+    align-items: flex-end;
+    justify-content: stretch;
+    padding: 0;
   }
-  .masthead nav {
+  .home .table-panel {
     width: 100%;
-    justify-content: space-between;
+    max-height: 64%;
+    max-height: 64dvh;
+    padding: 1.4rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
+    border-width: 3px 0 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -12px 34px rgb(59 48 42 / 0.2);
+    animation-name: sheet-in;
   }
-  .masthead nav a {
-    padding: 0.35rem 0.5rem;
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
-  .lede {
-    font-size: 1.08rem;
+  .home .table-panel-head h2 {
+    font-size: 1.25rem;
   }
-  .cta .btn {
-    flex: 1 1 auto;
+  .home .table-intro {
+    bottom: max(2.2rem, calc(env(safe-area-inset-bottom) + 1.9rem));
+    border-radius: 16px;
+    font-size: 0.88rem;
   }
-  .coop-diagram {
-    grid-template-columns: 1fr;
-    grid-template-areas: "a" "b" "build" "req" "plan";
+  .home .table-intro-hint {
+    display: block;
+  }
+  /* while focused, the strip above the sheet belongs to the sign; the
+     sheet's own "Back to table" is the way out */
+  .home .is-focused .table-legal,
+  .home .is-focused .table-corner {
+    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+  .home .table-stage,
+  .home .sign-face {
+    transition: none;
   }
-  .hero-art .brick,
-  .hero-art .brick.float {
+  .home .table-panel {
     animation: none;
   }
 }

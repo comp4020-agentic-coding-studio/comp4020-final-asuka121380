@@ -257,7 +257,24 @@ Each entry gives, in proportion to the change:
 
 - `/` is a designed homepage, not the editor. The editor lives at `/build/`.
   Both survive direct links and reloads, and moving between them keeps the
-  same visitor and build. The homepage must not load three.js or the scene.
+  same visitor and build.
+- **The homepage is a building table (author, 2 Nov 2026; ADR 0014,
+  superseding ADR 0004's "no three.js on the homepage").** A lightweight,
+  modular 3D scene is now authorised, where physical objects are the site's
+  entrances and the camera moves towards the one chosen.
+  - Its entry script imports no three.js; the scene loads only after a
+    WebGL probe.
+  - Anything that stops the table being shown falls back to plain links to
+    every core function. Never a blank canvas.
+  - It never loads the editor or the game's scene. Reuse only pure geometry
+    (`scene/scenery.ts`, `scene/geometry.ts`, `scene/Batched.tsx`), never
+    the game's assets or state.
+  - Viewing it never calls `/api/me` or creates a visitor; only the
+    read-only `/api/me/peek`.
+  - Its styles stay scoped under `body.home`.
+  - An unfinished entrance is decoration (inert, `aria-hidden`), never a
+    control. Every function stays reachable through real links meanwhile.
+  - Only playable scenes appear on the table.
 - Global identity: vivid red, clean white and bright yellow, with dark text
   and restrained supporting colours. Original branding only: no LEGO logo,
   no copied artwork or buttons, nothing implying an official LEGO product.

@@ -3,10 +3,12 @@ import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 // The client lives in src/client and builds to dist/client, which the
-// Express server serves. Three pages: the homepage at / (ADR 0004), the room
-// lobby at /build/ (ADR 0007: create, join, friends, invites), and the editor
-// at /build/room/:id; only the editor loads three.js and the scene. In dev,
-// Vite proxies the server's routes.
+// Express server serves. Three pages: the homepage's building table at /
+// (ADR 0014), the room lobby at /build/ (ADR 0007: create, join, friends,
+// invites), and the editor at /build/room/:id. The editor loads three.js and
+// the game's scene; the homepage loads three.js lazily, only once WebGL is
+// known to work, and never the game's scene. In dev, Vite proxies the
+// server's routes.
 export default defineConfig({
   root: "src/client",
   plugins: [react()],
