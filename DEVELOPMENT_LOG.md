@@ -3193,3 +3193,66 @@ temporary `DATA_DIR`):
   WebGL-disabled flags for the fallback screenshot; not checked in
   Safari, WebKit, a real GPU, or a physical device.
 - Nothing pushed or deployed.
+
+## 4 November 2026, 22:40 AEDT — README styling, branded loading screen, contrast fixes; test-failure root cause found (ADR 0014)
+
+Decided by the author: complete the remaining colour/loading brief
+(README styling, the branded loading screen, a contrast audit) and
+investigate rather than accept the "pre-existing" test-failure claim in
+the prior entry.
+[`9b66720`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/9b66720).
+
+**Investigated.** The `pnpm test` failures reported previously were
+mostly caused by a stale, three-week-old `tsx` dev server (predating this
+session) still listening on port 8080, `pnpm test`'s default `APP_URL`
+target, lacking routes added since (`/api/me/peek`). Against a correctly
+targeted, freshly built server, confirmed healthy via `curl` before each
+run: `pnpm check` passed 228/228. Four `spec/plans-and-attribution.test.ts`
+failures are real, reproduce on the unmodified branch point, and touch no
+file this session changed (`src/domain/rules.ts`'s plan logic, outside
+this task's authorised scope) — reported as a separate, pre-existing,
+unresolved issue rather than declared fixed.
+
+**Implemented.**
+- `src/server/readme.ts`: restyled its inline `<style>` block only (white
+  reading surface, blue chapter headings, red accent) — the author
+  explicitly re-authorised this, narrowly scoped to presentation; the
+  URL, full rendered content, SSR and the shipped invariant are
+  unchanged.
+- `src/client/index.html`: a static, no-script `#static-splash` (a
+  hand-written SVG emblem, "Brick Commons", "Setting out the table…"),
+  confirmed to paint before React or three.js load.
+- `src/client/home/HomeApp.tsx`: a matching React loading state
+  (`<LoadingEmblem>`), a one-off reduced-motion-skippable settle-in
+  animation, and a 4-second-delayed reveal of direct-navigation links for
+  slow loads (no progress bar, no repeated announcements).
+- Fixed a regression this pass introduced (two `<noscript>` elements),
+  caught by the existing scripted check before landing.
+- `src/client/ui/kit.css`: fixed two colour pairings that failed a WCAG
+  contrast audit of the new palette (a success-banner background; the
+  input-field border), both scoped to `.kit`'s own local tokens.
+
+**Tests run** (production build, local server on port 9000, fresh
+temporary `DATA_DIR`, confirmed healthy before each run):
+- `pnpm typecheck`: passed.
+- `pnpm build`: built.
+- `APP_URL=http://localhost:9000 pnpm check`: 228/228.
+- `scripts/tabletop.ts`: 173/173, including after the noscript-regression
+  fix.
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+
+**Observed.** Full details, the stale-server diagnosis, the contrast
+numbers, and the reproduction of the pre-existing plans-and-attribution
+failures are in evidence 0019.
+
+**Known limitations.**
+- The four `spec/plans-and-attribution.test.ts` failures remain
+  unresolved; fixing them is outside this task's authorised scope.
+- Checked only in Chrome, with swiftshader software WebGL; not checked in
+  Safari, WebKit, a real GPU, or a physical device.
+- The stale process on port 8080 was identified but not killed
+  (terminating an unrelated running process was outside this session's
+  permissions); anyone running `pnpm test` without an explicit `APP_URL`
+  should confirm nothing stale is listening there first.
+- Nothing pushed or deployed.
