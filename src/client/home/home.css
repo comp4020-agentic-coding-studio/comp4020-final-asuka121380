@@ -1,9 +1,9 @@
 /*
  * The homepage's table (ADR 0014), built from the shared tokens in
- * ui/theme.css. Everything here is scoped under body.home, so none of it
- * reaches the lobby or the editor; the account form's classes are restyled
- * inside .account-scope only, rather than importing lobby.css (which sets
- * html, body and bare input rules for its own page).
+ * ui/theme.css and the shared panel and form look in ui/kit.css. Everything
+ * here is scoped under body.home, so none of it reaches the lobby or the
+ * editor. lobby.css (which sets html, body and its pages' layout) is never
+ * imported here.
  */
 
 body.home {
@@ -178,9 +178,14 @@ body.home {
   right: 0;
   bottom: max(0.5rem, env(safe-area-inset-bottom));
   z-index: 20;
-  margin: 0;
-  padding: 0 1rem;
-  color: rgb(59 48 42 / 0.55);
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  margin: 0 auto;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  /* a quiet paper backing, so the line stays legible over any object */
+  background: rgb(251 246 234 / 0.72);
+  color: rgb(59 48 42 / 0.72);
   font-size: 0.7rem;
   text-align: center;
   pointer-events: none;
@@ -207,29 +212,52 @@ body.home {
   background: rgb(255 253 247 / 0.7);
 }
 
-/* ---- labels on the table's objects --------------------------------------- */
+/* ---- the entrances' label buttons --------------------------------------- */
 
-/* drei draws these at 400/4.4 ≈ 91 CSS px per stud, so sizes are large here */
-.home .painted-label {
-  display: inline-block;
-  padding: 0.12em 0.5em;
-  border-radius: 0.2em;
-  font: 700 46px/1.1 var(--font-display);
-  letter-spacing: -0.01em;
+/* drei draws these at 400/4.4 ≈ 91 CSS px per stud, so sizes are large here.
+   A printed label is painted on the object (a texture on a real plane, so
+   nearer objects hide it); its button lies exactly over it, transparent, and
+   shows only a warm wash while hovered or focused. Its text is there for
+   screen readers and as a last resort, never drawn twice. */
+.home .entrance-face {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+.home .entrance-face.is-active {
+  background: rgb(255 214 92 / 0.32);
+}
+.home .entrance-face:focus-visible {
+  outline: 8px solid var(--blue);
+  outline-offset: 8px;
+}
+.home .entrance-face-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
-  user-select: none;
 }
-.home .painted-small {
-  font-size: 30px;
-}
-.home .painted-paper {
-  color: #2d63ad;
-}
-.home .painted-cream {
-  color: #8f2a1f;
-}
-.home .painted-yellow {
-  color: #3b302a;
+/* the count of real waiting invitations, by the Friends envelope; never animated */
+.home .invite-tag {
+  display: grid;
+  place-items: center;
+  min-width: 78px;
+  height: 78px;
+  padding: 0 18px;
+  border: 6px solid #fff8e1;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: var(--ink);
+  font: 800 46px/1 var(--font-body);
+  box-shadow: 0 6px 0 var(--yellow-edge);
 }
 
 /* the sign's face: printed on the cream nameplate inside the red brick
@@ -273,10 +301,10 @@ body.home {
   color: #6a5a4c;
   font: 700 30px/1.1 var(--font-body);
 }
-/* phones: a thumb-sized pad over the whole sign, in screen pixels */
-.home .sign-touch {
-  width: 120px;
-  height: 88px;
+/* phones: a thumb-sized pad over each entrance, in screen pixels */
+.home .entrance-touch {
+  width: 64px;
+  height: 56px;
   border-radius: 16px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -316,6 +344,32 @@ body.home {
     0 22px 44px rgb(84 60 32 / 0.2);
   pointer-events: auto;
   animation: panel-in 220ms ease-out both;
+}
+.home .table-panel.tone-blue {
+  border-color: #2b63b8;
+  background-image: repeating-linear-gradient(90deg, transparent 0 62px, #1f4f97 62px 64px);
+  box-shadow:
+    inset 0 0 0 999px #fbf6ea,
+    0 5px 0 #1f4f97,
+    0 22px 44px rgb(84 60 32 / 0.2);
+}
+.home .table-panel.tone-yellow {
+  border-color: #f0b912;
+  background-image: repeating-linear-gradient(90deg, transparent 0 62px, #c99a00 62px 64px);
+  box-shadow:
+    inset 0 0 0 999px #fbf6ea,
+    0 5px 0 #c99a00,
+    0 22px 44px rgb(84 60 32 / 0.2);
+}
+.home .table-panel.is-wide {
+  width: min(31rem, 44vw);
+}
+.home .table-panel-body {
+  margin-top: 0.7rem;
+}
+/* long lists scroll inside the panel; the table behind never scrolls */
+.home .table-panel {
+  overscroll-behavior: contain;
 }
 @keyframes panel-in {
   from {
@@ -358,102 +412,31 @@ body.home {
   font-size: 0.92rem;
 }
 
-/* ---- the account form, inside the panel only ------------------------------ */
+/* ---- the account form, inside the panel ---------------------------------- */
 
+/* the panel is already the card: the account flow's own card sits flat in it */
 .home .account-scope .card {
   border: 0;
   border-radius: 0;
   background: none;
-  overflow: visible;
+  box-shadow: none;
 }
 .home .account-scope .lobby-card {
   padding: 0;
 }
 .home .account-scope .lobby-card > h2 {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.5rem;
-  padding-top: 0.9rem;
-  border-top: 2px dashed var(--line);
-  font: 700 1.1rem var(--font-display);
+  padding-top: 0.8rem;
+  border-top: 2px dashed var(--kit-line);
 }
-.home .account-scope .lobby-hint {
-  margin: 0.35rem 0;
-  color: var(--ink-soft);
-  font-size: 0.92rem;
-}
-.home .account-scope .lobby-hint.fineprint {
-  font-size: 0.8rem;
-}
-.home .account-scope .lobby-error {
-  margin: 0.45rem 0;
-  padding: 0.45rem 0.65rem;
-  border-left: 4px solid var(--danger);
-  border-radius: 6px;
-  background: var(--red-soft);
-  color: var(--danger);
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-.home .account-scope .field {
-  display: block;
-  margin: 0.7rem 0;
-}
-.home .account-scope .field > span {
-  display: block;
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-.home .account-scope input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0.45rem 0.7rem;
-  border: 2px solid var(--line-strong);
+.home .account-scope .caution-card {
+  padding: 0.8rem 0.9rem;
+  border: 2px solid #f0c24a;
   border-radius: var(--radius);
-  background: var(--white);
-  color: var(--ink);
-  font: inherit;
-  font-size: 1rem;
+  background: #fff8e1;
 }
-.home .account-scope input:focus-visible {
-  border-color: var(--blue);
-}
-.home .account-scope .field-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.5rem 0;
-}
-.home .account-scope .context-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin: 0.9rem 0 0.3rem;
-}
-.home .account-scope .room-tag {
-  font-size: 0.62rem;
-}
-.home .account-scope .room-tag-muted {
-  background: var(--line);
-  color: var(--ink-soft);
-}
-.home .account-scope code {
-  font-size: 0.88em;
-}
-.home .account-scope .identity-gate {
-  display: block;
-  min-height: 0;
-  padding: 0;
-}
-.home .account-scope .access-card {
-  padding: 0.5rem 0;
-}
-.home .account-scope .access-card h1 {
-  margin: 0 0 0.4rem;
-  font: 700 1.1rem var(--font-display);
+.home .account-scope .caution-card > h2 {
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* ---- fallback (no WebGL, failed load, lost context) and <noscript> -------- */
@@ -497,13 +480,17 @@ body.home {
     justify-content: stretch;
     padding: 0;
   }
-  .home .table-panel {
+  /* (listed with the tone and width variants so they never out-rank the sheet) */
+  .home .table-panel,
+  .home .table-panel.is-wide,
+  .home .table-panel.tone-blue,
+  .home .table-panel.tone-yellow {
     width: 100%;
     max-height: 64%;
     max-height: 64dvh;
     padding: 1.4rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
     /* a sheet scrolls; a solid red edge, no seams, so nothing shows through */
-    background-image: none;
+    background-image: none !important;
     border-width: 6px 0 0;
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -12px 34px rgb(59 48 42 / 0.2);
@@ -523,7 +510,8 @@ body.home {
     font-size: 1.25rem;
   }
   .home .table-intro {
-    bottom: max(2.2rem, calc(env(safe-area-inset-bottom) + 1.9rem));
+    /* clear of the legal note, which wraps to two lines on a phone */
+    bottom: max(3.2rem, calc(env(safe-area-inset-bottom) + 2.9rem));
     border-radius: 16px;
     font-size: 0.88rem;
   }
@@ -545,5 +533,139 @@ body.home {
   }
   .home .table-panel {
     animation: none;
+  }
+}
+
+/* ---- inside the table's panels ------------------------------------------- */
+
+.home .kit-subhead {
+  margin: 0.9rem 0 0.35rem;
+  font: 700 0.98rem var(--font-display);
+}
+.home .table-panel h3 {
+  font-size: 1rem;
+}
+/* the scene: its picture and facts, like the label on the tray */
+.home .scene-card {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.55rem;
+  border: 2px solid var(--kit-line);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+.home .scene-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.home .scene-card h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.home .scene-card-text .kit-help {
+  margin: 0.15rem 0 0.4rem;
+}
+.home .scene-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+}
+/* two clear choices, each with its button beside its explanation */
+.home .choice-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.8rem 0 0.4rem;
+}
+.home .choice {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 0.8rem;
+  border: 2px solid var(--kit-line);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+.home .choice > div {
+  flex: 1;
+  min-width: 0;
+}
+.home .choice h3 {
+  margin: 0;
+}
+.home .choice .kit-help {
+  margin: 0.1rem 0 0;
+  font-size: 0.86rem;
+}
+.home .choice .btn {
+  flex: none;
+}
+.home .room-form h3 {
+  margin: 0.2rem 0 0.2rem;
+}
+/* a small shelf of the visitor's own saved work */
+.home .shelf-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.home .shelf-item {
+  display: grid;
+  gap: 0.25rem;
+  color: inherit;
+  text-decoration: none;
+}
+.home .shelf-item-stage {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0.35rem;
+  border: 2px solid var(--kit-line);
+  border-bottom-width: 5px;
+  border-bottom-color: #e2d2b5;
+  border-radius: 10px;
+  background: linear-gradient(#f7f1e4, #efe5d2);
+}
+.home .shelf-item-picture {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.home .shelf-item-stage svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.home .shelf-item:hover .shelf-item-stage,
+.home .shelf-item:focus-visible .shelf-item-stage {
+  border-color: var(--red);
+}
+.home .shelf-item-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--kit-ink-soft);
+  text-align: center;
+}
+
+@media (max-width: 759px), (max-aspect-ratio: 4/5) {
+  .home .scene-card {
+    grid-template-columns: 7rem 1fr;
+  }
+  .home .choice {
+    flex-wrap: wrap;
+  }
+  .home .choice .btn {
+    width: 100%;
   }
 }

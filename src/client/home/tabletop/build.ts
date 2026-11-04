@@ -24,10 +24,10 @@ export const PALETTE = {
   yellow: "#f5c01f",
   orange: "#e8833a",
   cream: "#f4ead3",
-  white: "#f8f7f3",
+  white: "#f1efe9",
   blue: "#2b63b8",
   /** the house's walls: a pale blue, so white trim and the red roof read against them */
-  houseWall: "#a9c7e8",
+  houseWall: "#a3c2e4",
   green: "#3b9a55",
   leaf: "#68b96f",
   trunk: "#7a5235",
@@ -103,28 +103,28 @@ export interface Place {
  */
 export const PLACES: Record<"wide" | "narrow", Record<ObjectId, Place>> = {
   wide: {
-    creation: { x: 0, z: -5, rot: -0.5 },
+    creation: { x: 2.5, z: -5, rot: -0.5 },
     parts: { x: -11, z: 4.5, rot: 0.28 },
     sign: { x: 19.5, z: 11, rot: -0.14 },
-    scenes: { x: -20.5, z: -12, rot: 0.32 },
-    board: { x: -5.5, z: -18.5, rot: 0.08 },
+    scenes: { x: -21, z: -8.5, rot: 0.36 },
+    board: { x: -15, z: -19.5, rot: 0.22 },
     shelf: { x: 12, z: -17.5, rot: -0.26 },
-    booklet: { x: -20, z: 9.5, rot: 0.32 },
+    booklet: { x: -19.5, z: 12.5, rot: 0.28 },
     roofIdeas: { x: 11, z: -8, rot: -0.35 },
-    nameplate: { x: 4, z: 12, rot: -0.08 },
-    friends: { x: -26, z: -0.5, rot: 0.45 },
+    nameplate: { x: 26.2, z: 9.6, rot: -0.3 },
+    friends: { x: -27, z: 3.5, rot: 0.5 },
   },
   narrow: {
-    creation: { x: 1, z: -3.5, rot: -0.5 },
-    parts: { x: -5, z: 6.5, rot: 0.3 },
+    creation: { x: 3, z: -3.5, rot: -0.5 },
+    parts: { x: -12.5, z: 10, rot: 0.3 },
     sign: { x: 5.5, z: 13.4, rot: -0.3, scale: 1.45 },
-    scenes: { x: -8.5, z: -10.5, rot: 0.22 },
-    board: { x: -5, z: -19, rot: 0.08 },
+    scenes: { x: -9.5, z: -7.5, rot: 0.22 },
+    board: { x: -7.5, z: -19.5, rot: 0.16 },
     shelf: { x: 8.5, z: -18.5, rot: -0.22 },
     booklet: { x: 11.5, z: 5.5, rot: 0.2 },
     roofIdeas: { x: 11.5, z: -7, rot: -0.3 },
-    nameplate: { x: -7, z: 13.4, rot: 0.06 },
-    friends: { x: -11.5, z: 1.5, rot: 0.3 },
+    nameplate: { x: 14.2, z: 11.2, rot: -0.4 },
+    friends: { x: -4.5, z: 6.5, rot: 0.25 },
   },
 };
 
@@ -214,22 +214,6 @@ function roofRow(b: Batch, colour: string, side: -1 | 1, inner: number, y: numbe
   slopeAt(b, colour, z1 - z0, 2, m ? m.clone().multiply(local) : local, studs);
 }
 
-/** A ridge piece along z over x ∈ [−1, 1]: two half slopes meeting at the top. */
-function ridge(b: Batch, colour: string, y: number, z0: number, z1: number): void {
-  const h = COURSE - GAP;
-  const s = new THREE.Shape();
-  s.moveTo(-1 + GAP, 0);
-  s.lineTo(1 - GAP, 0);
-  s.lineTo(1 - GAP, 0.16);
-  s.lineTo(0.12, h);
-  s.lineTo(-0.12, h);
-  s.lineTo(-1 + GAP, 0.16);
-  s.closePath();
-  const g = new THREE.ExtrudeGeometry(s, { depth: z1 - z0 - GAP, bevelEnabled: false });
-  g.translate(0, y, z0 + GAP / 2);
-  b.add(colour, g);
-}
-
 /** An open tray: a floor, four walls and a rounded-over lip, centred on (x, z). */
 function tray(b: Batch, floor: string, rim: string, x: number, z: number, w: number, d: number, h: number, m?: THREE.Matrix4): void {
   b.box(floor, w - 0.5, 0.3, d - 0.5, x, 0, z, m);
@@ -308,9 +292,9 @@ function wallRun(b: Batch, axis: "x" | "z", from: number, to: number, at: number
 /**
  * A small house being built by more than one person. A grey foundation,
  * pale blue walls with white corners, a blue door and white windows, and a
- * stepped red roof on two gable walls. The left slope is laid to the ridge;
- * the right slope is half done, so the gables and the open attic show how
- * it is held up. The right wall's window opening is still empty: its window
+ * stepped red roof on two gable walls. The left slope is finished to the
+ * top; the right side is the one being worked on: two rows down, the next
+ * drawn as a plan, and the stepped gables standing ready to carry the rest. The right wall's window opening is still empty: its window
  * stands ready on the baseplate beside it.
  */
 export function creation(): Batch {
@@ -359,18 +343,14 @@ export function creation(): Batch {
   vent.translate(0, ROOF_Y + COURSE * 1.5, FRONT + 0.06);
   b.add(PALETTE.white, vent);
 
-  // the roof: rows of 45° slopes stepping in one stud per course
+  // the roof: rows of 45° slopes stepping in one stud per course, each row
+  // laid end to end along the whole house, so a side reads as one plane
   const row = (side: -1 | 1, k: number, seg: number, studs: boolean) => roofRow(b, PALETTE.red, side, side * (HW - 1 - k), ROOF_Y + k * COURSE, SEGMENTS[seg][0], SEGMENTS[seg][1], studs);
-  // left: complete to the ridge
-  for (let k = 0; k < 4; k++) for (let s = 0; s < 3; s++) row(-1, k, s, k === 3 && s < 2);
-  // right: the bottom row is down; above it, work stops part-way along
-  for (let s = 0; s < 3; s++) row(1, 0, s, s === 0);
-  row(1, 1, 1, true);
-  row(1, 1, 2, false);
-  row(1, 2, 2, false);
-  row(1, 3, 2, false);
-  // the ridge, only where both sides meet
-  ridge(b, PALETTE.red, ROOF_Y + 4 * COURSE, SEGMENTS[2][0], SEGMENTS[2][1]);
+  // left: finished to the top, its last row's studs along the ridge line
+  for (let k = 0; k < 4; k++) for (let s = 0; s < 3; s++) row(-1, k, s, k === 3);
+  // right: the construction side. Two full rows are down, studs up for the
+  // next; above them the stepped gables stand ready to carry it
+  for (let k = 0; k < 2; k++) for (let s = 0; s < 3; s++) row(1, k, s, k === 1);
   // a grey chimney through the finished slope
   for (let i = 0; i < 4; i++) brick(b, i % 2 ? PALETTE.greyDark : PALETTE.grey, -2.8, ROOF_Y + COURSE + i * COURSE, -3.3, 1, 1.2, 3, i === 3);
 
@@ -396,7 +376,7 @@ export function creation(): Batch {
 /** The proposed slope: the next piece of the right roof, see-through like a plan in the game. */
 export function proposedSlope(): THREE.BufferGeometry {
   const b = new Batch();
-  roofRow(b, "plan", 1, HW - 2, ROOF_Y + COURSE, SEGMENTS[0][0], SEGMENTS[0][1], false);
+  roofRow(b, "plan", 1, HW - 3, ROOF_Y + 2 * COURSE, SEGMENTS[0][0], SEGMENTS[0][1], false);
   return b.build()[0].geometry;
 }
 
@@ -722,12 +702,16 @@ export function obstacles(layout: "wide" | "narrow"): THREE.Box3[] {
     return new THREE.Box3().setFromPoints([...pts, new THREE.Vector3(pts[0].x, h * (p.scale ?? 1), pts[0].z)]);
   };
   return [
-    box(P.creation, 8, ROOF_Y + 5 * COURSE, 7),
+    // the house itself (walls, roof, chimney and the tree behind), and its low baseplate
+    box(P.creation, HW + 1.2, ROOF_Y + 4 * COURSE + 0.4, 5.8),
+    box(P.creation, BASEPLATE.w / 2, 1.4, BASEPLATE.d / 2),
     box(P.board, 6, BOARD.y + BOARD.h + 1, 1.5),
     box(P.shelf, 6.5, SHELF_HEADER.y + SHELF_HEADER.h, 1.6),
     box(P.sign, 3.8, signTop + 0.4, 1.2),
     box(P.roofIdeas, 4.5, 2.6, 2),
     box(P.scenes, 6.2, 3.5, 4.8),
     box(P.friends, 3, 2, 2.5),
+    box(P.booklet, BOOKLET.w / 2 + 0.3, 1.2, BOOKLET.d / 2 + 0.3),
+    box(P.parts, 4.2, 1.6, 3),
   ];
 }

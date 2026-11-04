@@ -25,8 +25,10 @@ import {
   proposedSlope,
   roofIdeas,
   SCENE_LABEL,
+  SCENE_TRAY,
   sceneTray,
   shelf,
+  SHELF,
   SHELF_HEADER,
   sign,
   SIGN,
@@ -37,11 +39,15 @@ import {
   type Place,
 } from "./build.ts";
 import { SIDE_X, SKETCHES, sketchTape, storage, TABLE, tableFrame, tableTop, WALL_Z, walls, WINDOW, windowFrame } from "./room.ts";
-import { bezier, easeInOutCubic, pathBetween, pathClear, poseFor, prefersReducedMotion, TRAVEL_MS, type Focus, type Layout, type Path, type Pose } from "./destinations.ts";
+import { bezier, easeInOutCubic, pathBetween, pathClear, poseFor, prefersReducedMotion, TRAVEL_MS, type Entrance, type Focus, type Layout, type Path, type Pose } from "./destinations.ts";
 
 // The tabletop (ADR 0014): a shared building table in daylight, seen from a
-// seat in front of it. Phase 1: the sign is the one working entrance; every
-// other object is decoration with a painted label, never a control.
+// seat in front of it. Six objects are entrances: the scene tray, the
+// noticeboard, the creation shelf, the Friends stand, the booklet and the
+// sign. Each is clickable as a whole (an invisible hit box round it), and
+// its printed name is a real <button> for keyboards, touch and screen
+// readers; both do the same thing. Everything else on the table is
+// decoration, never a control.
 
 export interface SceneProps {
   focus: Focus;
@@ -49,11 +55,14 @@ export interface SceneProps {
   reducedMotion: boolean;
   /** The camera has reached `focus` (or cut there). */
   onArrive: (focus: Focus) => void;
-  onActivateSignIn: () => void;
+  /** An entrance was chosen: its object clicked or tapped, or its label button pressed. */
+  onActivate: (entrance: Entrance) => void;
   signLabel: string;
   signHint: string | null;
-  /** The sign's face is a real button; the page focuses it on return. */
-  signButtonRef: RefObject<HTMLButtonElement | null>;
+  /** Real pending room invitations, shown as a small count on the Friends stand; 0 shows nothing. */
+  invitations: number;
+  /** Each entrance's label is a real button; the page focuses it again on return. */
+  entranceRefs: Record<Entrance, RefObject<HTMLButtonElement | null>>;
   onReady: () => void;
   onContextLost: () => void;
 }
@@ -208,7 +217,7 @@ function Daylight() {
   return (
     <>
       <primitive object={targetObj} />
-      <hemisphereLight args={["#eef3fb", "#ecdcc6", 1.15]} />
+      <hemisphereLight args={["#eef3fb", "#d9c6ad", 1.1]} />
       <directionalLight
         position={[-70, 50, 22]}
         target={targetObj}
@@ -253,34 +262,59 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
   return t;
 }
 
-/** Honey-coloured planks with a fine, quiet grain: seams every plank, streaks within. */
+/**
+ * Pale honey planks with a quiet grain: a few broad, soft bands of colour
+ * per plank and a handful of faint, wandering lines, so the top reads as wood
+ * from the seat and doesn't turn into stripes up close. Blurred while drawn,
+ * so no line is crisper than the texture's own resolution.
+ */
 function woodGrain(): THREE.CanvasTexture {
   return canvasTexture(1024, 1024, (g) => {
-    g.fillStyle = "#e9c99b";
+    g.fillStyle = "#ebcda2";
     g.fillRect(0, 0, 1024, 1024);
-    let seed = 7;
+    let seed = 11;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const planks = 6;
+    const planks = 5;
     const pw = 1024 / planks;
+    g.filter = "blur(3px)";
     for (let p = 0; p < planks; p++) {
-      g.fillStyle = `rgba(${p % 2 ? "170,110,50" : "255,235,200"},${0.05 + rnd() * 0.05})`;
+      // each plank a touch lighter or warmer than its neighbours
+      g.fillStyle = `rgba(${p % 2 ? "196,140,80" : "255,240,214"},${0.05 + rnd() * 0.05})`;
       g.fillRect(p * pw, 0, pw, 1024);
-      for (let i = 0; i < 46; i++) {
+      // broad soft bands, then a few fine wandering lines
+      for (let i = 0; i < 5; i++) {
         const x = p * pw + rnd() * pw;
-        g.strokeStyle = `rgba(150,95,45,${0.03 + rnd() * 0.06})`;
-        g.lineWidth = 0.6 + rnd() * 1.6;
+        g.strokeStyle = `rgba(176,120,62,${0.035 + rnd() * 0.03})`;
+        g.lineWidth = 8 + rnd() * 14;
         g.beginPath();
         g.moveTo(x, 0);
-        for (let y = 0; y <= 1024; y += 64) g.lineTo(x + Math.sin(y / 170 + i) * (2 + rnd() * 3), y);
+        for (let y = 0; y <= 1024; y += 32) g.lineTo(x + Math.sin(y / 260 + i * 1.7) * (6 + rnd() * 2), y);
         g.stroke();
       }
-      g.fillStyle = "rgba(120,75,35,0.28)";
-      g.fillRect(p * pw, 0, 2, 1024);
+      for (let i = 0; i < 9; i++) {
+        const x = p * pw + rnd() * pw;
+        g.strokeStyle = `rgba(150,98,50,${0.03 + rnd() * 0.035})`;
+        g.lineWidth = 1 + rnd() * 1.2;
+        g.beginPath();
+        g.moveTo(x, 0);
+        for (let y = 0; y <= 1024; y += 32) g.lineTo(x + Math.sin(y / 210 + i) * (3 + rnd() * 2), y);
+        g.stroke();
+      }
     }
-  }, [1.6, 1]);
+    g.filter = "none";
+    // the joints between planks: a fine, soft seam
+    for (let p = 1; p < planks; p++) {
+      g.fillStyle = "rgba(128,84,42,0.16)";
+      g.fillRect(p * pw - 1, 0, 2, 1024);
+    }
+  }, [1.4, 1]);
 }
 
-/** The table top: the rounded slab with its grain on top and a plain edge. */
+/**
+ * The table top: the rounded slab, its grain on top only. The edge and the
+ * underside take a plain wood colour, so the grain never smears down the
+ * front edge as stripes.
+ */
 function TableTop() {
   const geometry = useMemo(() => {
     const g = tableTop();
@@ -294,8 +328,15 @@ function TableTop() {
     g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
     return g;
   }, []);
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({ map: woodGrain(), roughness: 0.7, clearcoat: 0.12, clearcoatRoughness: 0.6, envMapIntensity: 0.3 }), []);
-  return <mesh geometry={geometry} material={material} receiveShadow castShadow raycast={() => null} />;
+  const materials = useMemo(
+    () => [
+      // ExtrudeGeometry's groups: 0 = the two caps (top and underside), 1 = the sides
+      new THREE.MeshPhysicalMaterial({ map: woodGrain(), roughness: 0.72, clearcoat: 0.1, clearcoatRoughness: 0.6, envMapIntensity: 0.3 }),
+      new THREE.MeshPhysicalMaterial({ color: "#dcb07c", roughness: 0.75, envMapIntensity: 0.25 }),
+    ],
+    [],
+  );
+  return <mesh geometry={geometry} material={materials} receiveShadow castShadow raycast={() => null} />;
 }
 
 /** The view through the window: a pale sky over soft, low greenery. Not modelled. */
@@ -473,10 +514,11 @@ function PrintedLabel({ position, rotation, width, height, children }: { positio
   );
 }
 
-/** A label on the front of a cream strip in an object's frame, facing the object's +z. */
-function StripLabel({ place, x, y, z, w, h, children }: { place: Place; x: number; y: number; z: number; w: number; h: number; children: string }) {
+/** A label printed on a strip in an object's own frame, facing its +z: lifted with the object. */
+function LocalLabel({ x, y, z, w, h, children }: { x: number; y: number; z: number; w: number; h: number; children: string }) {
+  const rotation = useMemo(() => new THREE.Euler(0, 0, 0), []);
   return (
-    <PrintedLabel position={at(place, x, y + h / 2, z)} rotation={new THREE.Euler(0, place.rot ?? 0, 0)} width={w * 0.96} height={h * 0.9}>
+    <PrintedLabel position={[x, y + h / 2, z]} rotation={rotation} width={w * 0.96} height={h * 0.9}>
       {children}
     </PrintedLabel>
   );
@@ -487,7 +529,7 @@ function StripLabel({ place, x, y, z, w, h, children }: { place: Place; x: numbe
  * picture of the table's house; the right page shows one building step, a
  * brick coming down onto two others. Printed, so it lies flat on the paper.
  */
-function BookletPrint({ place }: { place: Place }) {
+function BookletPrint() {
   const invalidate = useThree((s) => s.invalidate);
   const [tex, setTex] = useState<THREE.CanvasTexture | null>(null);
   useEffect(() => {
@@ -589,32 +631,116 @@ function BookletPrint({ place }: { place: Place }) {
   }, [invalidate]);
   if (!tex) return null;
   return (
-    <mesh position={at(place, 0, bookletPageY + 0.01, 0)} rotation={new THREE.Euler(-Math.PI / 2, place.rot ?? 0, 0, "YXZ")} raycast={() => null} receiveShadow>
+    <mesh position={[0, bookletPageY + 0.01, 0]} rotation-x={-Math.PI / 2} raycast={() => null} receiveShadow>
       <planeGeometry args={[BOOKLET.w - 0.2, BOOKLET.d - 0.1]} />
       <meshStandardMaterial map={tex} roughness={0.95} polygonOffset polygonOffsetFactor={-2} />
     </mesh>
   );
 }
 
-// ---- the sign: the one working entrance ---------------------------------------
+// ---- the entrances -------------------------------------------------------------
 
 /**
- * The sign as a physical object: its whole assembly responds to the pointer
- * through a generous invisible hit box, and its face is a real <button>
- * (keyboard, touch, screen readers). Both call the same action.
+ * Where an entrance's parts are, in its object's own frame: the hit box
+ * round the whole object, the label strip that is its button, and the warm
+ * pool drawn on the table while it is hovered or focused.
  */
-function SignInSign({ onActivate, label, hint, buttonRef, place, roomy }: { onActivate: () => void; label: string; hint: string | null; buttonRef: SceneProps["signButtonRef"]; place: Place; roomy: boolean }) {
+interface EntranceShape {
+  /** The invisible box that takes the pointer: centre and size. */
+  hit: { c: [number, number, number]; s: [number, number, number] };
+  /** The label button, laid on the printed name strip (or the sign's face). */
+  label: { x: number; y: number; z: number; w: number; h: number; tilt?: number };
+  /** The warm pool on the table: centre and radius. */
+  pool: { x: number; z: number; r: number };
+}
+
+const SHAPES: Record<Entrance, EntranceShape> = {
+  "sign-in": {
+    hit: { c: [0, signTop / 2, 0], s: [SIGN.frameW + 1.6, signTop + 0.6, 3] },
+    label: { x: 0, y: signFaceY, z: signFaceZ, w: SIGN.faceW, h: SIGN.faceH },
+    pool: { x: 0, z: 0.6, r: 5 },
+  },
+  scenes: {
+    hit: { c: [0, 1.6, 0.6], s: [SCENE_TRAY.w + 1, 3.6, SCENE_TRAY.d + 3.4] },
+    label: { x: SCENE_LABEL.x, y: SCENE_LABEL.y + SCENE_LABEL.h / 2, z: SCENE_LABEL.z + 0.17, w: SCENE_LABEL.w * 0.96, h: SCENE_LABEL.h * 0.9 },
+    pool: { x: 0, z: 0.6, r: 8.5 },
+  },
+  rooms: {
+    hit: { c: [0, (BOARD.y + BOARD.h + 1) / 2, 0], s: [BOARD.w + 2.2, BOARD.y + BOARD.h + 1.2, 3.2] },
+    label: { x: 0, y: BOARD_HEADER.y + BOARD_HEADER.h / 2, z: BOARD_HEADER.z + 0.08, w: (BOARD.w - 1.0) * 0.96, h: BOARD_HEADER.h * 0.9 },
+    pool: { x: 0, z: 1.2, r: 7 },
+  },
+  shelf: {
+    hit: { c: [0, (SHELF_HEADER.y + SHELF_HEADER.h) / 2, 0], s: [SHELF.w + 0.6, SHELF_HEADER.y + SHELF_HEADER.h + 0.4, SHELF.d + 0.8] },
+    label: { x: 0, y: SHELF_HEADER.y + SHELF_HEADER.h / 2, z: SHELF_HEADER.z + 0.17, w: SHELF_HEADER.w * 0.96, h: SHELF_HEADER.h * 0.9 },
+    pool: { x: 0, z: 1.6, r: 8 },
+  },
+  friends: {
+    hit: { c: [0, 1.4, 0], s: [7.4, 3.4, 6.6] },
+    label: { x: 0, y: FRIENDS_LABEL.y + FRIENDS_LABEL.h / 2, z: FRIENDS_LABEL.z + 0.17, w: FRIENDS_LABEL.w * 0.96, h: FRIENDS_LABEL.h * 0.9 },
+    pool: { x: 0, z: 0.4, r: 5 },
+  },
+  about: {
+    hit: { c: [0, 0.6, 0], s: [BOOKLET.w + 1.2, 1.6, BOOKLET.d + 1.2] },
+    // "About" is printed at the top of the left page; its button lies flat there
+    label: { x: -2.6, y: bookletPageY + 0.03, z: -2.2, w: 3.8, h: 1.25, tilt: -Math.PI / 2 },
+    pool: { x: 0, z: 0, r: 7 },
+  },
+};
+
+/**
+ * One entrance as a physical object: the whole assembly takes the pointer
+ * through a generous invisible hit box, lifts a little and casts a warm pool
+ * on the table while hovered or focused, and its printed name is a real
+ * <button> (keyboard, touch, screen readers). Both call the same action.
+ * Nothing moves unless someone points at it or focuses it.
+ */
+function EntranceObject({
+  entrance,
+  place,
+  onActivate,
+  buttonRef,
+  ariaLabel,
+  roomy,
+  children,
+  face,
+  faceClass = "entrance-face",
+  extra,
+}: {
+  entrance: Entrance;
+  place: Place;
+  onActivate: (e: Entrance) => void;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  ariaLabel: string;
+  /** A phone's overview: add a thumb-sized pad over the object. */
+  roomy: boolean;
+  /** The object's own bricks, lifted with it. */
+  children?: React.ReactNode;
+  /** What the label button shows; empty for a printed label that stays painted on. */
+  face?: React.ReactNode;
+  faceClass?: string;
+  /** Anything else drawn with the object, not lifted (the invitation count). */
+  extra?: React.ReactNode;
+}) {
+  const shape = SHAPES[entrance];
   const [hover, setHover] = useState(false);
   const [focused, setFocused] = useState(false);
   const lift = useRef<THREE.Group>(null);
-  const batch = useMemo(() => () => sign(), []);
+  const group = useRef<THREE.Group>(null);
   const { invalidate, camera, size } = useThree();
   const active = hover || focused;
   const [pad, setPad] = useState<HTMLDivElement | null>(null);
-  const group = useRef<THREE.Group>(null);
-  // The touch pad covers the sign as drawn, never smaller than a thumb: sized
-  // from the sign's corners projected through the camera.
-  const corners = useMemo(() => [-1, 1].flatMap((sx) => [0, signTop].map((y) => new THREE.Vector3((sx * (SIGN.frameW + 0.6)) / 2, y, 0))), []);
+  const scale = place.scale ?? 1;
+
+  // The touch pad covers the object as drawn, never smaller than a thumb:
+  // sized from the hit box's corners projected through the camera.
+  const corners = useMemo(() => {
+    const [cx, cy, cz] = shape.hit.c;
+    const [sx, sy, sz] = shape.hit.s;
+    const out: THREE.Vector3[] = [];
+    for (const dx of [-1, 1]) for (const dy of [-1, 1]) for (const dz of [-1, 1]) out.push(new THREE.Vector3(cx + (dx * sx) / 2, Math.max(0, cy + (dy * sy) / 2), cz + (dz * sz) / 2));
+    return out;
+  }, [shape]);
   const tmp = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     const g = group.current;
@@ -632,14 +758,15 @@ function SignInSign({ onActivate, label, hint, buttonRef, place, roomy }: { onAc
       minY = Math.min(minY, y);
       maxY = Math.max(maxY, y);
     }
-    const w = `${Math.max(120, Math.round(maxX - minX))}px`;
-    const h = `${Math.max(88, Math.round(maxY - minY))}px`;
+    const w = `${Math.max(64, Math.round(maxX - minX))}px`;
+    const h = `${Math.max(56, Math.round(maxY - minY))}px`;
     if (pad.style.width !== w) pad.style.width = w;
     if (pad.style.height !== h) pad.style.height = h;
   });
 
   useEffect(() => {
-    document.body.style.cursor = hover ? "pointer" : "";
+    if (!hover) return;
+    document.body.style.cursor = "pointer";
     return () => {
       document.body.style.cursor = "";
     };
@@ -662,68 +789,70 @@ function SignInSign({ onActivate, label, hint, buttonRef, place, roomy }: { onAc
     invalidate();
   });
 
-  const hit = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    onActivate();
-  };
-
+  const L = shape.label;
+  const tilt = L.tilt ?? 0;
   return (
-    <group ref={group} position={[place.x, 0, place.z]} rotation-y={place.rot ?? 0} scale={place.scale ?? 1}>
+    <group ref={group} position={[place.x, 0, place.z]} rotation-y={place.rot ?? 0} scale={scale}>
       <group ref={lift}>
-        <Bricks batch={batch} />
+        {children}
         <mesh
-          position={[0, signTop / 2, 0]}
+          position={shape.hit.c}
           onPointerOver={(e) => {
             e.stopPropagation();
             setHover(true);
           }}
           onPointerOut={() => setHover(false)}
-          onClick={hit}
+          onClick={(e) => {
+            e.stopPropagation();
+            onActivate(entrance);
+          }}
         >
-          <boxGeometry args={[SIGN.frameW + 1.6, signTop + 0.6, 3]} />
+          <boxGeometry args={shape.hit.s} />
           <meshBasicMaterial visible={false} />
         </mesh>
-        <Html transform position={[0, signFaceY, signFaceZ]} distanceFactor={DISTANCE_FACTOR} zIndexRange={[20, 10]}>
+        <Html transform position={[L.x, L.y, L.z]} rotation-x={tilt} distanceFactor={DISTANCE_FACTOR} zIndexRange={[20, 10]}>
           <button
             ref={buttonRef}
             type="button"
-            className={`sign-face${active ? " is-active" : ""}`}
-            aria-label={hint ? `${label}: ${hint}` : label}
+            className={`${faceClass}${active ? " is-active" : ""}`}
+            aria-label={ariaLabel}
             aria-haspopup="dialog"
-            style={{ width: `${SIGN.faceW * FACE_PX}px`, height: `${SIGN.faceH * FACE_PX}px` }}
+            data-entrance={entrance}
+            style={{ width: `${L.w * FACE_PX}px`, height: `${L.h * FACE_PX}px` }}
             onClick={(e) => {
               // the canvas also listens on this container: one action per click
               e.stopPropagation();
-              onActivate();
+              onActivate(entrance);
             }}
             onPointerEnter={() => setHover(true)}
             onPointerLeave={() => setHover(false)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
           >
-            <span className="sign-face-label">{label}</span>
-            {hint && <span className="sign-face-hint">{hint}</span>}
+            {typeof face === "string" ? <span className="entrance-face-text">{face}</span> : face}
           </button>
         </Html>
       </group>
-      {/* a soft warm pool on the table under the sign, while hovered or focused */}
-      <mesh position={[0, 0.02, 0.6]} rotation-x={-Math.PI / 2} raycast={() => null} visible={active}>
-        <circleGeometry args={[5, 40]} />
+      {extra}
+      {/* a soft warm pool on the table under the object, while hovered or focused */}
+      <mesh position={[shape.pool.x, 0.02, shape.pool.z]} rotation-x={-Math.PI / 2} raycast={() => null} visible={active}>
+        <circleGeometry args={[shape.pool.r, 40]} />
         <meshBasicMaterial color="#ffe08a" transparent opacity={0.3} depthWrite={false} />
       </mesh>
       {roomy && (
-        // A phone's overview draws the sign small. This screen-space pad,
-        // centred on the sign and never smaller than a thumb, routes a tap to
-        // the same action; it is not a second control (hidden from assistive
-        // technology and the tab order: the face above is the button).
-        <Html position={[0, signTop / 2, 0]} center zIndexRange={[19, 10]}>
+        // A phone's overview draws the objects small. This screen-space pad,
+        // centred on the object and never smaller than a thumb, routes a tap
+        // to the same action; it is not a second control (hidden from
+        // assistive technology and the tab order: the label is the button).
+        <Html position={shape.hit.c} center zIndexRange={[19, 10]}>
           <div
-            className="sign-touch"
+            className="entrance-touch"
+            data-entrance={entrance}
             ref={setPad}
             aria-hidden="true"
             onClick={(e) => {
               e.stopPropagation();
-              onActivate();
+              onActivate(entrance);
             }}
           />
         </Html>
@@ -731,6 +860,9 @@ function SignInSign({ onActivate, label, hint, buttonRef, place, roomy }: { onAc
     </group>
   );
 }
+
+/** The sign's own bricks, built once. */
+const SIGN_BRICKS = once(sign);
 
 // ---- the rest of the table ----------------------------------------------------
 
@@ -775,31 +907,90 @@ function Placed({ id, place }: { id: keyof typeof BUILT; place: Place }) {
   );
 }
 
+/** The table's decoration: the room, the house and everything that is not an entrance. */
 function Decoration({ layout }: { layout: Layout }) {
   const P = PLACES[layout];
-  const ids = Object.keys(BUILT) as (keyof typeof BUILT)[];
   return (
     <>
       <Room />
-      {ids.map((id) => (
+      {(["creation", "parts", "roofIdeas", "nameplate"] as const).map((id) => (
         <Placed key={id} id={id} place={P[id]} />
       ))}
       <ProposedSlope place={P.creation} />
       <Bricks batch={LOOSE[layout]} />
-      <BookletPrint place={P.booklet} />
+    </>
+  );
+}
 
-      <StripLabel place={P.board} x={0} y={BOARD_HEADER.y} z={BOARD_HEADER.z + 0.07} w={BOARD.w - 1.0} h={BOARD_HEADER.h}>
-        Join a room
-      </StripLabel>
-      <StripLabel place={P.shelf} x={0} y={SHELF_HEADER.y} z={SHELF_HEADER.z + 0.16} w={SHELF_HEADER.w} h={SHELF_HEADER.h}>
-        Our creations
-      </StripLabel>
-      <StripLabel place={P.scenes} x={SCENE_LABEL.x} y={SCENE_LABEL.y} z={SCENE_LABEL.z + 0.16} w={SCENE_LABEL.w} h={SCENE_LABEL.h}>
-        Beach Houses
-      </StripLabel>
-      <StripLabel place={P.friends} x={0} y={FRIENDS_LABEL.y} z={FRIENDS_LABEL.z + 0.16} w={FRIENDS_LABEL.w} h={FRIENDS_LABEL.h}>
-        Friends
-      </StripLabel>
+/** An object's bricks in its own frame (its entrance places and lifts them). */
+const Own = ({ id }: { id: keyof typeof BUILT }) => <Bricks batch={BUILT[id]} />;
+
+/**
+ * A count of real pending room invitations, on a small yellow tag by the
+ * Friends envelope. Shown only when there are some; it never pulses.
+ */
+function InvitationTag({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <Html transform position={[2.2, 2.5, -0.9]} distanceFactor={DISTANCE_FACTOR} zIndexRange={[18, 10]} pointerEvents="none">
+      <span className="invite-tag" aria-hidden="true">
+        {count}
+      </span>
+    </Html>
+  );
+}
+
+function Entrances({ props }: { props: SceneProps }) {
+  const P = PLACES[props.layout];
+  const roomy = props.layout === "narrow" && props.focus === "overview";
+  const common = { onActivate: props.onActivate, roomy };
+  const invites = props.invitations > 0 ? `, ${props.invitations} room invitation${props.invitations === 1 ? "" : "s"} waiting` : "";
+  return (
+    <>
+      <EntranceObject {...common} entrance="scenes" place={P.scenes} buttonRef={props.entranceRefs.scenes} ariaLabel="Beach Houses scene tray: choose how to build" face="Beach Houses">
+        <Own id="scenes" />
+        <LocalLabel x={SCENE_LABEL.x} y={SCENE_LABEL.y} z={SCENE_LABEL.z + 0.16} w={SCENE_LABEL.w} h={SCENE_LABEL.h}>
+          Beach Houses
+        </LocalLabel>
+      </EntranceObject>
+      <EntranceObject {...common} entrance="rooms" place={P.board} buttonRef={props.entranceRefs.rooms} ariaLabel="Noticeboard: join a room" face="Join a room">
+        <Own id="board" />
+        <LocalLabel x={0} y={BOARD_HEADER.y} z={BOARD_HEADER.z + 0.07} w={BOARD.w - 1.0} h={BOARD_HEADER.h}>
+          Join a room
+        </LocalLabel>
+      </EntranceObject>
+      <EntranceObject {...common} entrance="shelf" place={P.shelf} buttonRef={props.entranceRefs.shelf} ariaLabel="Creation shelf: your collection and the public showcase" face="Our creations">
+        <Own id="shelf" />
+        <LocalLabel x={0} y={SHELF_HEADER.y} z={SHELF_HEADER.z + 0.16} w={SHELF_HEADER.w} h={SHELF_HEADER.h}>
+          Our creations
+        </LocalLabel>
+      </EntranceObject>
+      <EntranceObject {...common} entrance="friends" place={P.friends} buttonRef={props.entranceRefs.friends} ariaLabel={`Friends and invitations${invites}`} face="Friends" extra={<InvitationTag count={props.invitations} />}>
+        <Own id="friends" />
+        <LocalLabel x={0} y={FRIENDS_LABEL.y} z={FRIENDS_LABEL.z + 0.16} w={FRIENDS_LABEL.w} h={FRIENDS_LABEL.h}>
+          Friends
+        </LocalLabel>
+      </EntranceObject>
+      <EntranceObject {...common} entrance="about" place={P.booklet} buttonRef={props.entranceRefs.about} ariaLabel="Instruction booklet: about this project (opens the README)" face="About">
+        <Own id="booklet" />
+        <BookletPrint />
+      </EntranceObject>
+      <EntranceObject
+        {...common}
+        entrance="sign-in"
+        place={P.sign}
+        buttonRef={props.entranceRefs["sign-in"]}
+        ariaLabel={props.signHint ? `${props.signLabel}: ${props.signHint}` : props.signLabel}
+        faceClass="sign-face"
+        face={
+          <>
+            <span className="sign-face-label">{props.signLabel}</span>
+            {props.signHint && <span className="sign-face-hint">{props.signHint}</span>}
+          </>
+        }
+      >
+        <Bricks batch={SIGN_BRICKS} />
+      </EntranceObject>
     </>
   );
 }
@@ -847,8 +1038,8 @@ export default function TableScene(props: SceneProps) {
       <CameraRig focus={props.focus} layout={props.layout} reducedMotion={reduced} onArrive={props.onArrive} />
       <Decoration layout={props.layout} />
       {/* soft contact shadows under everything, drawn once (the table doesn't move) */}
-      <ContactShadows key={props.layout} position={[0, 0.012, TABLE.z0 + TABLE.d / 2]} scale={[TABLE.w, TABLE.d]} resolution={1024} blur={1.4} far={2.5} opacity={0.5} color="#4a3220" frames={1} />
-      <SignInSign onActivate={props.onActivateSignIn} label={props.signLabel} hint={props.signHint} buttonRef={props.signButtonRef} place={PLACES[props.layout].sign} roomy={props.layout === "narrow" && props.focus === "overview"} />
+      <ContactShadows key={props.layout} position={[0, 0.012, TABLE.z0 + TABLE.d / 2]} scale={[TABLE.w, TABLE.d]} resolution={1024} blur={1.2} far={3} opacity={0.62} color="#3f2a1a" frames={1} />
+      <Entrances props={props} />
       <Lifecycle onReady={props.onReady} onContextLost={props.onContextLost} />
     </Canvas>
   );

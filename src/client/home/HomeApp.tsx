@@ -1,20 +1,29 @@
-import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, createRef, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { IdentityGate } from "../IdentityGate.tsx";
 import type { Account } from "../state/api.ts";
 import { onIdentityChangedElsewhere } from "../state/session-events.ts";
 import { AccountPanel } from "./tabletop/AccountPanel.tsx";
-import { layoutFor, prefersReducedMotion, type Focus, type Layout } from "./tabletop/destinations.ts";
+import { ENTRANCES, isEntrance, layoutFor, prefersReducedMotion, type Entrance, type Focus, type Layout } from "./tabletop/focus.ts";
 import { LinkList, QuickLinks } from "./tabletop/QuickLinks.tsx";
+import { TablePanel } from "./tabletop/TablePanel.tsx";
 
 // The homepage (ADR 0014): a building table seen from a seat in front of it.
 // three.js loads only once WebGL is known to work; until then, and if loading,
 // rendering or the GPU context fails, the page is plain links (the fallback),
 // never a blank canvas.
 //
-// Phase 1: the sign is the only working entrance. The focused view is in the
-// URL (`/?focus=sign-in`), so Back closes it, Forward reopens it and a reload
-// keeps it; `/build/?view=account` stays the account page it always was.
+// Six objects are entrances. Choosing one moves the camera to it; its panel
+// opens once the camera has arrived; "Back to table", Escape or browser Back
+// return. The focused view is in the URL (`/?focus=rooms`), so Back closes
+// it, Forward reopens it and a reload or a shared link opens it directly.
+// Short tasks are completed at the table (account, choosing how to build,
+// joining, friends and invitations); browsing the collection and showcase,
+// and reading about the project, are pages of their own. The booklet's
+// approach leads straight on to /readme/.
 
 const TableScene = lazy(() => import("./tabletop/TableScene.tsx"));
+// the panels share the lobby's components; loaded when a panel first opens
+const Panels = lazy(() => import("./tabletop/panels.tsx").then((m) => ({ default: m.PanelBody })));
 
 type Status = "loading" | "ready" | "failed";
 
@@ -27,7 +36,10 @@ function webglAvailable(): boolean {
   }
 }
 
-const focusFromUrl = (): Focus => (new URLSearchParams(location.search).get("focus") === "sign-in" ? "sign-in" : "overview");
+const focusFromUrl = (): Focus => {
+  const f = new URLSearchParams(location.search).get("focus");
+  return isEntrance(f) ? f : "overview";
+};
 
 class SceneBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -65,32 +77,45 @@ function useReducedMotion(): boolean {
 }
 
 /**
- * Who the sign should greet, without creating anyone: /api/me/peek reads an
- * existing cookie only (the cookie is HttpOnly, so the page can't look).
- * After that, the account panel reports sign-ins and sign-outs as they happen.
+ * Who the sign should greet, and how many room invitations are waiting,
+ * without creating anyone: /api/me/peek reads an existing cookie only (the
+ * cookie is HttpOnly, so the page can't look). After that, the panels report
+ * changes as they happen.
  */
-function useSignedInName(): [string | null, (a: Account | null) => void] {
+function usePeek(): { name: string | null; invitations: number; setAccount: (a: Account | null) => void; setInvitations: (n: number) => void } {
   const [name, setName] = useState<string | null>(null);
-  const peek = useCallback(() => {
+  const [invitations, setInvitations] = useState(0);
+  const refresh = useCallback(() => {
     fetch("/api/me/peek", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((r: { account: { displayName: string } | null } | null) => setName(r?.account?.displayName ?? null))
+      .then((r: { account: { displayName: string } | null; invitations?: number } | null) => {
+        setName(r?.account?.displayName ?? null);
+        setInvitations(r?.invitations ?? 0);
+      })
       .catch(() => {});
   }, []);
-  useEffect(peek, []);
-  useEffect(() => onIdentityChangedElsewhere(peek), []);
-  return [name, (a) => setName(a?.displayName ?? null)];
+  useEffect(refresh, []);
+  useEffect(() => onIdentityChangedElsewhere(refresh), []);
+  return { name, invitations, setAccount: (a) => setName(a?.displayName ?? null), setInvitations };
 }
+
+type PanelEntrance = Exclude<Entrance, "sign-in" | "about">;
+const PANELS: Record<PanelEntrance, { title: string; tone: "red" | "blue" | "yellow"; wide?: boolean }> = {
+  scenes: { title: "Choose a scene", tone: "blue" },
+  rooms: { title: "Join a room", tone: "blue", wide: true },
+  friends: { title: "Friends and invitations", tone: "yellow" },
+  shelf: { title: "Our creations", tone: "red" },
+};
 
 export function HomeApp() {
   const [status, setStatus] = useState<Status>(() => (webglAvailable() ? "loading" : "failed"));
   const [focus, setFocus] = useState<Focus>(focusFromUrl);
-  // the focus the camera last reached; the panel shows only once it matches
+  // the focus the camera last reached; a panel shows only once it matches
   const [arrived, setArrived] = useState<Focus | null>(null);
   const layout = useLayout();
   const reducedMotion = useReducedMotion();
-  const [name, setAccount] = useSignedInName();
-  const signButton = useRef<HTMLButtonElement>(null);
+  const peek = usePeek();
+  const refs = useMemo(() => Object.fromEntries(ENTRANCES.map((e) => [e.focus, createRef<HTMLButtonElement>()])) as unknown as Record<Entrance, RefObject<HTMLButtonElement | null>>, []);
 
   useEffect(() => {
     const onPop = () => setFocus(focusFromUrl());
@@ -106,6 +131,17 @@ export function HomeApp() {
     return () => clearTimeout(t);
   }, [status]);
 
+  // the booklet: once the camera is over its pages, go on to the README
+  const leaving = useRef(false);
+  useEffect(() => {
+    if (status !== "ready" || focus !== "about" || arrived !== "about" || leaving.current) return;
+    leaving.current = true;
+    // replace, so Back from the README returns to the table, not to an
+    // approach that would immediately leave again
+    history.replaceState(null, "", location.pathname);
+    location.assign("/readme/");
+  }, [status, focus, arrived]);
+
   const go = (next: Focus) => {
     if (next === focus) return;
     setArrived(null);
@@ -117,14 +153,14 @@ export function HomeApp() {
 
   const onArrive = useCallback((f: Focus) => setArrived(f), []);
   const closeFocus = useCallback(() => go("overview"), [focus]);
-  const panelOpen = status === "ready" && focus === "sign-in" && arrived === "sign-in";
-  const signLabel = name ? name : "Sign in";
-  const signHint = name ? "Signed in" : "or build as a guest";
+  const panelOpen = status === "ready" && focus !== "overview" && focus !== "about" && arrived === focus;
+  const signLabel = peek.name ? peek.name : "Sign in";
+  const signHint = peek.name ? "Signed in" : "or build as a guest";
 
-  if (status === "failed") return <Fallback signedInAs={name} />;
+  if (status === "failed") return <Fallback signedInAs={peek.name} />;
 
   return (
-    <div className={`table-page${focus !== "overview" ? " is-focused" : ""}`} data-status={status}>
+    <div className={`table-page${focus !== "overview" ? " is-focused" : ""}`} data-status={status} data-focus={focus}>
       <div className="table-stage" inert={panelOpen || undefined}>
         <SceneBoundary onError={() => setStatus("failed")}>
           <Suspense fallback={null}>
@@ -133,10 +169,11 @@ export function HomeApp() {
               layout={layout}
               reducedMotion={reducedMotion}
               onArrive={onArrive}
-              onActivateSignIn={() => go("sign-in")}
+              onActivate={go}
               signLabel={signLabel}
               signHint={signHint}
-              signButtonRef={signButton}
+              invitations={peek.invitations}
+              entranceRefs={refs}
               onReady={() => setStatus((s) => (s === "loading" ? "ready" : s))}
               onContextLost={() => setStatus("failed")}
             />
@@ -160,11 +197,26 @@ export function HomeApp() {
 
       {status === "ready" && focus === "overview" && (
         <p className="table-intro" inert={panelOpen || undefined}>
-          A shared table for building with bricks, alone or with someone else. <span className="table-intro-hint">Choose the sign to sign in, or use Quick links.</span>
+          A shared table for building with bricks, alone or with someone else. <span className="table-intro-hint">Choose something on the table, or use Quick links.</span>
+        </p>
+      )}
+      {status === "ready" && focus === "about" && (
+        <p className="table-intro" role="status">
+          Opening the booklet…
         </p>
       )}
 
-      {panelOpen && <AccountPanel onClose={closeFocus} onAccountChange={setAccount} returnFocus={signButton} signedIn={!!name} />}
+      {panelOpen && focus === "sign-in" && <AccountPanel onClose={closeFocus} onAccountChange={peek.setAccount} returnFocus={refs["sign-in"]} signedIn={!!peek.name} />}
+      {panelOpen && focus !== "sign-in" && (
+        <TablePanel id={`${focus}-panel`} title={PANELS[focus].title} tone={PANELS[focus].tone} wide={PANELS[focus].wide} onClose={closeFocus} returnFocus={refs[focus]}>
+          {/* the first identity-dependent act on the homepage: the same gate the lobby uses */}
+          <IdentityGate>
+            <Suspense fallback={<p className="kit-state">Loading…</p>}>
+              <Panels which={focus} onInvitations={peek.setInvitations} />
+            </Suspense>
+          </IdentityGate>
+        </TablePanel>
+      )}
 
       <p className="table-legal">An independent student project. Not made, sponsored or endorsed by the LEGO Group.</p>
     </div>

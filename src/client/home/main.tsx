@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "@fontsource-variable/fredoka";
 import "@fontsource-variable/nunito";
 import "../ui/theme.css";
+import "../ui/kit.css";
 import "./home.css";
 import { HomeApp } from "./HomeApp.tsx";
 
