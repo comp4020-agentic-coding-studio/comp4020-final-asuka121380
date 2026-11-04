@@ -23,8 +23,9 @@ export const PALETTE = {
   red: "#d42a20",
   yellow: "#f5c01f",
   orange: "#e8833a",
-  cream: "#f4ead3",
-  white: "#f1efe9",
+  // sign/board/booklet face plates: white, not cream (Section 5)
+  cream: "#fbfcfd",
+  white: "#f3f5f7",
   blue: "#2b63b8",
   /** the house's walls: a pale blue, so white trim and the red roof read against them */
   houseWall: "#a3c2e4",
@@ -36,14 +37,17 @@ export const PALETTE = {
   greyDark: "#80858c",
   baseplate: "#4ea85e",
   glass: "#bfe0f0",
-  // matte things: wood, paper, plaster (TableScene gives them no sheen)
-  woodEdge: "#c48f58",
-  woodLeg: "#b07f4c",
-  woodTray: "#ddb07a",
-  woodTrayRim: "#c99862",
-  wall: "#e7e6e2",
-  wallDeep: "#d9d6cf",
-  floor: "#bba791",
+  // matte things: wood, paper, plaster (TableScene gives them no sheen).
+  // Pale natural wood with the orange/yellow tint turned down (Section 5),
+  // not shifted toward blue/white plastic.
+  woodEdge: "#c79d72",
+  woodLeg: "#b38d64",
+  woodTray: "#e0bf96",
+  woodTrayRim: "#ccab7e",
+  // neutral off-white/pale cool-grey walls, not yellow-beige
+  wall: "#ecf0f3",
+  wallDeep: "#dbe2e8",
+  floor: "#b9b3a9",
   frame: "#f3f2ee",
   cabinet: "#e1ded7",
   cabinetTop: "#cfc4b4",

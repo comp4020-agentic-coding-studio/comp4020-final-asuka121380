@@ -23,8 +23,8 @@ body {
 .page {
   min-height: 100vh;
   min-height: 100dvh;
-  /* a faint warm wash at the top, like the table's room */
-  background: linear-gradient(#f6eedf, var(--paper) 18rem);
+  /* a faint cool wash at the top, like the table's room */
+  background: linear-gradient(var(--white), var(--paper) 18rem);
 }
 .page-bar {
   position: sticky;
@@ -35,8 +35,8 @@ body {
   align-items: center;
   gap: 0.5rem 1.2rem;
   padding: 0.7rem max(1rem, env(safe-area-inset-right)) 0.7rem max(1rem, env(safe-area-inset-left));
-  border-bottom: 2px solid #eadfcb;
-  background: rgb(251 246 234 / 0.94);
+  border-bottom: 2px solid var(--line);
+  background: rgb(255 255 255 / 0.94);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
@@ -67,15 +67,15 @@ body {
   text-decoration: none;
 }
 .page-nav a:hover {
-  background: #f1e7d4;
+  background: var(--blue-soft);
   color: var(--ink);
 }
 .page-nav a[aria-current="page"] {
   background: var(--white);
   color: var(--ink);
   box-shadow:
-    inset 0 0 0 2px #e6dac4,
-    0 2px 0 #e6dac4;
+    inset 0 0 0 2px var(--blue),
+    0 2px 0 var(--blue);
 }
 .to-table {
   white-space: nowrap;
@@ -142,7 +142,7 @@ body {
   height: min(72vh, 40rem);
   overflow: hidden !important;
   border-bottom-width: 8px !important;
-  border-bottom-color: #e2d2b5 !important;
+  border-bottom-color: var(--line-strong) !important;
 }
 .viewer-hint {
   position: absolute;
@@ -151,7 +151,7 @@ body {
   margin: 0;
   padding: 0.25rem 0.6rem;
   border-radius: 8px;
-  background: rgb(255 253 248 / 0.86);
+  background: rgb(255 255 255 / 0.9);
   color: var(--kit-ink-soft);
   font-size: 0.8rem;
   font-weight: 700;

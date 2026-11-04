@@ -499,6 +499,51 @@ Evidence: doc/evidence/0017.
   was confirmed to fail on the pre-fix code (in combination, and with
   each cause isolated in turn) before being added.
 
+## Colour system: brighter red/blue/white, scoped off the editor (author's brief, 4 Nov 2026; mechanisms agent)
+
+The author asked for a brighter red, blue and white colour system across
+the non-gameplay site (the table, the lobby/account/collection pages, the
+shared UI kit), while leaving gameplay scenery, lighting, the editor's
+dock/toolbar and every gameplay rule unchanged — several of these share
+tokens and components with the rest of the site. Evidence: doc/evidence/0018.
+
+- **A new, non-gameplay-scoped token file, not a `:root` edit.**
+  `src/client/ui/site-colors.css` redeclares the same custom properties
+  `theme.css` defines (`--red`, `--blue`, `--yellow`, `--ink`, `--paper`,
+  `--white`, `--line`, …) under `body.home, body.lobby` only — the two
+  bundles the editor never is. Every existing rule already reading one of
+  these tokens (in `theme.css`, `kit.css`, `home.css`, `lobby.css`) picks
+  up the brighter values with no per-rule edit, while the editor's own
+  `:root`-resolved values are untouched: its `<body>` carries neither
+  class. `--ok`/`--danger` are deliberately left alone, so green
+  confirmation and red error meaning stay distinct from the brand red.
+- **Local, non-shared tokens were updated directly.** Some colours
+  (`home.css`'s `--wall`/`--wall-deep`/`--table-ink`/`--nameplate`,
+  `kit.css`'s `.kit`-scoped tokens) are declared locally rather than from
+  `theme.css`, so the shared override does not reach them; these were
+  edited in place, in the same cream-to-white/pale-cool-grey direction, in
+  their own already non-gameplay-only files.
+- **The 3D scene's own material constants are separate from CSS
+  entirely.** `src/client/home/tabletop/build.ts`'s `PALETTE` (walls,
+  table wood tone, sign/board/booklet face plates) was edited directly:
+  walls and face plates moved from beige/cream to pale cool-grey/white,
+  the table's wood kept its natural pale tone with the orange/yellow tint
+  reduced rather than shifted toward blue/white plastic. This file is
+  imported only from `src/client/home/tabletop/`, never from the game's
+  own scene code, so gameplay bricks, lighting and camera are unaffected.
+- **Verified, not assumed, that the editor is unaffected.** Beyond
+  tracing every changed file's importers, a live check opened a real room
+  through the actual editor route and read the editor's own computed
+  `--red`: `#e3241b`, the original value, with no `home`/`lobby` class on
+  its `<body>` — not the new `#d92328`. A screenshot of the same session
+  shows the dock, toolbar and gameplay scenery unchanged.
+- **Not done in this pass:** the branded loading screen (Section 3 of the
+  brief), a dedicated accessibility contrast audit of every new pairing
+  (Section 8), and `/readme/`'s styling — the last of these because
+  CLAUDE.md's "Never... `/readme/`" rule is stronger than the brief's
+  mention of it, so it was left as it was rather than silently or loudly
+  overridden.
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with
