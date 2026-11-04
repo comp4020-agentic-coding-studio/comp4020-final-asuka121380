@@ -15,7 +15,10 @@
   --kit-paper: #f6f9fb;
   --kit-card: #ffffff;
   --kit-line: #d8e1ea;
-  --kit-line-strong: #9cb3c9;
+  /* meets WCAG 1.4.11's 3:1 non-text contrast on white, since this is the
+     input-field border, a meaningful UI-component boundary (not purely
+     decorative like a card's bottom-edge shadow) */
+  --kit-line-strong: #7e96ae;
   --kit-ink: #172b45;
   --kit-ink-soft: #4d5e76;
   --kit-yellow-soft: #fff6d9;
@@ -119,7 +122,7 @@
   color: var(--kit-ink-soft);
 }
 .kit .tag-ok {
-  background: #dcefe1;
+  background: #e9f7ee;
   color: var(--ok, #1d5f37);
 }
 .kit .tag-red {
@@ -248,7 +251,7 @@
   padding: 0.5rem 0.7rem;
   border-left: 4px solid var(--ok);
   border-radius: 6px;
-  background: #e6f3ea;
+  background: #e9f7ee;
   color: var(--ok);
   font-size: 0.9rem;
   font-weight: 700;

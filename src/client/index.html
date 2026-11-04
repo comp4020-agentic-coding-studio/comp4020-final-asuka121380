@@ -4,13 +4,59 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="A shared table for building with bricks, alone or together: start a room, leave suggestions for each other, and keep what you made together." />
-    <meta name="theme-color" content="#f1e6d0" />
+    <meta name="theme-color" content="#f2f5f8" />
     <title>Brick Commons: a shared building table</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect y='5' width='16' height='11' rx='2' fill='%23e3241b'/%3E%3Crect x='2' y='2' width='4' height='4' rx='1' fill='%23e3241b'/%3E%3Crect x='10' y='2' width='4' height='4' rx='1' fill='%23e3241b'/%3E%3C/svg%3E" />
+    <!--
+      A plain, static splash (no script, no font, no three.js): the first
+      thing a visitor's browser paints, before React or the WebGL bundle
+      even start loading. HomeApp.tsx's own React-rendered loading state
+      (`.table-loading` in home.css) looks the same, so there is no visible
+      swap once React mounts and takes over #home-root; keep the two in
+      sync if either changes (ADR 0014, "Loading screen").
+    -->
+    <style>
+      #static-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 0.9rem;
+        padding: 5rem 1rem 3rem;
+        background: #f2f5f8;
+        color: #172b45;
+        font: 700 1.1rem/1.2 ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      #static-splash p {
+        margin: 0;
+      }
+    </style>
   </head>
   <body class="home">
+    <div id="static-splash" aria-hidden="true">
+      <svg width="88" height="88" viewBox="0 0 64 64" role="img" aria-label="">
+        <!-- a baseplate, two walls and a deliberate gap: an unfinished house, not a finished logo -->
+        <rect x="4" y="46" width="56" height="10" rx="2" fill="#0065bd" />
+        <rect x="10" y="22" width="12" height="24" rx="1.5" fill="#d92328" />
+        <rect x="42" y="22" width="12" height="24" rx="1.5" fill="#d92328" />
+        <rect x="10" y="16" width="44" height="6" rx="1.5" fill="#ffd43b" />
+        <circle cx="16" cy="19" r="2.1" fill="#ffe27a" />
+        <circle cx="48" cy="19" r="2.1" fill="#ffe27a" />
+      </svg>
+      <p>Brick Commons</p>
+      <p style="font-weight: 600; font-size: 0.92rem; color: #4d5e76">Setting out the table&hellip;</p>
+    </div>
     <div id="home-root"></div>
+    <!-- with JS disabled the splash above is never removed, so this one
+         <noscript> both hides it and shows the full fallback nav -->
     <noscript>
+      <style>
+        #static-splash {
+          display: none;
+        }
+      </style>
       <main class="fallback">
         <div class="fallback-card">
           <h1>Brick Commons</h1>

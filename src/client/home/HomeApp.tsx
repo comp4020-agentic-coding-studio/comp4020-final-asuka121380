@@ -27,6 +27,27 @@ const Panels = lazy(() => import("./tabletop/panels.tsx").then((m) => ({ default
 
 type Status = "loading" | "ready" | "failed";
 
+/**
+ * The same emblem painted statically in index.html (`#static-splash`),
+ * before this bundle loads: an unfinished house, missing its third wall —
+ * room for someone else's idea, not a finished logo. Plain CSS shapes, no
+ * three.js. The optional settle-in is skipped entirely under reduced
+ * motion (an immediate, static shape, never required to understand it),
+ * and is never more than a one-off entrance: nothing loops or repeats.
+ */
+function LoadingEmblem() {
+  return (
+    <svg className="loading-emblem" width="88" height="88" viewBox="0 0 64 64" role="img" aria-label="Brick Commons">
+      <rect className="loading-emblem-base" x="4" y="46" width="56" height="10" rx="2" fill="#0065bd" />
+      <rect className="loading-emblem-wall" x="10" y="22" width="12" height="24" rx="1.5" fill="#d92328" />
+      <rect className="loading-emblem-wall" x="42" y="22" width="12" height="24" rx="1.5" fill="#d92328" />
+      <rect className="loading-emblem-roof" x="10" y="16" width="44" height="6" rx="1.5" fill="#ffd43b" />
+      <circle className="loading-emblem-roof" cx="16" cy="19" r="2.1" fill="#ffe27a" />
+      <circle className="loading-emblem-roof" cx="48" cy="19" r="2.1" fill="#ffe27a" />
+    </svg>
+  );
+}
+
 function webglAvailable(): boolean {
   try {
     const c = document.createElement("canvas");
@@ -107,8 +128,22 @@ const PANELS: Record<PanelEntrance, { title: string; tone: "red" | "blue" | "yel
   shelf: { title: "Our creations", tone: "red" },
 };
 
+/**
+ * The plain, no-script splash painted straight from `index.html`, before
+ * this bundle even starts loading. It looks identical to the "loading"
+ * state below, so there's no visible swap: this only removes it once
+ * React has committed its own first render (`.table-page`'s own loading,
+ * fallback or ready view), rather than leaving two overlapping copies.
+ */
+function useRemoveStaticSplash() {
+  useEffect(() => {
+    document.getElementById("static-splash")?.remove();
+  }, []);
+}
+
 export function HomeApp() {
   const [status, setStatus] = useState<Status>(() => (webglAvailable() ? "loading" : "failed"));
+  useRemoveStaticSplash();
   const [focus, setFocus] = useState<Focus>(focusFromUrl);
   // the focus the camera last reached; a panel shows only once it matches
   const [arrived, setArrived] = useState<Focus | null>(null);
@@ -147,6 +182,21 @@ export function HomeApp() {
   useEffect(() => {
     if (status !== "loading") return;
     const t = setTimeout(() => setStatus((s) => (s === "loading" ? "failed" : s)), 15000);
+    return () => clearTimeout(t);
+  }, [status]);
+
+  // A normal load shows only the emblem and a status line — no progress bar,
+  // no percentage, nothing to repeatedly announce. Direct navigation only
+  // appears once loading has taken noticeably longer than normal, so a slow
+  // connection or device is never stuck looking at a plain brand mark with
+  // no way forward; this is a fixed, one-time reveal, not a retry or a poll.
+  const [loadingSlow, setLoadingSlow] = useState(false);
+  useEffect(() => {
+    if (status !== "loading") {
+      setLoadingSlow(false);
+      return;
+    }
+    const t = setTimeout(() => setLoadingSlow(true), 4000);
     return () => clearTimeout(t);
   }, [status]);
 
@@ -218,8 +268,15 @@ export function HomeApp() {
 
       {status === "loading" && (
         <div className="table-loading" role="status">
-          <p>Setting out the table…</p>
-          <LinkList className="loading-links" />
+          <LoadingEmblem />
+          <p>Brick Commons</p>
+          <p className="table-loading-status">Setting out the table…</p>
+          {loadingSlow && (
+            <div className="loading-links-wrap">
+              <p className="loading-links-note">Taking a little longer than usual. You can go straight to:</p>
+              <LinkList className="loading-links" />
+            </div>
+          )}
         </div>
       )}
 

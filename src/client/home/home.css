@@ -199,19 +199,61 @@ body.home {
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 1rem;
+  gap: 0.6rem;
   padding: 5rem 1rem 3rem;
+  background: var(--wall);
   color: var(--table-ink);
 }
 .home .table-loading > p {
   margin: 0;
   font: 700 1.1rem var(--font-display);
 }
+.home .table-loading-status {
+  font: 600 0.92rem var(--font-body) !important;
+  color: var(--ink-soft);
+}
+/* the emblem settles in once; it never loops, and skips straight to its
+   resting state under reduced motion (no assembly animation required to
+   understand it) */
+.home .loading-emblem {
+  margin-bottom: 0.3rem;
+}
+.home .loading-emblem-wall,
+.home .loading-emblem-roof {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: emblem-settle 420ms ease-out both;
+}
+.home .loading-emblem-roof {
+  animation-delay: 120ms;
+}
+@keyframes emblem-settle {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.home .loading-links-wrap {
+  margin-top: 0.4rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  animation: panel-in 220ms ease-out both;
+}
+.home .loading-links-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font: 700 0.85rem var(--font-body) !important;
+}
 .home .loading-links {
   width: min(22rem, 100%);
   padding: 0.6rem;
   border-radius: var(--radius-lg);
-  background: rgb(255 255 255 / 0.78);
+  background: rgb(255 255 255 / 0.9);
 }
 
 /* ---- the entrances' label buttons --------------------------------------- */
@@ -534,7 +576,10 @@ body.home {
   .home .sign-face {
     transition: none;
   }
-  .home .table-panel {
+  .home .table-panel,
+  .home .loading-links-wrap,
+  .home .loading-emblem-wall,
+  .home .loading-emblem-roof {
     animation: none;
   }
 }

@@ -539,10 +539,59 @@ tokens and components with the rest of the site. Evidence: doc/evidence/0018.
   shows the dock, toolbar and gameplay scenery unchanged.
 - **Not done in this pass:** the branded loading screen (Section 3 of the
   brief), a dedicated accessibility contrast audit of every new pairing
-  (Section 8), and `/readme/`'s styling — the last of these because
-  CLAUDE.md's "Never... `/readme/`" rule is stronger than the brief's
-  mention of it, so it was left as it was rather than silently or loudly
-  overridden.
+  (Section 8), and `/readme/`'s styling. All three completed in the
+  follow-up pass below, once the author explicitly re-authorised styling
+  `/readme/` and clarified that CLAUDE.md's restriction should be read
+  narrowly (presentation only, never its URL, content, rendering or the
+  shipped invariant).
+
+## Loading screen, README styling and contrast audit (author's brief, 4 Nov 2026; mechanisms agent)
+
+Completing the remainder of the colour/loading brief: the branded loading
+screen (Section 3), README styling (now explicitly authorised, narrowly
+scoped), and a contrast audit of the new palette (Section 8). Also
+resolves a test-result discrepancy the author asked to be investigated
+rather than assumed away. Evidence: doc/evidence/0019.
+
+- **The apparent `pnpm test` failures were mostly a stale process, not a
+  regression.** A three-week-old `tsx` dev server (predating this
+  session) was still listening on port 8080, `pnpm test`'s default
+  `APP_URL` target, and lacked routes added since (`/api/me/peek`). Most
+  of both evidence 0018's "7" and its "13 baseline" failures were this
+  one process answering, not the actual built code. Re-run against a
+  correctly targeted, freshly built server: **228/228 passed.** Four
+  failures in `spec/plans-and-attribution.test.ts` are real and
+  unrelated to any file this session has touched — reproduced on the
+  unmodified branch point, in `src/domain/rules.ts` plan logic, outside
+  this task's authorised scope (ADR 0014 Section 9 excludes construction
+  rules) — reported as a separate, pre-existing, unresolved issue rather
+  than declared fixed or dismissed.
+- **README styling** (`src/server/readme.ts`'s inline `<style>` only):
+  white reading surface, blue chapter headings, a red accent on the page
+  frame, a yellow underline on the title. The URL, the full rendered
+  content, server-side rendering, and the shipped
+  `spec/invariants.test.ts` check (which verifies heading text and order,
+  never colour) are unchanged.
+- **The branded loading screen**: a plain, static, no-script splash
+  (`src/client/index.html`'s `#static-splash`) — a small hand-written SVG
+  emblem (an unfinished house, missing its third wall), "Brick Commons",
+  and "Setting out the table…" — painted before React or three.js load,
+  confirmed via network-throttled DOM inspection. React's own loading
+  state (`HomeApp.tsx`) shows the identical emblem and text once mounted,
+  with a one-off, reduced-motion-skippable settle-in; a `loadingSlow`
+  timer (4s) reveals labelled direct-navigation links only once loading
+  is taking noticeably longer, never a progress bar or repeated
+  announcement. The existing failure fallback (no WebGL, failed load,
+  lost context) and the `<noscript>` fallback are unchanged in behaviour
+  and content, only restyled. A regression this pass introduced — two
+  `<noscript>` elements, caught by the existing scripted check — was
+  found and fixed before landing.
+- **Contrast audit**: computed WCAG contrast for every new pairing this
+  colour pass introduced; two of eighteen failed and were fixed (a
+  success-banner background lightened slightly; an input-field border
+  darkened to meet the 3:1 non-text threshold), both scoped to `kit.css`'s
+  own local tokens, never `:root` or a shared token, re-verified not to
+  reach the editor.
 
 ## Consequences
 
