@@ -45,7 +45,7 @@
     "run": "desktop 1920×1080",
     "name": "clicking the sign's post starts a camera move",
     "ok": true,
-    "detail": "{\"position\":[5.859672226741376,28.279531669741587,48.908349584867686],\"target\":[7.602780846486327,1.0000000000000002,0.5761227026028415],\"moving\":true,\"lastPathClear\":true,\"lastPathLift\":0,\"dialog\":false}"
+    "detail": "{\"position\":[4.442895956461408,25.101857730677434,53.90907580746464],\"target\":[5.9802613220525975,2.138977264205771,-1.7270473410956741],\"moving\":true,\"lastPathClear\":true,\"lastPathLift\":0,\"dialog\":false}"
   },
   {
     "run": "desktop 1920×1080",
@@ -57,7 +57,7 @@
     "run": "desktop 1920×1080",
     "name": "camera arrived nearer the sign",
     "ok": true,
-    "detail": "{\"from\":[-2,36,56],\"to\":[21.614486915155158,12.803752993228215,34.693044556588625]}"
+    "detail": "{\"from\":[-1,29,60],\"to\":[21.614486915155158,12.803752993228215,34.693044556588625]}"
   },
   {
     "run": "desktop 1920×1080",
@@ -135,7 +135,7 @@
     "run": "desktop 1920×1080",
     "name": "camera back at the overview",
     "ok": true,
-    "detail": "[-2,36,56]"
+    "detail": "[-1,29,60]"
   },
   {
     "run": "desktop 1920×1080",
@@ -177,7 +177,7 @@
     "run": "desktop 1920×1080",
     "name": "reversing mid-move settles at the overview, no panel",
     "ok": true,
-    "detail": "[-2,36,56]"
+    "detail": "[-1,29,60]"
   },
   {
     "run": "desktop 1920×1080",
@@ -237,7 +237,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "the sign has a thumb-sized touch area (≥ 44px each way)",
     "ok": true,
-    "detail": "{\"x\":192.84194946289062,\"y\":534.4525146484375,\"width\":178,\"height\":93}"
+    "detail": "{\"x\":172.34194946289062,\"y\":500.4525146484375,\"width\":219,\"height\":161}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -249,7 +249,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "the pad covers the sign it stands for",
     "ok": true,
-    "detail": "{\"pad\":{\"x\":192.84194946289062,\"y\":534.4525146484375,\"width\":178,\"height\":93},\"face\":{\"x\":219.17953491210938,\"y\":552.0811767578125,\"width\":129.45025634765625,\"height\":55.42401123046875}}"
+    "detail": "{\"pad\":{\"x\":172.34194946289062,\"y\":500.4525146484375,\"width\":219,\"height\":161},\"face\":{\"x\":219.17953491210938,\"y\":552.0811767578125,\"width\":129.45025634765625,\"height\":55.42401123046875}}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -261,7 +261,7 @@
     "run": "mobile 390×844 (emulated)",
     "name": "bottom sheet spans the width, sign visible above it",
     "ok": true,
-    "detail": "{\"signBottom\":338,\"panelTop\":565,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
+    "detail": "{\"signBottom\":338,\"panelTop\":552,\"panelWidth\":390,\"fontSize\":\"16px\",\"vw\":390}"
   },
   {
     "run": "mobile 390×844 (emulated)",
@@ -309,7 +309,19 @@
     "run": "fallbacks",
     "name": "no WebGL: the three.js chunk is never fetched",
     "ok": true,
-    "detail": "[\"/assets/home-TGXGYIMe.js\",\"/assets/preload-helper-DcBYVSmg.js\",\"/assets/Account-BY81a99d.js\",\"/assets/geometry-EnDdiTcy.js\",\"/assets/scenery-BgLB-_W-.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/home-BN-hgsC6.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
+    "detail": "[\"/assets/home-DUG-P5Ff.js\",\"/assets/preload-helper-NipX-4JP.js\",\"/assets/Account-BH8F80yK.js\",\"/assets/preload-helper-CCKw3Lqx.css\",\"/assets/Account-nUk-6aJI.css\",\"/assets/home-CavLmWlV.css\",\"/assets/fredoka-latin-wght-normal-DM6njrJ3.woff2\",\"/assets/nunito-latin-wght-normal-BzFMHfZw.woff2\"]"
+  },
+  {
+    "run": "fallbacks",
+    "name": "no WebGL: no fetched script contains three.js (checked by content)",
+    "ok": true,
+    "detail": "[{\"path\":\"/assets/home-DUG-P5Ff.js\",\"three\":false},{\"path\":\"/assets/Account-BH8F80yK.js\",\"three\":false},{\"path\":\"/assets/preload-helper-NipX-4JP.js\",\"three\":false}]"
+  },
+  {
+    "run": "fallbacks",
+    "name": "no WebGL: viewing still never asks /api/me",
+    "ok": true,
+    "detail": "[\"/api/me/peek\"]"
   },
   {
     "run": "fallbacks",
@@ -356,6 +368,642 @@
   {
     "run": "other pages unchanged",
     "name": "/build/#friends lands on the Friends card",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "six entrances, each a real labelled button",
+    "ok": true,
+    "detail": "[{\"e\":\"scenes\",\"tag\":\"BUTTON\",\"label\":\"Beach Houses scene tray: choose how to build\",\"popup\":\"dialog\"},{\"e\":\"rooms\",\"tag\":\"BUTTON\",\"label\":\"Noticeboard: join a room\",\"popup\":\"dialog\"},{\"e\":\"shelf\",\"tag\":\"BUTTON\",\"label\":\"Creation shelf: your collection and the public showcase\",\"popup\":\"dialog\"},{\"e\":\"friends\",\"tag\":\"BUTTON\",\"label\":\"Friends and invitations\",\"popup\":\"dialog\"},{\"e\":\"about\",\"tag\":\"BUTTON\",\"label\":\"Instruction booklet: about this project (opens the README)\",\"popup\":\"dialog\"},{\"e\":\"sign-in\",\"tag\":\"BUTTON\",\"label\":\"Sign in: or build as a guest\",\"popup\":\"dialog\"}]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "no invitation count is shown for a visitor with none",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "viewing the table peeks, and never asks /api/me",
+    "ok": true,
+    "detail": "[\"GET /api/me/peek\"]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "no identity cookie before an entrance is chosen",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: hovering the object lights its label",
+    "ok": true,
+    "detail": "{\"x\":426.2109680175781,\"y\":638.3793334960938}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: clicking the object moves the camera, the panel waits for arrival",
+    "ok": true,
+    "detail": "{\"framesMoving\":2,\"dialogWhileMoving\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: the camera's path kept clear of the other objects",
+    "ok": true,
+    "detail": "{\"clear\":true,\"lift\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: URL records the focused view",
+    "ok": true,
+    "detail": "http://localhost:8090/?focus=scenes"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: the dialog is named by its heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: focus moved to the panel heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: the object's label stays in view beside the panel",
+    "ok": true,
+    "detail": "{\"faceRight\":561,\"panelLeft\":1408,\"onScreen\":true}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: opening the panel wrote nothing (no room, link, join or answer)",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: Escape closes and the URL returns home",
+    "ok": true,
+    "detail": "http://localhost:8090/?debug"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: focus returns to the object's label",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scenes: camera back at the overview",
+    "ok": true,
+    "detail": "[-1,29,60]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: hovering the object lights its label",
+    "ok": true,
+    "detail": "{\"x\":650.1712646484375,\"y\":387.77874755859375}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: clicking the object moves the camera, the panel waits for arrival",
+    "ok": true,
+    "detail": "{\"framesMoving\":1,\"dialogWhileMoving\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: the camera's path kept clear of the other objects",
+    "ok": true,
+    "detail": "{\"clear\":true,\"lift\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: URL records the focused view",
+    "ok": true,
+    "detail": "http://localhost:8090/?focus=rooms"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: the dialog is named by its heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: focus moved to the panel heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: the object's label stays in view beside the panel",
+    "ok": true,
+    "detail": "{\"faceRight\":811,\"panelLeft\":1344,\"onScreen\":true}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: opening the panel wrote nothing (no room, link, join or answer)",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: Escape closes and the URL returns home",
+    "ok": true,
+    "detail": "http://localhost:8090/?debug"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: focus returns to the object's label",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: camera back at the overview",
+    "ok": true,
+    "detail": "[-1,29,60]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: hovering the object lights its label",
+    "ok": true,
+    "detail": "{\"x\":252.1022720336914,\"y\":733.8817138671875}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: clicking the object moves the camera, the panel waits for arrival",
+    "ok": true,
+    "detail": "{\"framesMoving\":2,\"dialogWhileMoving\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: the camera's path kept clear of the other objects",
+    "ok": true,
+    "detail": "{\"clear\":true,\"lift\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: URL records the focused view",
+    "ok": true,
+    "detail": "http://localhost:8090/?focus=friends"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: the dialog is named by its heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: focus moved to the panel heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: the object's label stays in view beside the panel",
+    "ok": true,
+    "detail": "{\"faceRight\":705,\"panelLeft\":1408,\"onScreen\":true}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: opening the panel wrote nothing (no room, link, join or answer)",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: Escape closes and the URL returns home",
+    "ok": true,
+    "detail": "http://localhost:8090/?debug"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: focus returns to the object's label",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "friends: camera back at the overview",
+    "ok": true,
+    "detail": "[-1,29,60]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: hovering the object lights its label",
+    "ok": true,
+    "detail": "{\"x\":1209.7955322265625,\"y\":296.6481018066406}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: clicking the object moves the camera, the panel waits for arrival",
+    "ok": true,
+    "detail": "{\"framesMoving\":1,\"dialogWhileMoving\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: the camera's path kept clear of the other objects",
+    "ok": true,
+    "detail": "{\"clear\":true,\"lift\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: URL records the focused view",
+    "ok": true,
+    "detail": "http://localhost:8090/?focus=shelf"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: the dialog is named by its heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: focus moved to the panel heading",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: the object's label stays in view beside the panel",
+    "ok": true,
+    "detail": "{\"faceRight\":706,\"panelLeft\":1408,\"onScreen\":true}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: opening the panel wrote nothing (no room, link, join or answer)",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: Escape closes and the URL returns home",
+    "ok": true,
+    "detail": "http://localhost:8090/?debug"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: focus returns to the object's label",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: camera back at the overview",
+    "ok": true,
+    "detail": "[-1,29,60]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "the overview only peeked; /api/me came once a panel opened",
+    "ok": true,
+    "detail": "{\"meBeforeFirstPanel\":0}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: Enter on the focused label opens it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: switching tabs keeps the camera where it is",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "rooms: Your rooms says so when there are none (a fresh visitor has joined nothing)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "browser Back closes the noticeboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "browser Forward reopens it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "Back to table closes the noticeboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "direct link /?focus=scenes opens its panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "direct link /?focus=rooms opens its panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "direct link /?focus=friends opens its panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "direct link /?focus=shelf opens its panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "an unknown ?focus= shows the overview, no panel",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "scene tray: only Beach Houses, with its player count and Playable",
+    "ok": true,
+    "detail": "[\"1–2 builders\",\"Plot 16×8 studs\",\"Playable\"]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "invite-only turns publishing off by default",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "stepping back and forward keeps the name and the visibility",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "steps inside the panel never move the camera",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "nothing was created by choosing and stepping",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "Create and open makes exactly one room and opens it in the editor",
+    "ok": true,
+    "detail": "{\"creates\":1,\"url\":\"http://localhost:8090/build/room/7fdfbbed-6775-4da5-bf47-42cec54b47e1?debug\"}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "the room has the name and visibility chosen at the table",
+    "ok": true,
+    "detail": "{\"id\":\"7fdfbbed-6775-4da5-bf47-42cec54b47e1\",\"sceneId\":\"street-01\",\"label\":\"Table check room\",\"visibility\":\"invite_only\",\"isHost\":true,\"isDefault\":false}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "a real saved version exists (saved in the room)",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: the preview shows the real saved version, linked to it",
+    "ok": true,
+    "detail": "[\"/build/?snapshot=9a7de2d8-a7cc-4c86-bed9-8656a13288f9\"]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: My collection and Public showcase lead to their pages",
+    "ok": true,
+    "detail": "[\"/build/?view=collection\",\"/build/?view=showcase\"]"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "shelf: the red link button keeps white text (link colour doesn't leak)",
+    "ok": true,
+    "detail": "rgb(255, 255, 255)"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "booklet: the camera approaches first, saying where it is going",
+    "ok": true,
+    "detail": "{\"moving\":true,\"path\":\"/\",\"status\":\"Opening the booklet…\"}"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "booklet: arrives at /readme/",
+    "ok": true,
+    "detail": "http://localhost:8090/readme/"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "README: has a Back to the table link",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "Back from the README returns to the table, not the approach",
+    "ok": true,
+    "detail": "http://localhost:8090/"
+  },
+  {
+    "run": "entrances, desktop 1920×1080",
+    "name": "no console errors across the entrances",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "a real invitation was sent",
+    "ok": true,
+    "detail": "200"
+  },
+  {
+    "run": "invitation count",
+    "name": "the Friends stand shows the real count",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "the Friends label's name says how many are waiting",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "the panel lists it, with Accept and Decline",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "opening the Friends panel answered nothing",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "run": "invitation count",
+    "name": "friends and invitations are separate tabs",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "Accept admits the guest and opens the editor",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "once answered, the count disappears",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "invitation count",
+    "name": "no console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "scenes: a thumb-sized touch pad (≥ 44px each way)",
+    "ok": true,
+    "detail": "{\"x\":-16.020233154296875,\"y\":284.17633056640625,\"width\":186,\"height\":154}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "scenes: full-width sheet, the object's label visible above it, no sideways scroll",
+    "ok": true,
+    "detail": "{\"labelTop\":172,\"labelBottom\":257,\"panelTop\":328,\"panelWidth\":390,\"vw\":390,\"scrollW\":390}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "rooms: a thumb-sized touch pad (≥ 44px each way)",
+    "ok": true,
+    "detail": "{\"x\":30.70697784423828,\"y\":169.13638305664062,\"width\":153.99999237060547,\"height\":123}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "rooms: full-width sheet, the object's label visible above it, no sideways scroll",
+    "ok": true,
+    "detail": "{\"labelTop\":119,\"labelBottom\":280,\"panelTop\":304,\"panelWidth\":390,\"vw\":390,\"scrollW\":390}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "friends: a thumb-sized touch pad (≥ 44px each way)",
+    "ok": true,
+    "detail": "{\"x\":67.5516357421875,\"y\":442.1047668457031,\"width\":126,\"height\":123.99996948242188}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "friends: full-width sheet, the object's label visible above it, no sideways scroll",
+    "ok": true,
+    "detail": "{\"labelTop\":130,\"labelBottom\":257,\"panelTop\":556,\"panelWidth\":390,\"vw\":390,\"scrollW\":390}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "shelf: a thumb-sized touch pad (≥ 44px each way)",
+    "ok": true,
+    "detail": "{\"x\":210.817138671875,\"y\":132.07398986816406,\"width\":172,\"height\":175.99998474121094}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "shelf: full-width sheet, the object's label visible above it, no sideways scroll",
+    "ok": true,
+    "detail": "{\"labelTop\":39,\"labelBottom\":123,\"panelTop\":328,\"panelWidth\":390,\"vw\":390,\"scrollW\":390}"
+  },
+  {
+    "run": "entrances, mobile 390×844 (emulated)",
+    "name": "no console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances 1280×800",
+    "name": "sign-in: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":1280,\"vw\":1280}"
+  },
+  {
+    "run": "entrances 1280×800",
+    "name": "scenes: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":1280,\"vw\":1280}"
+  },
+  {
+    "run": "entrances 1280×800",
+    "name": "rooms: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":1280,\"vw\":1280}"
+  },
+  {
+    "run": "entrances 1280×800",
+    "name": "friends: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":1280,\"vw\":1280}"
+  },
+  {
+    "run": "entrances 1280×800",
+    "name": "shelf: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":1280,\"vw\":1280}"
+  },
+  {
+    "run": "entrances 1280×800",
+    "name": "no console errors",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "run": "entrances 768×1024",
+    "name": "sign-in: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":768,\"vw\":768}"
+  },
+  {
+    "run": "entrances 768×1024",
+    "name": "scenes: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":768,\"vw\":768}"
+  },
+  {
+    "run": "entrances 768×1024",
+    "name": "rooms: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":768,\"vw\":768}"
+  },
+  {
+    "run": "entrances 768×1024",
+    "name": "friends: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":768,\"vw\":768}"
+  },
+  {
+    "run": "entrances 768×1024",
+    "name": "shelf: object and panel both in view, not overlapping",
+    "ok": true,
+    "detail": "{\"apart\":true,\"onScreen\":true,\"panelInside\":true,\"scrollW\":768,\"vw\":768}"
+  },
+  {
+    "run": "entrances 768×1024",
+    "name": "no console errors",
     "ok": true,
     "detail": ""
   }

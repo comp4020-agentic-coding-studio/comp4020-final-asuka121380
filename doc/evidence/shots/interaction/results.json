@@ -1,6 +1,6 @@
 {
-  "base": "http://localhost:8080",
-  "at": "2026-10-06T07:34:10.034Z",
+  "base": "http://localhost:8090",
+  "at": "2026-11-04T05:38:17.209Z",
   "results": [
     {
       "run": "desktop-mouse",
@@ -18,7 +18,7 @@
       "run": "desktop-mouse",
       "name": "choosing a tray part holds it",
       "ok": true,
-      "detail": "{\"partId\":\"brick-2x4\",\"rot\":0,\"anchor\":null,\"lift\":0}"
+      "detail": "{\"partId\":\"brick-2x4\",\"rot\":0,\"anchor\":null,\"level\":null,\"snap\":false}"
     },
     {
       "run": "desktop-mouse",
@@ -72,7 +72,7 @@
       "run": "desktop-mouse",
       "name": "clicking a placed part selects it",
       "ok": true,
-      "detail": "e4da8f6e-7a8e-4bc9-a7d0-a5c37db84f64"
+      "detail": "b39c380b-5a88-482f-838f-ff755e51de05"
     },
     {
       "run": "desktop-mouse",
@@ -96,7 +96,7 @@
       "run": "desktop-mouse",
       "name": "a valid rotation is a server command, turning about the centre",
       "ok": true,
-      "detail": "{\"id\":\"61676801-2f1c-4f3a-967b-9d64b52c9964\",\"partId\":\"brick-2x4\",\"x\":11,\"y\":0,\"z\":2,\"rot\":1,\"colour\":\"pale-mint\"}"
+      "detail": "{\"id\":\"052ddb28-f148-40a9-b6bb-8af10cd9e530\",\"partId\":\"brick-2x4\",\"x\":11,\"y\":0,\"z\":2,\"rot\":1,\"colour\":\"pale-mint\",\"placedBy\":\"85297dea-d1eb-4a24-9b8f-002ad98dc037\",\"editedBy\":\"85297dea-d1eb-4a24-9b8f-002ad98dc037\",\"rev\":1}"
     },
     {
       "run": "desktop-mouse",
@@ -120,13 +120,13 @@
       "run": "desktop-mouse",
       "name": "the Next and Previous part buttons step the selection",
       "ok": true,
-      "detail": "61676801 → 63ab83f1 → 61676801"
+      "detail": "052ddb28 → 42cdc8b6 → 052ddb28"
     },
     {
       "run": "desktop-mouse",
       "name": "clicking a placed part while holding one stacks onto its studs",
       "ok": true,
-      "detail": "{\"id\":\"225d8013-31f7-4c1c-a9c6-9f5f4bf7e83e\",\"partId\":\"brick-2x4\",\"x\":0,\"y\":3,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\"}"
+      "detail": "{\"id\":\"9b702e79-b9b5-42e9-bf34-283c4057a0a3\",\"partId\":\"brick-2x4\",\"x\":0,\"y\":3,\"z\":0,\"rot\":0,\"colour\":\"pale-mint\",\"placedBy\":\"85297dea-d1eb-4a24-9b8f-002ad98dc037\",\"rev\":0}"
     },
     {
       "run": "desktop-mouse",
@@ -184,9 +184,9 @@
     },
     {
       "run": "desktop-mouse",
-      "name": "drag while holding a part moves the camera and places nothing",
+      "name": "right-drag while holding a part orbits the camera and places nothing",
       "ok": true,
-      "detail": "3 → 3 parts; azimuth 0.00 → -0.93"
+      "detail": "3 → 3 parts; azimuth 0.20 → -0.73"
     },
     {
       "run": "desktop-mouse",
@@ -196,13 +196,13 @@
     },
     {
       "run": "desktop-mouse",
-      "name": "drag starting on a part with nothing held selects nothing",
+      "name": "right-drag starting on a part with nothing held selects nothing",
       "ok": true,
       "detail": "null"
     },
     {
       "run": "desktop-mouse",
-      "name": "drag starting on a part with the delete tool removes nothing",
+      "name": "right-drag starting on a part with the delete tool removes nothing",
       "ok": true,
       "detail": ""
     },
@@ -216,19 +216,25 @@
       "run": "desktop-mouse",
       "name": "dragging down to the ground stops above it",
       "ok": true,
-      "detail": "polar 1.360, camera y 10.74"
+      "detail": "polar 1.360, camera y 6.55"
     },
     {
       "run": "desktop-mouse",
       "name": "zoom is bounded both ways",
       "ok": true,
-      "detail": "nearest 14.0, farthest 95.0"
+      "detail": "nearest 6.0, farthest 46.7"
     },
     {
       "run": "desktop-mouse",
-      "name": "panning keeps the target near the plot",
+      "name": "Shift+right-drag pans, and panning keeps the centre within the plot's margin",
       "ok": true,
-      "detail": "[\"22.0\",\"4.0\",\"14.0\"]"
+      "detail": "[\"20.0\",\"0.0\",\"12.0\"]"
+    },
+    {
+      "run": "desktop-mouse",
+      "name": "middle-drag pans too",
+      "ok": true,
+      "detail": "{\"panFrom\":[20,0,12],\"panTo\":[16.34338824866037,2.399410824167273,7.037872075279736]}"
     },
     {
       "run": "desktop-mouse",
@@ -276,13 +282,13 @@
       "run": "desktop-mouse",
       "name": "after resizing to 1280×720 the part is still held, places where aimed, and the dock fits",
       "ok": true,
-      "detail": "{\"x\":90,\"y\":448.609375,\"width\":1100,\"height\":259.390625}"
+      "detail": "{\"x\":90,\"y\":443.5,\"width\":1100,\"height\":264.5}"
     },
     {
       "run": "desktop-mouse",
       "name": "narrowing to 390 px keeps the dock on screen",
       "ok": true,
-      "detail": "{\"x\":0,\"y\":518.796875,\"width\":390,\"height\":325.203125}"
+      "detail": "{\"x\":0,\"y\":466.3125,\"width\":390,\"height\":377.6875}"
     },
     {
       "run": "desktop-mouse",
@@ -306,7 +312,7 @@
       "run": "keyboard-only",
       "name": "Enter on a tray part holds it, starts a preview and moves focus to Place",
       "ok": true,
-      "detail": "{\"partId\":\"brick-2x2\",\"rot\":0,\"anchor\":{\"x\":8,\"z\":4},\"lift\":0}"
+      "detail": "{\"partId\":\"brick-2x2\",\"rot\":0,\"anchor\":{\"x\":8,\"z\":4},\"level\":null,\"snap\":false}"
     },
     {
       "run": "keyboard-only",
@@ -318,7 +324,7 @@
       "run": "keyboard-only",
       "name": "Enter on Place places it, once",
       "ok": true,
-      "detail": "[{\"id\":\"f8286f30-84c7-47e7-80bb-4201d300048c\",\"partId\":\"brick-2x2\",\"x\":6,\"y\":0,\"z\":3,\"rot\":0,\"colour\":\"pale-mint\"}]"
+      "detail": "[{\"id\":\"75c13c55-b03b-46f4-8e40-2b3d7853f0aa\",\"partId\":\"brick-2x2\",\"x\":6,\"y\":0,\"z\":3,\"rot\":0,\"colour\":\"pale-mint\",\"placedBy\":\"1961c019-dfe2-4a91-a216-cbcdd804f37a\",\"rev\":0}]"
     },
     {
       "run": "keyboard-only",
@@ -364,6 +370,12 @@
     },
     {
       "run": "keyboard-only",
+      "name": "P enters Plan mode (shown pressed), and the Build button returns",
+      "ok": true,
+      "detail": "{\"viaKey\":\"plan\",\"pressed\":\"true\",\"viaButton\":\"build\"}"
+    },
+    {
+      "run": "keyboard-only",
       "name": "no console errors",
       "ok": true,
       "detail": ""
@@ -372,7 +384,7 @@
       "run": "touch-emulated-390x844",
       "name": "the dock folds to its top row",
       "ok": true,
-      "detail": "224 → 59 px"
+      "detail": "255 → 69 px"
     },
     {
       "run": "touch-emulated-390x844",
@@ -390,13 +402,13 @@
       "run": "touch-emulated-390x844",
       "name": "a second tap on the preview places",
       "ok": true,
-      "detail": "[{\"id\":\"22fe66b6-a144-49dc-a4e0-9e56a57c9c5b\",\"partId\":\"plate-2x2\",\"x\":4,\"y\":0,\"z\":2,\"rot\":0,\"colour\":\"pale-mint\"}]"
+      "detail": "[{\"id\":\"32cd56ee-8093-4991-ae6b-7bafcebf875b\",\"partId\":\"plate-2x2\",\"x\":4,\"y\":0,\"z\":2,\"rot\":0,\"colour\":\"pale-mint\",\"placedBy\":\"fba30f16-0501-4f1f-bcca-3d96af2aa753\",\"rev\":0}]"
     },
     {
       "run": "touch-emulated-390x844",
       "name": "a one-finger drag orbits and places nothing",
       "ok": true,
-      "detail": "azimuth 0.00 → -1.04"
+      "detail": "azimuth 0.20 → -0.84"
     },
     {
       "run": "touch-emulated-390x844",
@@ -424,6 +436,78 @@
     },
     {
       "run": "touch-emulated-390x844",
+      "name": "no console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "a fresh visitor's table offers the scene tray",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "the homepage loads none of the editor's code",
+      "ok": true,
+      "detail": "[\"/assets/home-DUG-P5Ff.js\",\"/assets/preload-helper-NipX-4JP.js\",\"/assets/Account-BH8F80yK.js\",\"/assets/TableScene-DLA4bS6Y.js\",\"/assets/geometry-9tQcT0oB.js\",\"/assets/Html-CwEzfroQ.js\",\"/assets/scenery-DO61y6EX.js\"]"
+    },
+    {
+      "run": "routes",
+      "name": "the homepage sets no cookie",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "opening the scene tray loads none of the editor's code either",
+      "ok": true,
+      "detail": "[\"/assets/home-DUG-P5Ff.js\",\"/assets/preload-helper-NipX-4JP.js\",\"/assets/Account-BH8F80yK.js\",\"/assets/TableScene-DLA4bS6Y.js\",\"/assets/geometry-9tQcT0oB.js\",\"/assets/Html-CwEzfroQ.js\",\"/assets/scenery-DO61y6EX.js\",\"/assets/panels-mGR1ErTr.js\",\"/assets/iso-DR7_JKTn.js\",\"/assets/parts-D27GDdLf.js\"]"
+    },
+    {
+      "run": "routes",
+      "name": "a part placed in the editor is saved",
+      "ok": true,
+      "detail": "brick-2x2@4,0,3"
+    },
+    {
+      "run": "routes",
+      "name": "the editor's home link leads back to the table",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "home → build → home → build keeps the same build and stock",
+      "ok": true,
+      "detail": "[\"brick-2x2@4,0,3\"]"
+    },
+    {
+      "run": "routes",
+      "name": "a reload of the room keeps it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
+      "name": "a direct link to /build reaches the lobby",
+      "ok": true,
+      "detail": "http://localhost:8090/build/"
+    },
+    {
+      "run": "routes",
+      "name": "a direct link to the room reaches the editor",
+      "ok": true,
+      "detail": "http://localhost:8090/build/room/e1ed0760-544a-4d9d-a927-ead6feb5c11d?debug"
+    },
+    {
+      "run": "routes",
+      "name": "/readme/ still answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "run": "routes",
       "name": "no console errors",
       "ok": true,
       "detail": ""

@@ -308,6 +308,145 @@ doc/evidence/0015. Some of it supersedes the pass above:
   - focus handling
   - the return to the table
 
+## Entrances pass: the table becomes the site's navigation (author's brief, 3–4 Nov 2026; mechanisms agent)
+
+The author asked for every function to be reached from the table, with
+bounded visual refinements, a shared UI kit, no new scenes, social
+mechanics or permissions, and existing APIs reused. Evidence:
+doc/evidence/0016. This supersedes phase 1's "one entrance works; the
+others are decoration".
+
+**The six entrances** (`tabletop/focus.ts` `ENTRANCES`, `TableScene.tsx`
+`EntranceObject`, `TablePanel.tsx`, `panels.tsx`).
+
+| Object | `?focus=` | What opens |
+|---|---|---|
+| Scene tray | `scenes` | The Beach Houses card. Build alone, or set up a shared room (visibility, publication, name), then "Create and open" into the editor |
+| Noticeboard | `rooms` | Tabs for Public rooms, Join by code and Your rooms |
+| Friends stand | `friends` | Tabs for Invitations (accept or decline) and Friends (link, requests, list) |
+| Creation shelf | `shelf` | The visitor's three latest saved versions as previews, plus links to the collection and showcase pages |
+| Booklet | `about` | The camera approaches, then `/readme/` |
+| Sign | `sign-in` | The account panel, unchanged |
+
+- **Each object works like the sign did in phase 1.**
+  - An invisible 3D hit box covers the whole object, and hover lifts it
+    and lights its label.
+  - The printed label is a real `<button>` (`aria-haspopup="dialog"`).
+  - A phone gets a transparent touch pad, hidden from assistive
+    technology.
+- **Panels open only on arrival.** A panel mounts on the frame the camera
+  lands, inside the same `IdentityGate` the lobby uses. The panel code
+  is a lazy chunk.
+- **The overview never calls `/api/me`.** It is first called only after a
+  panel opens.
+- **Opening is never acting.** Opening a panel, switching a tab, or
+  stepping back inside a flow writes nothing: no room, link, request or
+  acceptance.
+  - Rooms are created only by "Create and open", which is guarded
+    against double submission.
+  - Invitations are answered only by Accept or Decline.
+- **History.**
+  - Every focus is a URL, so Back, Forward, reload and direct links work
+    as they did for the sign.
+  - An unknown `?focus=` shows the overview.
+  - The booklet replaces its history entry before leaving, so Back from
+    `/readme/` returns to the plain table, not to a half-made approach.
+- **The account panel's wording is kept.** The restyle changed only
+  classes and wrappers. A first pass had shortened three account
+  explanations, and `accounts.ts` caught it; the texts were restored word
+  for word (evidence 0016).
+- **Steps inside a panel never move the camera.** For example, the scene
+  tray's step back keeps the name and settings already chosen. Only
+  "Back to table" and Escape leave.
+- **Only Beach Houses is on the tray**, and only real data is shown:
+  - no invented rooms, names, friends or counts
+  - empty states say so plainly (for example, "You haven't joined a room
+    yet.")
+
+**The invitation count on the Friends stand (agent; accepted by the
+author on 4 Nov 2026, conditionally).**
+- `GET /api/me/peek` now also returns `invitations`, the number of
+  pending room invitations for the requesting visitor. The stand shows it
+  as a small tag only when it is above zero.
+- The author accepted it on these conditions, each verified in
+  `spec/friends-and-identity.test.ts`:
+  - **Limited to the current visitor.** The host who sent the invitation,
+    a stranger, an unknown cookie and a request with no cookie all see 0.
+  - **Read-only.** `findVisitor` never creates a visitor, and peeking
+    never admits anyone: the invitation stays pending and the room isn't
+    in the invitee's rooms.
+  - **No identity or session.** No `Set-Cookie`, with or without a cookie.
+  - **A count only.** The body's keys are exactly `account` and
+    `invitations`. Rooms, labels and senders stay behind the existing
+    `/api/my/invites`.
+  - **`Cache-Control: no-store`.** It comes from the `/api` middleware.
+- It still emits no log event: it changes nothing and refuses no one
+  (ADR 0013).
+
+**A shared UI kit** (`ui/kit.css`, new; scoped under `.kit`).
+- One look for the table's panels and the dedicated `/build/…` pages:
+  - cards and tags
+  - fields and choice rows
+  - messages, and loading and empty states
+  - room cards with seats
+  - tabs and the step back
+  - creation cards and credits
+- Only the home and lobby entries import it. The editor's CSS contains no
+  `.kit` rule, so the gameplay editor is not restyled.
+- Logic that the table and `/build/` both need moved out of `LobbyApp`
+  into `lobby/parts.tsx`, so the two surfaces run the same code with the
+  same visible labels.
+- `lobby/Shell.tsx` gives every dedicated page a bar with "Back to the
+  table".
+- The collection and showcase show creation cards with a preview from
+  `ui/creationPreview.ts`: an isometric SVG of the saved version's real
+  parts, with no WebGL.
+
+**A defect fixed: the homepage entry imported three.js.**
+- Phase 1's entry script imported `destinations.ts`, which imports
+  three.js, so the no-WebGL fallback still downloaded it. This
+  contradicted the decision above.
+- The navigation state moved to the three-free `tabletop/focus.ts`.
+- In the build, the `home` chunk imports only the account panel and the
+  preload helper, and only the `geometry` chunk contains `WebGLRenderer`.
+- The browser check now reads the contents of every fetched script,
+  rather than matching chunk names.
+
+**Visual refinements (bounded; no new furniture).**
+- The overview is lower and more seated.
+- The wood grain is calmer, and the table's edge is a plain material.
+- The roof:
+  - The left side is a finished pitched plane.
+  - The right side is the construction side: two rows laid, with the
+    proposed slope drawn above them as a plan.
+  - The ridge piece was removed.
+- Whites and the house's blue are slightly toned down, and contact
+  shadows are a little stronger.
+
+**Composition (agent).**
+- The house's obstacle box was split into the house body and its low
+  baseplate. The booklet and parts tray became obstacles.
+- Viewings gained a `yaw`.
+- The board, tray, house, Friends stand and booklet moved in both layouts,
+  so every entrance's viewing has a clear line of sight and a clear path.
+  All 12 viewings were checked offline against the obstacle boxes.
+- The blank nameplate sat in the foreground of the focused sign view. It
+  now stands beside the sign, to its right and behind it, on both layouts.
+- **The phone was recomposed.** The Friends stand, parts tray and
+  nameplate moved, and the tray and Friends viewings were re-aimed. Each
+  entrance's printed label then sits above the bottom sheet, rather than
+  under it.
+
+**`/readme/` restyled (`src/server/readme.ts`).**
+- It now wears the site's look:
+  - cream paper, with a red-edged booklet page
+  - rounded headings and a comfortable reading width
+  - tables that scroll
+  - a sticky bar with "Back to the table"
+  - the legal line
+- The body is still exactly `marked.parse(README.md)`. No README text was
+  changed, and the page loads no script or remote font.
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with
