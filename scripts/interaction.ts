@@ -594,20 +594,22 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("request", (r) => r.resourceType() === "script" && scripts.push(new URL(r.url()).pathname));
 
+  // The homepage is the building table (ADR 0014): its old "Start building"
+  // link is gone, and the way in is the scene tray's "Build alone". The table
+  // itself loads three.js after its WebGL probe, but never the editor or the
+  // game's scene.
+  const editorCode = (list: string[]) => list.some((s) => /\/editor-|Environment/i.test(s));
   await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
-  check("a fresh visitor's homepage offers Start building", (await page.locator("#start").innerText()) === "Start building");
-  check(
-    "the homepage loads none of the editor's code",
-    scripts.length > 0 && !scripts.some((s) => /\/editor-|Environment|three/i.test(s)),
-    scripts,
-  );
+  await page.locator('.entrance-face[data-entrance="scenes"]').waitFor({ timeout: 20000 });
+  check("a fresh visitor's table offers the scene tray", (await page.locator('.entrance-face[data-entrance="scenes"]').count()) === 1);
+  check("the homepage loads none of the editor's code", scripts.length > 0 && !editorCode(scripts), scripts);
   check("the homepage sets no cookie", (await context.cookies()).length === 0);
 
-  await page.locator("#start").click();
-  await page.waitForURL(/\/build\/$/);
-  check("the room lobby loads none of the editor's code either", !scripts.some((s) => /\/editor-|Environment|three/i.test(s)), scripts);
+  await page.locator('.entrance-face[data-entrance="scenes"]').evaluate((b: HTMLElement) => b.click());
+  await page.getByRole("button", { name: "Build alone" }).waitFor({ timeout: 10000 });
+  check("opening the scene tray loads none of the editor's code either", !editorCode(scripts), scripts);
 
-  await page.locator("button", { hasText: "Build alone" }).click();
+  await page.getByRole("button", { name: "Build alone" }).click();
   await page.waitForURL(/\/build\/room\//);
   await page.goto(`${page.url()}?debug`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
@@ -622,12 +624,12 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
 
   await page.locator(".home-link").click();
   await page.waitForURL(`${base}/`);
-  await page.waitForFunction(() => document.getElementById("start")?.textContent === "Continue my build", null, { timeout: 5000 }).catch(() => {});
-  check("back on the homepage, it offers Continue my build", (await page.locator("#start").innerText()) === "Continue my build");
+  await page.locator('.entrance-face[data-entrance="scenes"]').waitFor({ timeout: 20000 });
+  check("the editor's home link leads back to the table", new URL(page.url()).pathname === "/");
 
-  await page.locator("#start").click();
-  await page.waitForURL(/\/build\/$/);
-  await page.locator("button", { hasText: "Build alone" }).click();
+  // the same way in again reopens the same solo room, not a new one
+  await page.locator('.entrance-face[data-entrance="scenes"]').evaluate((b: HTMLElement) => b.click());
+  await page.getByRole("button", { name: "Build alone" }).click();
   await page.waitForURL(roomUrl.replace(/\?.*$/, ""));
   await page.goto(`${page.url()}?debug`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => (window as any).__state?.().snapshot);

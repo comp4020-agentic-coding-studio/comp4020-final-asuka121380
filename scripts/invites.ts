@@ -60,13 +60,35 @@ await pageA.getByRole("button", { name: "Create and open" }).click();
 await pageA.waitForURL(/\/build\/room\//);
 const roomId = pageA.url().match(/\/build\/room\/([^/?]+)/)![1];
 
-await pageB.goto(`${base}/build/room/${roomId}/`, { waitUntil: "domcontentloaded" });
-const bBlockedBody = await pageB.textContent("body");
-check("B, though a friend, is refused without a specific invitation", bBlockedBody?.includes("isn't open to you") ?? false);
+// A room page first shows the identity gate ("Starting your session…") and
+// then "Checking this room…"; reading the body at domcontentloaded can catch
+// either (a stranger's first visit, with a fresh identity, was seen still on
+// the gate). So wait until the page has decided — refused, the pre-join
+// screen, or the editor itself — and only then check which it decided.
+async function settledRoomPage(page: Page): Promise<string> {
+  await page.goto(`${base}/build/room/${roomId}/`, { waitUntil: "domcontentloaded" });
+  await page
+    .getByRole("heading", { name: "This room isn't open to you" })
+    .or(page.getByRole("button", { name: "Join this room" }))
+    .or(page.locator(".tray"))
+    .first()
+    .waitFor({ timeout: 10000 });
+  return (await page.textContent("body")) ?? "";
+}
+// and what the server says, independent of the page: an outsider can't read
+// an invite-only room (the same 404 as no room at all) and isn't a member
+const serverView = (page: Page) => page.evaluate(async (id) => (await fetch(`/api/rooms/${id}`)).status, roomId);
+const membersNow = async () => (await pageA.evaluate(async (id) => (await fetch(`/api/rooms/${id}`)).json(), roomId)).members.map((m: { visitorId: string }) => m.visitorId);
 
-await pageC.goto(`${base}/build/room/${roomId}/`, { waitUntil: "domcontentloaded" });
-const cBlockedBody = await pageC.textContent("body");
-check("C, a stranger, is refused the same way", cBlockedBody?.includes("isn't open to you") ?? false);
+const bBlockedBody = await settledRoomPage(pageB);
+check("B, though a friend, is refused without a specific invitation", bBlockedBody.includes("isn't open to you") && !bBlockedBody.includes("Join this room"));
+check("…and the server agrees: B can't read the room", (await serverView(pageB)) === 404);
+
+const cBlockedBody = await settledRoomPage(pageC);
+check("C, a stranger, is refused the same way", cBlockedBody.includes("isn't open to you") && !cBlockedBody.includes("Join this room"));
+check("…and the server agrees: C can't read the room", (await serverView(pageC)) === 404);
+const members = await membersNow();
+check("neither B nor C became a member by opening the link", !members.includes(idB) && !members.includes(idC), members.length);
 
 // A invites B specifically, through the room panel — choosing them from the
 // selectable list of actual friends, never typing a raw id
