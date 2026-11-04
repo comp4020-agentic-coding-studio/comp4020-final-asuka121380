@@ -2895,3 +2895,129 @@ Commits:
   (phone) remain at the frame's corner.
 - The six other entrances are still decoration.
 - Nothing pushed or deployed.
+
+## 4 November 2026, 16:56 AEDT — The building table becomes the site's navigation (ADR 0014)
+
+Commits:
+- [`db06155`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/db06155)
+  — `Shared UI kit and lobby parts: one look and one logic for table and /build/`
+- [`29a5647`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/29a5647)
+  — `Peek counts the visitor's pending room invitations, read-only`
+- [`755c7cf`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/755c7cf)
+  — `Building table: every function has an entrance; refinements and recomposition`
+- [`a609378`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/a609378)
+  — `/readme/ wears the table's look; README text unchanged`
+- [`73f709a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/73f709a)
+  — `Browser checks for every entrance; invites and interaction scripts fixed`
+- [`707f891`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/707f891)
+  — `Evidence 0016 and ADR 0014 amendment for the table's entrances pass`
+
+**Who decided.**
+- **The author's brief set:**
+  - every function reached from the table
+  - bounded visual refinements, with no new furniture
+  - a shared UI kit that leaves the editor alone
+  - no new scenes, social mechanics or permissions; existing APIs reused
+  - real data only; direct URLs kept
+  - desktop, phone and intermediate sizes
+- **The author, on resuming:**
+  - accepted the pending-invitation count on `/api/me/peek`, on
+    conditions: the current visitor only, read-only, no identity or
+    session, no details, no-store
+  - asked for the nameplate in the sign's view to be fixed
+  - asked for the browser tests to be extended without weakening them
+  - asked for the `invites.ts` failure to be diagnosed, not retried
+- **The agent chose:**
+  - the mechanisms, layouts and panel contents
+  - the commit split
+
+**Implemented.**
+- **`db06155`: the shared kit and lobby parts.**
+  - `ui/kit.css`, scoped under `.kit`. The editor's CSS has no `.kit`
+    rule.
+  - `ui/creationPreview.ts`: an SVG preview of a saved version.
+  - `lobby/parts.tsx`: the lobby's room, invitation and friend logic,
+    extracted so the table and `/build/` share it, with double-submit
+    guards.
+  - `lobby/Shell.tsx`: a bar with "Back to the table" on every
+    dedicated page.
+  - Collection and showcase creation cards.
+  - `Account.tsx`: classes only; its wording is unchanged.
+- **`29a5647`: the invitation count.** `/api/me/peek` returns
+  `invitations`, with a spec asserting each of the author's conditions.
+- **`755c7cf`: the six entrances.**
+  - The scene tray, noticeboard, Friends stand, shelf, booklet and sign,
+    each with a 3D hit box, a real button label and a phone touch pad.
+  - Panels open on arrival and are URLs. Opening one writes nothing.
+  - **A three.js fix.** The homepage entry no longer imports three.js:
+    `tabletop/focus.ts` is new.
+  - The refinements, and a recomposition so every viewing is clear.
+  - The nameplate moved out of the sign's foreground.
+  - The phone was recomposed.
+- **`a609378`: `/readme/` restyled.** The frame and styles changed;
+  the body is still `marked.parse(README.md)`.
+- **`73f709a`: browser checks.**
+  - New `tabletop.ts` runs: entrances, invitations, mobile-entrances
+    and intermediate.
+  - The no-WebGL check now reads every fetched script's content.
+  - Fixes to `invites.ts` and `interaction.ts` (below).
+- **`707f891`:** evidence 0016, the ADR 0014 "Entrances pass" section,
+  and regenerated shots.
+
+**Tests run** (final production build; local server on port 8090 with a
+fresh temporary `DATA_DIR`):
+
+| Check | Result |
+|---|---|
+| `pnpm typecheck` | passed; every commit also typechecked alone from its staged tree |
+| `APP_URL=http://localhost:8090 pnpm check` | 26 files, 228/228 |
+| `pnpm check:evidence` | passed |
+| `git diff --check` | clean |
+| `node scripts/tabletop.ts` | 168/168 in one run |
+| `invites.ts` | 10/10 |
+| `accounts.ts` | 13/13 |
+| `interaction.ts` | 85/85 |
+
+- Runs were spaced about 65 s apart, for the auth rate limit.
+- `showcase.ts` (16/16), `guest-preservation.ts` (12/12),
+  `review-fixes.ts` (15/15), `pre-join.ts` (13/13) and
+  `multiplayer.ts` (17/17) passed against the build before the last
+  round of fixes. They were not rerun after it.
+
+**Observed: three script failures, diagnosed before anything was changed.**
+- **`invites.ts`, "C, a stranger, is refused the same way": a test
+  timing race.**
+  - A diagnostic sampled C's page from `domcontentloaded`. It showed
+    "Starting your session…" (the identity gate) at about 100 ms, then the
+    refusal at about 200 ms.
+  - The preview request returned 404, and the room's members stayed
+    host-only.
+  - The editor route's code is identical to the branch's base,
+    `254aa99`.
+  - The test now waits for an explicit decided state. It asserts the
+    refusal, and adds server-side 404 and membership checks.
+  - A negative control, a room the visitor may join, settles on the
+    pre-join screen instead.
+- **`accounts.ts` timed out: an application regression from this
+  stage.** The account restyle had shortened three explanations, among
+  them the register form's sentence that the script waits for. They were
+  restored word for word. A comparison of every lobby string also found
+  the full-room `aria-disabled` on Accept had been dropped. It was
+  restored.
+- **`interaction.ts` timed out: the script was stale.** Its routes
+  section clicked the homepage's `#start` link, removed in phase 1
+  (`09a3f3b`). It now enters through the scene tray.
+- **Screenshot review.**
+  - One focused shot had caught the panel mid-fade: swiftshader stretches
+    a 220 ms fade to about 415 ms. Screenshots now wait for the fade.
+  - Defects found and fixed are listed in evidence 0016.
+
+**Known limitations.**
+- Checked only in Chrome, with swiftshader software WebGL and device
+  emulation. Not checked in Safari or WebKit, on a real GPU or physical
+  device, or with a screen reader.
+- Under swiftshader, a camera move spans two or three frames, so the
+  arrival checks prove ordering, not smoothness.
+- CLAUDE.md's bullet "An unfinished entrance is decoration…" still
+  describes phase 1. It is left for the author to reword.
+- Nothing pushed or deployed.
