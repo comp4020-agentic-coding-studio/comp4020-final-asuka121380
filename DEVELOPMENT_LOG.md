@@ -3123,3 +3123,73 @@ temporary `DATA_DIR`):
   Safari or WebKit, on a real GPU, on a physical device, or with a screen
   reader.
 - Nothing pushed or deployed.
+
+## 4 November 2026, 20:40 AEDT — Brighter red/blue/white colour system, scoped off the gameplay editor (ADR 0014)
+
+Decided by the author: apply a brighter red, blue and white colour
+identity across the homepage table, the lobby/account/collection pages
+and the shared UI kit, without changing the gameplay editor, which shares
+some tokens and components with the rest of the site.
+[`018c6b4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/018c6b4).
+
+**Implemented.**
+- `src/client/ui/site-colors.css` (new): redeclares `theme.css`'s shared
+  custom properties (`--red`, `--blue`, `--yellow`, `--ink`, `--paper`,
+  `--white`, `--line`, …) under `body.home, body.lobby` only, never
+  touching `:root`, so every existing rule already reading these tokens
+  brightens automatically while the editor's own resolved values are
+  untouched. `--ok`/`--danger` are deliberately not overridden.
+- `src/client/home/main.tsx`, `src/client/lobby/main.tsx`: import the new
+  file. `src/client/build/index.html`: `<body class="lobby">` added (it
+  had none), giving the lobby bundle a scoping hook.
+- `src/client/ui/kit.css`'s own `.kit`-scoped tokens and remaining
+  hardcoded literals, `src/client/home/home.css`'s local tokens
+  (`--wall`, `--wall-deep`, `--table-ink`, `--nameplate`) and remaining
+  literals, and `src/client/lobby/lobby.css`'s literals (page wash, bar
+  border/background, nav hover/selected, saved-version viewer frame):
+  moved from cream/brown to white/pale-cool-grey/dark-blue.
+- `src/client/home/tabletop/build.ts`'s `PALETTE` (the 3D scene's own
+  material constants, unrelated to CSS): walls and sign/board/booklet
+  face plates moved from beige/cream to pale cool-grey/white; the table's
+  wood tone kept pale and natural with its orange/yellow tint reduced,
+  not shifted toward blue/white plastic.
+- `scripts/tabletop.ts`: one assertion that hardcoded the lobby's old
+  paper background colour updated to the new, intended value.
+
+**Tests run** (production build, local server on port 8095, fresh
+temporary `DATA_DIR`):
+- `pnpm typecheck`: passed.
+- `pnpm build`: built.
+- `scripts/tabletop.ts`: 173/173 passed (including the `activation` run
+  from the previous commit).
+- `pnpm test`: 7 failures in `spec/plans-and-attribution.test.ts` and
+  `spec/session-revocation.test.ts`, confirmed **pre-existing** by
+  `git stash`-ing every file this pass changed and re-running against the
+  stashed baseline, which fails 13 — a strict superset, so this pass
+  caused none of them.
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+
+**Observed.**
+- A live check opened a real room through the actual editor route
+  (`/build/room/:id`) and read its computed `--red`: `#e3241b`, the
+  original value, with `document.body.className === ""` (no scoping
+  class) — not the new `#d92328`. A screenshot of the same session shows
+  the dock, toolbar and gameplay scenery unchanged.
+- Full details and screenshots (overview, the Sign-in panel, the lobby,
+  the WebGL-unavailable fallback, the unchanged editor) are in evidence
+  0018.
+
+**Known limitations.**
+- The branded loading screen (replacing the current brief loading-links
+  screen) is not implemented in this pass.
+- A dedicated accessibility contrast audit of every new colour pairing
+  (errors, warnings, disabled/hover/focus states) was not done in this
+  pass.
+- `src/server/readme.ts` (`/readme/`) was not restyled: CLAUDE.md lists
+  `/readme/` as never to be changed, which overrides the brief's mention
+  of it for this pass.
+- Checked only in Chrome, with swiftshader software WebGL and Chrome's
+  WebGL-disabled flags for the fallback screenshot; not checked in
+  Safari, WebKit, a real GPU, or a physical device.
+- Nothing pushed or deployed.
