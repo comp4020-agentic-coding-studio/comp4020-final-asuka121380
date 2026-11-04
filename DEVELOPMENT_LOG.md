@@ -3052,3 +3052,74 @@ the rule's wording; the agent wrote the text.
 - `git diff --check`: clean.
 
 The change is documentation only, so no code check was needed.
+
+## 4 November 2026, 19:36 AEDT — Two missed-activation causes fixed; a third ruled out (ADR 0014)
+
+Commit:
+- [`ad04efe`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ad04efe)
+  — `Fix two causes of missed entrance activation; rule out a third`
+
+**Who decided.** The author reported the observed behaviour (missed
+activation right after loading, and right after returning from a panel)
+and asked for it investigated and reproduced, not assumed or patched with
+a delay. The agent diagnosed the causes, chose the fixes, and ruled out a
+third suspected cause before it was fully built.
+
+**Implemented** (`ad04efe`).
+- `src/client/home/tabletop/TableScene.tsx`: entrance activation now
+  decides on `pointerdown` (arming the entrance under the pointer) and
+  confirms on `pointerup` within 14px, instead of on `click`. This fixes
+  the hover lift moving a label away from under a held press, so the
+  release used to land on the bare canvas and the click vanished. No time
+  limit is placed on the hold.
+- `src/client/home/HomeApp.tsx`: the page now tracks its intended focus
+  (a ref, updated synchronously the instant a choice is made) separately
+  from React state, and distinguishes its own pending `history.back()`
+  (from closing a panel) from the browser's real Back/Forward. A choice
+  made in the instant after closing a panel no longer loses to that
+  close's own deferred `popstate`.
+- A draft third fix, for a suspected camera/raycast staleness under slow
+  rendering, was written (an R3F render-priority override) but never
+  wired into the scene. Direct measurement (reading the camera multiple
+  times within one synchronous script tick, and dispatching a press in
+  the same synchronous step as sampling its target) showed the theory was
+  wrong: the live camera is never ahead of what is painted within a
+  single tick, which is all a real pointer event ever spans. The earlier
+  apparent staleness came only from the diagnostic script's own
+  `mouse.move()` then `mouse.down()` being two separate, time-separated
+  calls. The draft was removed rather than landed untested.
+- `scripts/tabletop.ts`: a new `activation` run, with deterministic,
+  directly-dispatched DOM events for each confirmed cause, rather than a
+  timing-dependent wait for a slow-rendering window.
+- Checked, per the brief: the saved-version detail page's part/kind count
+  wording. It was already correct ("0 parts (0 kinds)"); no change made.
+
+**Tests run** (production build, local server on port 8090, fresh
+temporary `DATA_DIR`):
+- `pnpm typecheck`: passed, at every intermediate state.
+- `pnpm build`: built.
+- `scripts/tabletop.ts`: desktop 38/38, mobile 9/9, reduced 3/3, failures
+  7/7, others 5/5, entrances 76/76, **activation 5/5 (new)**, invitations
+  9/9, mobile-entrances 9/9, intermediate 12/12 — 182/182 total.
+- `APP_URL=http://localhost:8090 pnpm check`: 26 files, 228/228.
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+
+**Observed.**
+- Each of the two fixed causes was reproduced on the pre-fix code with
+  instrumented Playwright scripts (outside the repo, in `/tmp/ttshot/`)
+  before any fix was written, tracing `__tableCamera()`, `history.*`,
+  `popstate` and raw pointer/click events rather than guessing from
+  behaviour.
+- The new `activation` run's assertions were each confirmed to fail on
+  the pre-fix code — in combination, and with each cause isolated in turn
+  via `git stash` of one file at a time — before being added, so the
+  regression coverage is verified rather than merely written to pass.
+- Full details, the instrumented traces, and the diagnostic scripts that
+  ruled out the third cause are in evidence 0017.
+
+**Known limitations.**
+- Checked only in Chrome, with swiftshader software WebGL. Not checked in
+  Safari or WebKit, on a real GPU, on a physical device, or with a screen
+  reader.
+- Nothing pushed or deployed.
