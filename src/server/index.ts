@@ -198,13 +198,16 @@ app.get("/api/summary", (req, res) => {
   res.json(summaryFor(db, () => findVisitor(db, readCookie(req))));
 });
 
-// the homepage sign's "Sign in" or name, read-only in the same way: the
+// the homepage sign's "Sign in" or name, and how many room invitations are
+// waiting (the Friends stand's small tag), read-only in the same way: the
 // cookie is HttpOnly, so the page can't tell whether it exists, and /api/me
-// would create a visitor just for viewing the homepage (ADR 0004/0010/0014)
+// would create a visitor just for viewing the homepage (ADR 0004/0010/0014).
+// Only a count: which rooms, and from whom, stay behind /api/my/invites.
 app.get("/api/me/peek", (req, res) => {
   const visitorId = findVisitor(db, readCookie(req));
   const account = visitorId ? accountForVisitor(db, visitorId) : undefined;
-  res.json({ account: account ? { displayName: account.displayName } : null });
+  const invitations = visitorId ? pendingInvitesFor(db, visitorId).length : 0;
+  res.json({ account: account ? { displayName: account.displayName } : null, invitations });
 });
 
 // who the server resolves this request's cookie to; the lobby UI uses this

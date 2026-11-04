@@ -232,14 +232,14 @@ describe("the homepage sign's read-only account peek (ADR 0014)", () => {
     const res = await fetch(new URL("/api/me/peek", baseUrl));
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toBeNull();
-    expect(await res.json()).toEqual({ account: null });
+    expect(await res.json()).toEqual({ account: null, invitations: 0 });
   });
 
   it("answers null for a guest, and only the display name once that visitor has an account", async () => {
     const { cookie } = await newVisitor();
     const guest = await fetch(new URL("/api/me/peek", baseUrl), { headers: { cookie } });
     expect(guest.headers.get("set-cookie")).toBeNull();
-    expect(await guest.json()).toEqual({ account: null });
+    expect(await guest.json()).toEqual({ account: null, invitations: 0 });
 
     const username = `peek${randomUUID().slice(0, 8)}`;
     // its own source address (the server trusts the proxy's header), so this
@@ -252,7 +252,7 @@ describe("the homepage sign's read-only account peek (ADR 0014)", () => {
     });
     expect(reg.status, await reg.text()).toBe(200);
     const signedIn = await fetch(new URL("/api/me/peek", baseUrl), { headers: { cookie } });
-    expect(await signedIn.json()).toEqual({ account: { displayName: "Peek Tester" } });
+    expect(await signedIn.json()).toEqual({ account: { displayName: "Peek Tester" }, invitations: 0 });
   });
 });
 

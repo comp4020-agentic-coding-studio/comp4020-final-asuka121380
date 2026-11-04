@@ -211,4 +211,59 @@ describe("friendship", () => {
     const join = await fetch(new URL(`/api/rooms/${room.roomId}/join`, baseUrl), { method: "POST", headers: { cookie: b.cookie } });
     expect(join.status).toBe(403);
   });
+
+  it("the homepage's peek counts real pending invitations, read-only, and nothing else about them (ADR 0014)", async () => {
+    const a = await freshVisitor();
+    const b = await freshVisitor();
+    const { token } = await (await fetch(new URL("/api/friends/link", baseUrl), { method: "POST", headers: { cookie: a.cookie } })).json();
+    const opened = await (await fetch(new URL(`/api/friends/link/${token}`, baseUrl), { headers: { cookie: b.cookie } })).json();
+    await fetch(new URL(`/api/friends/requests/${opened.requestId}/respond`, baseUrl), {
+      method: "POST",
+      headers: { cookie: b.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ accept: true }),
+    });
+    const peekAs = async (cookie: string) => {
+      const res = await fetch(new URL("/api/me/peek", baseUrl), { headers: { cookie } });
+      // read-only: no new identity or session, and never cached by a browser or proxy
+      expect(res.headers.get("set-cookie")).toBeNull();
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      return (await res.json()) as Record<string, unknown>;
+    };
+    const peek = () => peekAs(b.cookie);
+    expect((await peek()).invitations).toBe(0);
+
+    const room = await (
+      await fetch(new URL("/api/rooms", baseUrl), {
+        method: "POST",
+        headers: { cookie: a.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ visibility: "invite_only", allowPublish: false, label: "Peek room" }),
+      })
+    ).json();
+    const bId = (await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie: b.cookie } })).json()).visitorId;
+    const invite = await fetch(new URL(`/api/rooms/${room.roomId}/invite`, baseUrl), {
+      method: "POST",
+      headers: { cookie: a.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ to: bId }),
+    });
+    expect(invite.status).toBe(200);
+
+    const seen = await peek();
+    expect(seen.invitations).toBe(1);
+    // a count only: no room ids, labels or senders
+    expect(Object.keys(seen).sort()).toEqual(["account", "invitations"]);
+    // only the invited visitor's own count: the host, and a stranger, see none of it
+    expect((await peekAs(a.cookie)).invitations).toBe(0);
+    const stranger = await freshVisitor();
+    expect((await peekAs(stranger.cookie)).invitations).toBe(0);
+    // a request with no cookie, or an unknown one, counts nothing and creates nothing
+    expect((await peekAs("brick_visitor=not-a-real-session")).invitations).toBe(0);
+    const anonymous = await fetch(new URL("/api/me/peek", baseUrl));
+    expect(anonymous.headers.get("set-cookie")).toBeNull();
+    expect(anonymous.headers.get("cache-control")).toBe("no-store");
+    expect(await anonymous.json()).toEqual({ account: null, invitations: 0 });
+    // peeking never answers the invitation or admits anyone
+    expect((await peek()).invitations).toBe(1);
+    const rooms = await (await fetch(new URL("/api/my/rooms", baseUrl), { headers: { cookie: b.cookie } })).json();
+    expect(rooms.map((r: { id: string }) => r.id)).not.toContain(room.roomId);
+  });
 });
