@@ -314,7 +314,11 @@ The author asked for every function to be reached from the table, with
 bounded visual refinements, a shared UI kit, no new scenes, social
 mechanics or permissions, and existing APIs reused. Evidence:
 doc/evidence/0016. This supersedes phase 1's "one entrance works; the
-others are decoration".
+others are decoration" as a statement of status. **The rule behind it
+stays (author, 4 Nov 2026).** Any future unfinished entrance must be inert
+decoration that implies no function, and every existing function must
+stay reachable through working navigation. CLAUDE.md keeps the current
+status and the permanent rule apart.
 
 **The six entrances** (`tabletop/focus.ts` `ENTRANCES`, `TableScene.tsx`
 `EntranceObject`, `TablePanel.tsx`, `panels.tsx`).

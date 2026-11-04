@@ -272,8 +272,21 @@ Each entry gives, in proportion to the change:
   - Viewing it never calls `/api/me` or creates a visitor; only the
     read-only `/api/me/peek`.
   - Its styles stay scoped under `body.home`.
-  - An unfinished entrance is decoration (inert, `aria-hidden`), never a
-    control. Every function stays reachable through real links meanwhile.
+  - **Current status (author, 4 Nov 2026; ADR 0014 "Entrances pass").**
+    Every planned entrance is implemented. Some complete their interaction
+    within the table: the sign (account), the scene tray (choosing to
+    build alone or setting up a new room, then straight into the editor),
+    the noticeboard (join a room) and the Friends stand (friends and
+    invitations). Others intentionally lead to dedicated
+    pages: the shelf previews and links to the collection and showcase,
+    and the booklet opens `/readme/`.
+  - **Permanent rule (author), which still applies with every current
+    entrance complete:**
+    - Any future unfinished entrance stays clearly non-interactive
+      decoration (inert, `aria-hidden`, no hover affordance, no button),
+      and never implies a function that doesn't exist.
+    - Every existing function stays reachable through working navigation,
+      such as Quick links, the fallback links and the dedicated pages.
   - Only playable scenes appear on the table.
 - Global identity: vivid red, clean white and bright yellow, with dark text
   and restrained supporting colours. Original branding only: no LEGO logo,
