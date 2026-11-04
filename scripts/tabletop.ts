@@ -595,6 +595,80 @@ async function entrances(browser: Browser): Promise<void> {
   await ctx.close();
 }
 
+/**
+ * Regression coverage for two missed-activation causes found and fixed
+ * (evidence 0017), each dispatched directly rather than waited for with a
+ * timing-dependent delay, so the test exercises the exact event sequence
+ * that broke rather than hoping to catch a slow-rendering window.
+ */
+async function activation(browser: Browser): Promise<void> {
+  run = "activation reliability";
+  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+  const page = await ctx.newPage();
+  const errors = errorsOf(page);
+  await page.goto(url(), { waitUntil: "networkidle" });
+  await ready(page);
+
+  // Cause 1: the hover lift moves the label under the pointer, so a press
+  // and release on different elements (button, then the canvas behind it)
+  // must still choose — one press, one choice, decided on pointerdown.
+  await page.evaluate(() => {
+    const btn = document.querySelector('.entrance-face[data-entrance="rooms"]')!;
+    const r = btn.getBoundingClientRect();
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    const canvas = document.querySelector(".table-canvas canvas")!;
+    btn.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 7 }));
+    // the release lands on the canvas behind the (by then lifted-away) label
+    canvas.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 7 }));
+  });
+  await settled(page);
+  await page.waitForSelector('[data-panel="rooms-panel"]', { timeout: 4000 });
+  check("a press on the label and a release on the canvas behind it still chooses (the hover lift moved what was pressed)", true);
+  await page.keyboard.press("Escape");
+  await settled(page);
+
+  // Cause 1b: a press that moves more than the slop distance before release
+  // answers a different gesture, and must NOT choose (otherwise this would
+  // be a plain "any pointerup anywhere activates" bug, not a fix for it).
+  const before1b = await page.evaluate(() => document.querySelector(".table-page")!.getAttribute("data-focus"));
+  await page.evaluate(() => {
+    const btn = document.querySelector('.entrance-face[data-entrance="shelf"]')!;
+    const r = btn.getBoundingClientRect();
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    btn.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 8 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: x + 200, clientY: y + 200, button: 0, pointerId: 8 }));
+  });
+  await page.waitForTimeout(200);
+  const after1b = await page.evaluate(() => document.querySelector(".table-page")!.getAttribute("data-focus"));
+  check("a press released far from where it started does not choose anything", after1b === before1b, { before: before1b, after: after1b });
+
+  // Cause 2: closing a panel goes back through history; a choice made in the
+  // instant after must win even though the resulting popstate from that
+  // close has not fired yet. Fire both synchronously, before any event
+  // loop turn, which is exactly the ordering that discarded the newer
+  // choice before the fix.
+  await page.locator('.entrance-face[data-entrance="shelf"]').evaluate((b: HTMLElement) => b.click());
+  await settled(page);
+  await page.waitForSelector('[data-panel="shelf-panel"]', { timeout: 4000 });
+  await page.evaluate(() => {
+    (document.querySelector(".back-to-table") as HTMLElement).click();
+    // synchronously, in the same tick, before the close's popstate can fire
+    (document.querySelector('.entrance-face[data-entrance="friends"]') as HTMLElement).click();
+  });
+  await settled(page);
+  await page.waitForSelector('[data-panel="friends-panel"]', { timeout: 4000 });
+  check("closing a panel and immediately choosing another, in the same tick, ends on the new choice (not undone by the close's deferred history event)", true);
+  const focusAfter = await page.evaluate(() => document.querySelector(".table-page")!.getAttribute("data-focus"));
+  check("…and the URL agrees", focusAfter === "friends", focusAfter);
+  await page.keyboard.press("Escape");
+  await settled(page);
+
+  check("no console errors", errors.length === 0, errors.join(" | "));
+  await ctx.close();
+}
+
 /** A real invitation from a friend shows a count on the Friends stand, then in its panel; answering is explicit. */
 async function invitations(browser: Browser): Promise<void> {
   run = "invitation count";
@@ -716,6 +790,7 @@ for (const [name, fn] of [
   ["failures", failures],
   ["others", others],
   ["entrances", entrances],
+  ["activation", activation],
   ["invitations", invitations],
   ["mobile-entrances", mobileEntrances],
   ["intermediate", intermediate],

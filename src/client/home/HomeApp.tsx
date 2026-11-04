@@ -117,8 +117,27 @@ export function HomeApp() {
   const peek = usePeek();
   const refs = useMemo(() => Object.fromEntries(ENTRANCES.map((e) => [e.focus, createRef<HTMLButtonElement>()])) as unknown as Record<Entrance, RefObject<HTMLButtonElement | null>>, []);
 
+  // What the page means to show, updated the moment a choice is made. Closing
+  // a panel goes back through history (so entries never double), and that
+  // back arrives later as a popstate. A choice made in between — "Back to
+  // table", then at once another object — must not be undone by it: the
+  // popstate we caused only confirms the overview, and a newer choice is
+  // pushed again on top of it (reproduced: evidence 0017).
+  const intended = useRef<Focus>(focus);
+  const ownBack = useRef(false);
   useEffect(() => {
-    const onPop = () => setFocus(focusFromUrl());
+    const onPop = () => {
+      if (ownBack.current) {
+        ownBack.current = false;
+        if (intended.current !== "overview") history.pushState({ tableFocus: intended.current }, "", `${location.pathname}?focus=${intended.current}`);
+        return;
+      }
+      // the browser's own Back or Forward: follow the URL
+      const f = focusFromUrl();
+      intended.current = f;
+      setArrived(null);
+      setFocus(f);
+    };
     addEventListener("popstate", onPop);
     return () => removeEventListener("popstate", onPop);
   }, []);
@@ -142,17 +161,33 @@ export function HomeApp() {
     location.assign("/readme/");
   }, [status, focus, arrived]);
 
-  const go = (next: Focus) => {
-    if (next === focus) return;
+  // The user's latest choice always wins. The camera retargets from wherever
+  // it is; the panel opens only when it reaches this choice.
+  const go = useCallback((next: Focus) => {
+    if (next === intended.current) return;
+    const from = intended.current;
+    intended.current = next;
     setArrived(null);
     setFocus(next);
-    const url = next === "overview" ? location.pathname : `${location.pathname}?focus=${next}`;
-    if (next === "overview" && history.state?.tableFocus) history.back();
-    else history.pushState({ tableFocus: next }, "", url);
-  };
+    if (ownBack.current) {
+      // our back is still on its way; its popstate will settle the URL
+      return;
+    }
+    if (next === "overview") {
+      if (history.state?.tableFocus) {
+        ownBack.current = true;
+        history.back();
+      } else history.pushState(null, "", location.pathname);
+    } else if (from !== "overview" && history.state?.tableFocus) {
+      // straight from one object to another: one entry for the table's focus
+      history.replaceState({ tableFocus: next }, "", `${location.pathname}?focus=${next}`);
+    } else {
+      history.pushState({ tableFocus: next }, "", `${location.pathname}?focus=${next}`);
+    }
+  }, []);
 
   const onArrive = useCallback((f: Focus) => setArrived(f), []);
-  const closeFocus = useCallback(() => go("overview"), [focus]);
+  const closeFocus = useCallback(() => go("overview"), [go]);
   const panelOpen = status === "ready" && focus !== "overview" && focus !== "about" && arrived === focus;
   const signLabel = peek.name ? peek.name : "Sign in";
   const signHint = peek.name ? "Signed in" : "or build as a guest";

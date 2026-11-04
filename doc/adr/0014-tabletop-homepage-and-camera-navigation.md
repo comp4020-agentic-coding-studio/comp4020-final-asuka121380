@@ -451,6 +451,54 @@ author on 4 Nov 2026, conditionally).**
 - The body is still exactly `marked.parse(README.md)`. No README text was
   changed, and the page loads no script or remote font.
 
+## Activation reliability (author's brief, 4 Nov 2026; mechanisms agent)
+
+The author reported that activating a table entrance sometimes did
+nothing, right after loading and right after returning from a panel, but
+worked again once things had settled. Two real causes were found, fixed
+and verified; one suspected cause was investigated and ruled out.
+Evidence: doc/evidence/0017.
+
+- **A press and release on different elements must still choose.** A
+  browser's `click` fires only on the element under both the press and
+  the release. The hover lift that raises a label on hover or focus could
+  move the label away from under the pointer during a held press, so the
+  release landed on the canvas behind it and the activation silently
+  vanished. Choosing an entrance is now decided on `pointerdown` (arming
+  it) and confirmed on `pointerup` within a small distance, wherever the
+  release lands; the `click` a pointer gesture still produces is spent,
+  so one gesture is still one choice, and keyboard activation (a `click`
+  with no pointer gesture) is unaffected. There is no time limit on the
+  hold: a genuine press that took a while is never discarded, only a
+  release more than 14px away, or a cancelled pointer, fails to choose.
+- **The user's latest choice always wins, even across a deferred history
+  event.** Closing a panel goes back through browser history so entries
+  never double; that `popstate` does not fire synchronously. A choice
+  made in the instant after closing could be silently overwritten when
+  the deferred close's own `popstate` later arrived and reset the focus.
+  The page now tracks what it means to show the instant a choice is
+  made, distinguishes its own pending `history.back()` from the
+  browser's real Back/Forward, and re-asserts a newer choice over its own
+  superseded navigation rather than losing it. The browser's own
+  Back/Forward is never overridden.
+- **A suspected third cause — the camera racing ahead of what is
+  painted under slow rendering — was investigated and ruled out.** It
+  would have meant a press could be raycast against a camera pose several
+  moves ahead of the picture the visitor is actually looking at. Direct
+  measurement showed the live camera is never ahead of what is painted
+  within the one synchronous tick any real pointer event spans; the
+  divergence seen during diagnosis came only from the investigating
+  script's own `move()` then `down()` being two separate, time-separated
+  calls, not from anything in the app. A draft fix for this (overriding
+  R3F's raycast camera) was written but never wired in, and was removed
+  rather than landed as an untested, invasive change once the theory it
+  answered was disproved.
+- `scripts/tabletop.ts` gained a dedicated `activation` run that
+  dispatches the exact DOM event sequences each confirmed cause needs,
+  rather than waiting on a timing-dependent window, and each assertion
+  was confirmed to fail on the pre-fix code (in combination, and with
+  each cause isolated in turn) before being added.
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with

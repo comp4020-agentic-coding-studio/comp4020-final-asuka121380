@@ -67,6 +67,70 @@ export interface SceneProps {
   onContextLost: () => void;
 }
 
+// ---- choosing an entrance: one press, one choice ----------------------------
+//
+// A browser sends `click` only to the element under BOTH the press and the
+// release. On the table the thing pressed can move away in between — the
+// hover lift raises the object and its label, and during a camera move every
+// object slides across the screen — so the release lands on the canvas, the
+// click goes to their common ancestor, and the choice silently vanishes
+// (reproduced: evidence 0017). So a choice is made by the press: pressing an
+// entrance's object, label or touch pad arms it, and releasing within a
+// small distance chooses it, wherever the release lands. There is no time
+// limit on the hold: a genuine press-and-release that never moved is never
+// discarded just because it took a while (ADR 0014's "do not silently
+// discard an activation"); a pointer that leaves and never returns is
+// cleared by `pointercancel`, not a guessed timeout. The click that follows
+// a pointer gesture is then ignored, so one gesture is one choice; a
+// keyboard's Enter or Space (a click with no pointer gesture) still chooses
+// through `click`.
+
+const PRESS_SLOP_PX = 14;
+let pressed: { entrance: Entrance; x: number; y: number; choose: (e: Entrance) => void } | null = null;
+// the pointer gesture that has just chosen: the one `click` it produces is spent
+let spentClick = false;
+
+function armPress(entrance: Entrance, x: number, y: number, choose: (e: Entrance) => void): void {
+  pressed = { entrance, x, y, choose };
+  // `?debug`: the browser checks can see which entrance a press armed
+  (window as unknown as { __lastPress?: string }).__lastPress = entrance;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      // a new gesture: nothing from the last one is still waiting to be spent
+      spentClick = false;
+    },
+    true,
+  );
+  window.addEventListener(
+    "pointerup",
+    (e) => {
+      const p = pressed;
+      pressed = null;
+      if (!p || e.button !== 0) return;
+      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > PRESS_SLOP_PX) return;
+      spentClick = true;
+      p.choose(p.entrance);
+    },
+    true,
+  );
+  window.addEventListener("pointercancel", () => (pressed = null), true);
+  // the click (if any) that follows the release: already chosen, so spend it
+  window.addEventListener(
+    "click",
+    (e) => {
+      if (spentClick && e.detail > 0) {
+        spentClick = false;
+        e.stopPropagation();
+      }
+    },
+    true,
+  );
+}
+
 // ---- materials ---------------------------------------------------------------
 
 // The table's own plastic, so tuning it never touches the game's shared
@@ -802,9 +866,10 @@ function EntranceObject({
             setHover(true);
           }}
           onPointerOut={() => setHover(false)}
-          onClick={(e) => {
+          onPointerDown={(e) => {
+            // only the nearest object under the pointer arms
             e.stopPropagation();
-            onActivate(entrance);
+            if (e.nativeEvent.button === 0) armPress(entrance, e.nativeEvent.clientX, e.nativeEvent.clientY, onActivate);
           }}
         >
           <boxGeometry args={shape.hit.s} />
@@ -819,10 +884,15 @@ function EntranceObject({
             aria-haspopup="dialog"
             data-entrance={entrance}
             style={{ width: `${L.w * FACE_PX}px`, height: `${L.h * FACE_PX}px` }}
-            onClick={(e) => {
-              // the canvas also listens on this container: one action per click
+            onPointerDown={(e) => {
+              // the canvas also listens on this container: one press, one object
               e.stopPropagation();
-              onActivate(entrance);
+              if (e.button === 0) armPress(entrance, e.clientX, e.clientY, onActivate);
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              // Enter or Space (no pointer gesture); a pointer press chose on release
+              if (e.detail === 0) onActivate(entrance);
             }}
             onPointerEnter={() => setHover(true)}
             onPointerLeave={() => setHover(false)}
@@ -850,9 +920,9 @@ function EntranceObject({
             data-entrance={entrance}
             ref={setPad}
             aria-hidden="true"
-            onClick={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation();
-              onActivate(entrance);
+              if (e.button === 0) armPress(entrance, e.clientX, e.clientY, onActivate);
             }}
           />
         </Html>
