@@ -3021,3 +3021,34 @@ fresh temporary `DATA_DIR`):
 - CLAUDE.md's bullet "An unfinished entrance is decoration…" still
   describes phase 1. It is left for the author to reword.
 - Nothing pushed or deployed.
+
+## 4 November 2026, 17:02 AEDT — CLAUDE.md: entrance status apart from the permanent rule
+
+Commit:
+- [`fb728b4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/fb728b4)
+  — `CLAUDE.md: tabletop entrance status apart from the permanent rule`
+
+**Who decided.** The author asked for this, and set both the status and
+the rule's wording; the agent wrote the text.
+
+**Implemented.**
+- **CLAUDE.md.** The homepage bullet "An unfinished entrance is
+  decoration…" became two bullets:
+  - **Current status.** Every planned entrance is implemented.
+    - The sign, scene tray, noticeboard and Friends stand complete their
+      interaction at the table. The tray then goes into the editor.
+    - The shelf and booklet lead to dedicated pages.
+  - **The permanent rule.** It is kept, although every entrance is
+    complete:
+    - A future unfinished entrance stays inert decoration that implies no
+      function.
+    - Existing functions stay reachable through working navigation.
+- **ADR 0014's "Entrances pass" section** now says that phase 1's status
+  is superseded but its rule is not. This closes the previous entry's
+  limitation that the bullet was left for the author.
+
+**Tests run.**
+- `pnpm check:evidence`: passed.
+- `git diff --check`: clean.
+
+The change is documentation only, so no code check was needed.
