@@ -1,7 +1,9 @@
 /*
- * The room lobby (ADR 0007), built from the shared tokens (ui/theme.css),
- * same family as the editor's dock: white cards, a red accent, quiet enough
- * that the real subject — the rooms themselves — reads clearly.
+ * The dedicated pages beside the table (ADR 0007, ADR 0014): the room lobby,
+ * account, collection, showcase and a saved version. Built from the shared
+ * tokens (ui/theme.css) and the shared panel and form look (ui/kit.css);
+ * this file only lays the pages out. Only the lobby's bundle imports it, so
+ * the editor's own styles are untouched.
  */
 
 html,
@@ -12,190 +14,148 @@ body {
 }
 body {
   color: var(--ink);
-  font: 400 1rem/1.4 var(--font-body);
+  font: 400 1rem/1.45 var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
-.lobby {
-  max-width: 52rem;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
-}
+/* ---- the page frame: brand, sections, the way back to the table ---------- */
 
-.lobby-header {
-  margin-bottom: 1.5rem;
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* a faint warm wash at the top, like the table's room */
+  background: linear-gradient(#f6eedf, var(--paper) 18rem);
 }
-.lobby-header h1 {
-  margin: 0.6rem 0 0.3rem;
-  font: 700 1.6rem/1.2 var(--font-display);
+.page-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.2rem;
+  padding: 0.7rem max(1rem, env(safe-area-inset-right)) 0.7rem max(1rem, env(safe-area-inset-left));
+  border-bottom: 2px solid #eadfcb;
+  background: rgb(251 246 234 / 0.94);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .home-link {
+  display: inline-flex;
+  align-items: center;
   gap: 0.5rem;
-  color: var(--red-edge);
-  font-size: 0.95rem;
+  color: var(--kit-ink, var(--ink));
+  font: 700 1.1rem/1 var(--font-display);
+  text-decoration: none;
 }
 .home-link svg {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+}
+.page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-right: auto;
+}
+.page-nav a {
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  color: var(--kit-ink-soft, var(--ink-soft));
+  font-weight: 800;
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+.page-nav a:hover {
+  background: #f1e7d4;
+  color: var(--ink);
+}
+.page-nav a[aria-current="page"] {
+  background: var(--white);
+  color: var(--ink);
+  box-shadow:
+    inset 0 0 0 2px #e6dac4,
+    0 2px 0 #e6dac4;
+}
+.to-table {
+  white-space: nowrap;
 }
 
-.lobby-hint {
-  margin: 0.3rem 0;
-  color: var(--ink-soft);
-  font-size: 0.92rem;
+/* ---- page bodies ------------------------------------------------------------ */
+
+.lobby,
+.page > main {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1.6rem 1rem 4rem;
 }
-.lobby-hint.fineprint {
-  font-size: 0.8rem;
-  word-break: break-all;
+.page-narrow {
+  max-width: 38rem !important;
 }
-.lobby-error {
-  margin: 0.4rem 0;
-  color: var(--danger);
-  font-weight: 700;
-  font-size: 0.9rem;
+.page-wide > main {
+  max-width: 76rem;
+}
+.lobby-header {
+  margin-bottom: 1.4rem;
+}
+.lobby-header h1,
+.page-head h1 {
+  margin: 0.2rem 0 0.35rem;
+  font: 700 clamp(1.6rem, 3vw, 2.1rem) / 1.15 var(--font-display);
+}
+.lobby-status {
+  font-weight: 800;
 }
 
 .lobby-grid {
   display: grid;
   gap: 1rem;
 }
-
-.lobby-card {
-  padding: 1rem 1.1rem 1.1rem;
+/* the lobby: starting things on the left, finding people and rooms on the right */
+.lobby-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
-.lobby-card-solo {
-  border-color: var(--yellow-edge);
-  background: var(--yellow-soft);
-}
-.lobby-card > h2 {
-  margin: 0 0 0.5rem;
-  font: 700 1.1rem var(--font-display);
-}
-.lobby-card > summary {
-  margin: 0;
-  padding: 0.2rem 0;
-  font: 700 1.05rem var(--font-display);
-  cursor: pointer;
-  list-style: none;
-}
-.lobby-card > summary::-webkit-details-marker {
-  display: none;
-}
-.lobby-card[open] > summary {
-  margin-bottom: 0.5rem;
-}
-
-.field {
-  display: block;
-  margin: 0.6rem 0;
-}
-.field > span,
-.field > legend {
-  display: block;
-  margin-bottom: 0.3rem;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-.field input[type="text"],
-.field input:not([type]),
-input[type="text"],
-input:not([type]) {
-  width: 100%;
-  min-height: 40px;
-  padding: 0.4rem 0.6rem;
-  border: 2px solid var(--line);
-  border-radius: var(--radius);
-  font: inherit;
-  background: var(--white);
-}
-fieldset.field {
-  border: 0;
-  padding: 0;
-}
-
-.radio-row,
-.check-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin: 0.4rem 0;
-  font-size: 0.9rem;
-  color: var(--ink-soft);
-}
-.radio-row input,
-.check-row input {
-  margin-top: 0.2rem;
-}
-.radio-row strong {
-  color: var(--ink);
-}
-
-.field-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin: 0.5rem 0;
-}
-.field-row input {
-  flex: 1;
-  min-width: 10rem;
-}
-
-.room-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0.4rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-.room-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.7rem;
-  padding: 0.5rem 0.65rem;
-  border: 2px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--white);
-}
-.room-name {
-  flex: 1;
-  min-width: 8rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-.room-meta {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-.room-tag {
-  font-size: 0.62rem;
-}
-.room-tag-muted {
-  background: var(--line);
-  color: var(--ink-soft);
-}
-
-@media (max-width: 560px) {
-  .lobby {
-    padding: 1rem 0.75rem 3rem;
-  }
-}
-
-/* ---- collection, showcase and the read-only snapshot viewer ------------- */
-
-.snapshot-page {
+.lobby-col {
   display: grid;
   gap: 1rem;
 }
+.kit-subhead {
+  margin: 1rem 0 0.3rem;
+  font: 700 0.95rem var(--font-display);
+}
+
+/* ---- a saved version: the view beside its label ---------------------------- */
+
+.snapshot-page {
+  display: grid;
+  gap: 0.6rem;
+}
+.snapshot-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(20rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
 .snapshot-viewer {
-  height: min(60vh, 32rem);
-  overflow: hidden;
+  position: relative;
+  height: min(72vh, 40rem);
+  overflow: hidden !important;
+  border-bottom-width: 8px !important;
+  border-bottom-color: #e2d2b5 !important;
+}
+.viewer-hint {
+  position: absolute;
+  left: 0.8rem;
+  bottom: 0.6rem;
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border-radius: 8px;
+  background: rgb(255 253 248 / 0.86);
+  color: var(--kit-ink-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  pointer-events: none;
 }
 .viewer-loading {
   display: grid;
@@ -204,59 +164,38 @@ fieldset.field {
   color: var(--ink-soft);
   font-weight: 700;
 }
-.credits p {
-  margin: 0.45rem 0;
-  font-size: 0.9rem;
-}
-.credit-list {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-.credit-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  background: var(--line);
-  font-weight: 700;
-  font-size: 0.82rem;
-}
-.credit-chip button {
-  padding: 0 0.3rem;
-  border: 0;
-  background: none;
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: var(--blue);
-  cursor: pointer;
-}
-.continue-box {
-  margin-top: 0.9rem;
-  padding-top: 0.8rem;
-  border-top: 2px solid var(--line);
-}
-.continue-box h3 {
-  margin: 0 0 0.3rem;
+.empty-shelf p {
+  margin: 0;
 }
 
-/* waiting for, or retrying, this browser's identity (IdentityGate) */
-.identity-gate {
-  display: grid;
-  place-items: center;
-  min-height: 60vh;
-  padding: 1.5rem;
+@media (max-width: 860px) {
+  .lobby-columns,
+  .snapshot-layout {
+    grid-template-columns: 1fr;
+  }
+  .snapshot-viewer {
+    height: min(56vh, 26rem);
+  }
 }
-.identity-gate .access-card {
-  max-width: 28rem;
-  padding: 1.5rem;
-}
-.identity-gate h1 {
-  margin: 0 0 0.5rem;
-  font: 700 1.3rem var(--font-display);
-}
-.identity-gate p {
-  margin: 0 0 1rem;
-  color: var(--ink-soft);
+@media (max-width: 560px) {
+  .page-bar {
+    gap: 0.4rem 0.6rem;
+  }
+  .page-nav {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .page-nav a {
+    white-space: nowrap;
+  }
+  .to-table {
+    margin-left: auto;
+  }
+  .lobby,
+  .page > main {
+    padding: 1.1rem 0.75rem 3rem;
+  }
 }

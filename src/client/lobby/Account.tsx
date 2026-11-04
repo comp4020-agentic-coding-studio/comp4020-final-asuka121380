@@ -166,8 +166,8 @@ function MigrationWarning({
   };
 
   return (
-    <div className="card lobby-card">
-      <h2>This browser has other work</h2>
+    <div className="card lobby-card caution-card">
+      <h2 id="migration-title">This browser has other work</h2>
       <p className="lobby-hint">
         This browser is currently a <strong>guest identity</strong> with rooms, friendships or saved versions of its own.
         Signing in as <strong>{pending.username}</strong> will switch this browser to that account instead.
@@ -294,15 +294,17 @@ export function AccountPage({ onAccountChange }: { onAccountChange?: (account: A
     return (
       <div className="card lobby-card">
         <h2>
-          Account <span className="tag room-tag">Signed in</span>
+          Account <span className="tag room-tag tag-ok">Signed in</span>
         </h2>
         <p className="lobby-hint">
           Signed in as <strong>{account.displayName}</strong> (<code>{account.username}</code>). Your rooms, friends and
           collection are reachable from here, and from anywhere else you sign in with this same account.
         </p>
-        <button className="btn" onClick={() => void doSignOut()}>
-          Sign out
-        </button>
+        <div className="context-actions">
+          <button className="btn" onClick={() => void doSignOut()}>
+            Sign out
+          </button>
+        </div>
       </div>
     );
   }

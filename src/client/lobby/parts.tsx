@@ -1,0 +1,807 @@
+import { useEffect, useRef, useState } from "react";
+import { sceneInfo } from "../scenes/registry.ts";
+import { ensureIdentity } from "../state/identity.ts";
+import { useDisplayNames, who } from "../state/names.ts";
+import {
+  createFriendLink,
+  createRecoveryCode,
+  createRoom,
+  joinRoom,
+  myDefaultRoom,
+  myFriends,
+  myInvites,
+  myRooms,
+  openFriendLink,
+  previewAdmission,
+  publicLobby,
+  redeemRecoveryCode,
+  respondToFriendRequest,
+  respondToInvite,
+  type AdmissionPreview,
+  type FriendRequest,
+  type JoinCode,
+  type LobbyRoom,
+  type MyRoom,
+  type RoomInvite,
+} from "../state/api.ts";
+
+// The lobby's working parts (ADR 0007), shared by the /build/ pages and the
+// homepage table's panels (ADR 0014), so there is one version of each form
+// and each list, with one set of rules behind it. Nothing here decides
+// anything the server doesn't re-check: admission, capacity, invitations and
+// publication are all enforced server-side at the moment they happen.
+//
+// Every identity-dependent request waits for this browser's identity first
+// (`ensureIdentity`), so a panel opened on the homepage can't race a first
+// visit's cookie (state/identity.ts).
+
+const short = (id: string): string => id.slice(0, 8);
+export const roomName = (label: string | null, id: string): string => label || `Room ${short(id)}`;
+const sceneTitle = (sceneId: string): string => sceneInfo(sceneId)?.title ?? "A scene";
+
+export const JOIN_MESSAGE: Record<JoinCode, string> = {
+  room_full: "That room is full right now.",
+  forbidden: "That room is invite-only, and you don't have an accepted invitation.",
+  not_found: "That room doesn't exist (or isn't public).",
+};
+
+/** Occupancy as filled and empty places, with the numbers in words for everyone. */
+export function Seats({ occupancy, capacity }: { occupancy: number; capacity: number }) {
+  return (
+    <span className="room-meta">
+      <span className="seats" aria-hidden="true">
+        {Array.from({ length: capacity }, (_, i) => (
+          <span key={i} className={`seat${i < occupancy ? " is-taken" : ""}`} />
+        ))}
+      </span>{" "}
+      {occupancy}/{capacity} here
+    </span>
+  );
+}
+
+// ---- building alone ------------------------------------------------------------
+
+/** Opens this visitor's own solo room (fetched or created), then hands over its id. Guards against a double click. */
+export function useSoloRoom(onOpen: (roomId: string) => void) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const open = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await ensureIdentity();
+      const { roomId } = await myDefaultRoom();
+      onOpen(roomId);
+    } catch {
+      setError("Couldn't open your build; try again.");
+      setBusy(false);
+      inFlight.current = false;
+    }
+  };
+  return { open, busy, error };
+}
+
+/** Solo building stays immediately usable (the brief): one click reaches your own private room, same as C8's single build. */
+export function BuildAlone({ onOpen }: { onOpen: (roomId: string) => void }) {
+  const { open, busy, error } = useSoloRoom(onOpen);
+  return (
+    <div className="card lobby-card lobby-card-solo">
+      <h2>Build on your own</h2>
+      <p className="lobby-hint">Your own private plot, saved as you go. No one else can join it.</p>
+      <button className="btn btn-yellow btn-big" onClick={() => void open()} aria-disabled={busy}>
+        {busy ? "Opening…" : "Build alone"}
+      </button>
+      {error && <p className="lobby-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+// ---- creating a room -----------------------------------------------------------
+
+export interface RoomDraft {
+  label: string;
+  visibility: "public" | "invite_only";
+  allowPublish: boolean;
+}
+/** The author's defaults (ADR 0009): public, and publishing on for public rooms. */
+export const NEW_ROOM: RoomDraft = { label: "", visibility: "public", allowPublish: true };
+
+/**
+ * A room's settings as fields. Controlled, so a flow that steps back and
+ * forward (the table's scene tray) keeps what was typed. Choosing who can
+ * join resets publishing to that choice's default, off for invite-only and
+ * on for public (ADR 0009), but it stays a real, visible, separate choice.
+ */
+export function RoomSettings({ draft, onChange, name = "visibility" }: { draft: RoomDraft; onChange: (d: RoomDraft) => void; name?: string }) {
+  const setVisibility = (v: RoomDraft["visibility"]) => onChange({ ...draft, visibility: v, allowPublish: v === "public" });
+  return (
+    <>
+      <label className="field">
+        <span>
+          Room name <small>(optional)</small>
+        </span>
+        <input value={draft.label} onChange={(e) => onChange({ ...draft, label: e.target.value })} placeholder="e.g. Saturday build" maxLength={80} />
+      </label>
+      <fieldset className="field">
+        <legend>Who can join</legend>
+        <label className="radio-row">
+          <input type="radio" name={name} checked={draft.visibility === "public"} onChange={() => setVisibility("public")} />
+          <span>
+            <strong>Public</strong> — listed on the noticeboard and in the lobby; anyone can join while there's room.
+          </span>
+        </label>
+        <label className="radio-row">
+          <input type="radio" name={name} checked={draft.visibility === "invite_only"} onChange={() => setVisibility("invite_only")} />
+          <span>
+            <strong>Invite-only</strong> — unlisted; only people you invite (who must already be a friend) can join.
+          </span>
+        </label>
+      </fieldset>
+      <label className="check-row">
+        <input type="checkbox" checked={draft.allowPublish} onChange={(e) => onChange({ ...draft, allowPublish: e.target.checked })} />
+        <span>
+          Let any member publish a saved copy of this room to the public showcase. Fixed once the room is created
+          {draft.visibility === "invite_only" && draft.allowPublish && " — unusual for an invite-only room, but your choice"}.
+        </span>
+      </label>
+    </>
+  );
+}
+
+/** Creates the room once per submission, however many times the button is pressed while it's in flight. */
+export function useCreateRoom(onCreated: (roomId: string) => void) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const submit = async (draft: RoomDraft) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await ensureIdentity();
+      const room = await createRoom(draft.visibility, draft.allowPublish, draft.label.trim() || undefined);
+      onCreated(room.roomId);
+    } catch {
+      setError("Couldn't create the room. Nothing was created; try again.");
+      setBusy(false);
+      inFlight.current = false;
+    }
+  };
+  return { submit, busy, error };
+}
+
+export function CreateRoom({ onCreated }: { onCreated: (roomId: string) => void }) {
+  const [draft, setDraft] = useState<RoomDraft>(NEW_ROOM);
+  const { submit, busy, error } = useCreateRoom(onCreated);
+  return (
+    <div className="card lobby-card">
+      <h2>Start a room</h2>
+      <RoomSettings draft={draft} onChange={setDraft} />
+      {error && <p className="lobby-error" role="alert">{error}</p>}
+      <button className="btn btn-red" onClick={() => void submit(draft)} aria-disabled={busy}>
+        {busy ? "Creating…" : "Create and open"}
+      </button>
+    </div>
+  );
+}
+
+// ---- joining a room ------------------------------------------------------------
+
+type PreviewState = { kind: "idle" } | { kind: "checking" } | { kind: "ready"; preview: AdmissionPreview } | { kind: "failed" };
+
+/** The facts a joiner sees before admission: name, scene, capacity, access, publication. */
+export function AdmissionFacts({ preview }: { preview: AdmissionPreview }) {
+  return (
+    <dl className="facts">
+      <dt>Room</dt>
+      <dd>{roomName(preview.label, preview.id)}</dd>
+      <dt>Scene</dt>
+      <dd>{sceneTitle(preview.sceneId)}</dd>
+      <dt>Here now</dt>
+      <dd>
+        <Seats occupancy={preview.occupancy} capacity={preview.capacity} />
+      </dd>
+      <dt>Access</dt>
+      <dd>{preview.visibility === "public" ? "Public" : "Invite-only"}</dd>
+      <dt>Publishing</dt>
+      <dd>{preview.allowPublish ? "Members may publish a saved version" : "Not publishable"}</dd>
+    </dl>
+  );
+}
+
+/**
+ * Joining by a pasted room id shows the same pre-join terms a direct link
+ * does (room name, scene, capacity, visibility, publication) and requires an
+ * explicit confirm. Joining waits for a successful preview of exactly the id
+ * in the field; the confirm is disabled while loading or after a failure.
+ */
+export function JoinByCode({ onJoined, bare = false }: { onJoined: (roomId: string) => void; bare?: boolean }) {
+  const [id, setId] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<PreviewState>({ kind: "idle" });
+  // guards against a stale response landing after the input changed again
+  const [checkedFor, setCheckedFor] = useState("");
+
+  const check = async () => {
+    const roomId = id.trim();
+    if (!roomId) {
+      setPreview({ kind: "idle" });
+      return;
+    }
+    setPreview({ kind: "checking" });
+    await ensureIdentity().catch(() => {});
+    const result = await previewAdmission(roomId).catch(() => null);
+    if (id.trim() !== roomId) return; // the field changed again while this was in flight
+    setCheckedFor(roomId);
+    setPreview(result ? { kind: "ready", preview: result } : { kind: "failed" });
+  };
+
+  const submit = async () => {
+    const roomId = id.trim();
+    if (busy || !roomId || preview.kind !== "ready" || checkedFor !== roomId) return;
+    setBusy(true);
+    setStatus(null);
+    const result = await joinRoom(roomId).catch(() => ({ ok: false as const, code: "not_found" as const }));
+    if (result.ok) {
+      onJoined(roomId);
+      return;
+    }
+    setBusy(false);
+    setStatus(JOIN_MESSAGE[result.code]);
+  };
+
+  const canConfirm = !busy && preview.kind === "ready" && preview.preview.canJoin && checkedFor === id.trim();
+
+  const body = (
+    <>
+      {!bare && <h2>Join a room by its code</h2>}
+      <p className="lobby-hint">Paste the room id a friend shared with you (or that you see in its web address).</p>
+      <div className="field-row">
+        <input
+          value={id}
+          onChange={(e) => {
+            setId(e.target.value);
+            setPreview({ kind: "idle" });
+            setStatus(null);
+          }}
+          onBlur={() => void check()}
+          onKeyDown={(e) => e.key === "Enter" && void check()}
+          placeholder="Room id"
+          aria-label="Room id"
+        />
+        <button className="btn btn-red" onClick={() => void submit()} aria-disabled={!canConfirm}>
+          {busy ? "Joining…" : "Join"}
+        </button>
+      </div>
+      {preview.kind === "checking" && <p className="lobby-hint" role="status">Checking this room…</p>}
+      {preview.kind === "failed" && <p className="lobby-error">That room doesn't exist, or you don't have an accepted invitation to it.</p>}
+      {preview.kind === "ready" && (
+        <>
+          <p className="lobby-hint">
+            <strong>{roomName(preview.preview.label, preview.preview.id)}</strong> ·{" "}
+            {preview.preview.visibility === "public" ? "Public" : "Invite-only"} · {preview.preview.occupancy}/{preview.preview.capacity} here ·{" "}
+            {preview.preview.allowPublish ? "members may publish a saved version" : "publishing not allowed"}
+            {!preview.preview.canJoin && (
+              <>
+                {" — "}
+                <strong>{preview.preview.reason === "room_full" ? "full right now" : "not open to you"}</strong>
+              </>
+            )}
+          </p>
+        </>
+      )}
+      {status && <p className="lobby-error" role="status">{status}</p>}
+    </>
+  );
+  return bare ? <div className="join-code">{body}</div> : <div className="card lobby-card">{body}</div>;
+}
+
+type ListState<T> = { kind: "loading" } | { kind: "ready"; items: T } | { kind: "failed" };
+
+/**
+ * Public rooms, with real occupancy polled while shown: the lobby has no
+ * stream of its own (ADR 0008 scopes realtime to a joined room). Each row
+ * discloses what admission depends on (scene, places, publication) before
+ * its Join, which is the explicit confirmation.
+ */
+export function PublicRooms({ onJoined, heading = "Public lobby", bare = false }: { onJoined: (roomId: string) => void; heading?: string; bare?: boolean }) {
+  const [rooms, setRooms] = useState<ListState<LobbyRoom[]>>({ kind: "loading" });
+  const [status, setStatus] = useState<string | null>(null);
+  const [joining, setJoining] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    const refresh = () =>
+      void publicLobby().then(
+        (items) => live && setRooms({ kind: "ready", items }),
+        () => live && setRooms((r) => (r.kind === "ready" ? r : { kind: "failed" })),
+      );
+    refresh();
+    const t = setInterval(refresh, 4000);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const join = async (roomId: string) => {
+    if (joining) return;
+    setJoining(roomId);
+    setStatus(null);
+    await ensureIdentity().catch(() => {});
+    const result = await joinRoom(roomId).catch(() => ({ ok: false as const, code: "not_found" as const }));
+    if (result.ok) {
+      onJoined(roomId);
+      return;
+    }
+    setJoining(null);
+    setStatus(JOIN_MESSAGE[result.code]);
+  };
+
+  const body = (
+    <>
+      {!bare && <h2>{heading}</h2>}
+      {status && <p className="lobby-error" role="status">{status}</p>}
+      {rooms.kind === "loading" ? (
+        <p className="kit-state" role="status">Loading the rooms…</p>
+      ) : rooms.kind === "failed" ? (
+        <p className="lobby-error" role="alert">Couldn't load the public rooms. They'll appear here when the connection is back.</p>
+      ) : rooms.items.length === 0 ? (
+        <p className="kit-state">No public rooms right now. Start one from the scene tray, or by "Start a room".</p>
+      ) : (
+        <ul className="room-list">
+          {rooms.items.map((r) => {
+            const full = r.occupancy >= r.capacity;
+            return (
+              <li key={r.id} className="room-row">
+                <span className="room-name">
+                  {roomName(r.label, r.id)}
+                  <span className="tag room-tag room-tag-muted">{sceneTitle(r.sceneId)}</span>
+                  {/* publication policy disclosed before joining, not only after (the brief) */}
+                  <span className="tag room-tag room-tag-muted">{r.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
+                </span>
+                <Seats occupancy={r.occupancy} capacity={r.capacity} />
+                <button className="btn btn-small btn-red" onClick={() => void join(r.id)} aria-disabled={!!joining || full} aria-label={full ? `${roomName(r.label, r.id)} is full` : `Join ${roomName(r.label, r.id)}`}>
+                  {full ? "Full" : joining === r.id ? "Joining…" : "Join"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+  return bare ? <div>{body}</div> : <div className="card lobby-card">{body}</div>;
+}
+
+/** The rooms this visitor already belongs to; opening one goes straight in (a returning member's admission is re-checked by the editor). */
+export function MyRooms({ onOpen, showEmpty = false, bare = false }: { onOpen: (roomId: string) => void; showEmpty?: boolean; bare?: boolean }) {
+  const [rooms, setRooms] = useState<ListState<MyRoom[]>>({ kind: "loading" });
+  useEffect(() => {
+    let live = true;
+    void ensureIdentity()
+      .then(() => myRooms())
+      .then(
+        (items) => live && setRooms({ kind: "ready", items }),
+        () => live && setRooms({ kind: "failed" }),
+      );
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!showEmpty && (rooms.kind !== "ready" || rooms.items.length === 0)) return null;
+  const body = (
+    <>
+      {!bare && <h2>Your rooms</h2>}
+      {rooms.kind === "loading" ? (
+        <p className="kit-state" role="status">Loading your rooms…</p>
+      ) : rooms.kind === "failed" ? (
+        <p className="lobby-error" role="alert">Couldn't load your rooms; try again in a moment.</p>
+      ) : rooms.items.length === 0 ? (
+        <p className="kit-state">You haven't joined a room yet.</p>
+      ) : (
+        <ul className="room-list">
+          {rooms.items.map((r) => (
+            <li key={r.id} className="room-row">
+              <span className="room-name">
+                {r.isDefault ? "Your solo build" : roomName(r.label, r.id)}
+                {r.isHost && !r.isDefault && <span className="tag room-tag">Host</span>}
+                <span className="tag room-tag room-tag-muted">{r.visibility === "public" ? "Public" : "Invite-only"}</span>
+              </span>
+              <button className="btn btn-small btn-red" onClick={() => onOpen(r.id)}>
+                Open
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+  return bare ? <div>{body}</div> : <div className="card lobby-card">{body}</div>;
+}
+
+// ---- invitations -----------------------------------------------------------------
+
+/** Real pending invitations, polled while shown. `onCount` lets a host page show how many there are. */
+export function useInvites(onCount?: (n: number) => void) {
+  const [invites, setInvites] = useState<ListState<RoomInvite[]>>({ kind: "loading" });
+  const refresh = () =>
+    void ensureIdentity()
+      .then(() => myInvites())
+      .then(
+        (items) => {
+          setInvites({ kind: "ready", items });
+          onCount?.(items.length);
+        },
+        () => setInvites((s) => (s.kind === "ready" ? s : { kind: "failed" })),
+      );
+  useEffect(() => {
+    refresh();
+    // a new invitation arriving while this is open shows without a reload
+    const t = setInterval(refresh, 4000);
+    return () => clearInterval(t);
+  }, []);
+  return { invites, refresh };
+}
+
+/**
+ * Room invitations, each with what accepting means: which room, from whom,
+ * how full it is and whether members may publish, shown before the choice.
+ * Accepting admits you to that room at once (the server re-checks capacity);
+ * declining only removes the invitation.
+ */
+export function Invites({ onJoined, selfId, showEmpty = false, bare = false, onCount }: { onJoined: (roomId: string) => void; selfId: string | null; showEmpty?: boolean; bare?: boolean; onCount?: (n: number) => void }) {
+  const { invites, refresh } = useInvites(onCount);
+  const [status, setStatus] = useState<string | null>(null);
+  const [acting, setActing] = useState<string | null>(null);
+  const items = invites.kind === "ready" ? invites.items : [];
+  const names = useDisplayNames(items.map((i) => i.invitedBy));
+  if (!showEmpty && items.length === 0) return null;
+
+  const respond = async (id: string, roomId: string, accept: boolean) => {
+    if (acting) return;
+    setActing(id);
+    setStatus(null);
+    const result = await respondToInvite(id, accept).catch(() => ({ ok: false, code: "error" }));
+    if (accept && result.ok) {
+      onJoined(roomId); // accepting admits you straight away; go there
+      return;
+    }
+    setActing(null);
+    if (accept && !result.ok) setStatus(result.code === "room_full" ? "That room is full now. The invitation stays; try again when there's a place." : "Couldn't accept it; try again.");
+    if (!accept && !result.ok) setStatus("Couldn't decline it; try again.");
+    refresh();
+  };
+
+  const body = (
+    <>
+      {!bare && <h2>Room invitations</h2>}
+      {status && <p className="lobby-error" role="status">{status}</p>}
+      {invites.kind === "loading" ? (
+        <p className="kit-state" role="status">Checking for invitations…</p>
+      ) : invites.kind === "failed" ? (
+        <p className="lobby-error" role="alert">Couldn't check your invitations; try again in a moment.</p>
+      ) : items.length === 0 ? (
+        <p className="kit-state">No invitations right now. When a friend invites you to a room, it appears here.</p>
+      ) : (
+        <ul className="room-list">
+          {items.map((i) => {
+            const full = i.occupancy >= i.capacity;
+            return (
+              <li key={i.id} className="room-row invite-row">
+                <span className="room-name">
+                  {roomName(i.label, i.roomId)} from {who(i.invitedBy, selfId, names)}
+                  <span className="tag room-tag room-tag-muted">{sceneTitle(i.sceneId)}</span>
+                  <span className="tag room-tag room-tag-muted">
+                    {i.occupancy}/{i.capacity} here
+                  </span>
+                  <span className="tag room-tag room-tag-muted">{i.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
+                  {full && <span className="tag room-tag tag-red">full right now</span>}
+                </span>
+                <span className="field-row">
+                  <button className="btn btn-small btn-red" onClick={() => void respond(i.id, i.roomId, true)} aria-disabled={full || !!acting} title={full ? "This room is full right now, but you can still try — a slot may free up" : undefined}>
+                    Accept
+                  </button>
+                  <button className="btn btn-small btn-danger danger" onClick={() => void respond(i.id, i.roomId, false)} aria-disabled={!!acting}>
+                    Decline
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {items.length > 0 && <p className="lobby-hint fineprint">Accepting takes you into that room. Being friends never opens an invite-only room by itself; the invitation does.</p>}
+    </>
+  );
+  return bare ? <div>{body}</div> : <div className="card lobby-card">{body}</div>;
+}
+
+// ---- friends -----------------------------------------------------------------------
+
+type LinkState =
+  | { kind: "loading" }
+  | { kind: "ready"; requestId: string; fromVisitor: string }
+  | { kind: "own" }
+  | { kind: "already-friends" }
+  | { kind: "invalid" }
+  | { kind: "accepted" }
+  | { kind: "declined" };
+
+/**
+ * Opening a shared friend-request link directly (`/build/?friend=token`):
+ * shows who sent it and an explicit accept/decline. Viewing this page never
+ * itself establishes friendship (the author's explicit requirement); only
+ * the Accept button does, through the same respond endpoint a direct
+ * request uses.
+ */
+export function FriendLink({ token }: { token: string }) {
+  const [state, setState] = useState<LinkState>({ kind: "loading" });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void openFriendLink(token).then(
+      (r) => {
+        if (cancelled) return;
+        if (!r.ok || !r.requestId || !r.fromVisitor) {
+          setState({ kind: r.code === "self" ? "own" : r.code === "already_friends" ? "already-friends" : "invalid" });
+          return;
+        }
+        setState({ kind: "ready", requestId: r.requestId, fromVisitor: r.fromVisitor });
+      },
+      () => !cancelled && setState({ kind: "invalid" }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const respond = async (requestId: string, accept: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    const r = await respondToFriendRequest(requestId, accept).catch(() => ({ ok: false }));
+    setBusy(false);
+    setState({ kind: r.ok ? (accept ? "accepted" : "declined") : "invalid" });
+  };
+
+  const fromVisitor = state.kind === "ready" ? state.fromVisitor : undefined;
+  const names = useDisplayNames(fromVisitor ? [fromVisitor] : []);
+
+  return (
+    <div className="card lobby-card">
+      <h2>Friend request</h2>
+      {state.kind === "loading" && <p className="kit-state" role="status">Loading…</p>}
+      {state.kind === "ready" && (
+        <>
+          <p className="lobby-hint">
+            <strong>{who(state.fromVisitor, null, names)}</strong> shared this link to become your friend. Accepting lets you send
+            each other room invitations; it never opens an invite-only room by itself.
+          </p>
+          <div className="context-actions">
+            <button className="btn btn-red" onClick={() => void respond(state.requestId, true)} aria-disabled={busy}>
+              Accept
+            </button>
+            <button className="btn" onClick={() => void respond(state.requestId, false)} aria-disabled={busy}>
+              Decline
+            </button>
+          </div>
+        </>
+      )}
+      {state.kind === "own" && <p className="lobby-hint">This is your own friend-request link — share it with someone else instead.</p>}
+      {state.kind === "already-friends" && <p className="lobby-hint">You and this person are already friends.</p>}
+      {state.kind === "invalid" && <p className="lobby-error">This link isn't valid (it may have already been used, or mistyped).</p>}
+      {state.kind === "accepted" && <p className="kit-ok" role="status">Friend request accepted.</p>}
+      {state.kind === "declined" && <p className="lobby-hint" role="status">Declined. The link stays open if you change your mind.</p>}
+    </div>
+  );
+}
+
+/**
+ * Friends, requests waiting for an answer, and the two link actions. Every
+ * change is a button press: opening this never creates a link, sends a
+ * request or accepts one.
+ */
+export function Friends({ selfId, bare = false }: { selfId: string | null; bare?: boolean }) {
+  const [friends, setFriends] = useState<string[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [pending, setPending] = useState<FriendRequest[]>([]);
+  const [link, setLink] = useState<string | null>(null);
+  const [making, setMaking] = useState(false);
+  const [openToken, setOpenToken] = useState("");
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [acting, setActing] = useState(false);
+
+  const refresh = () =>
+    void ensureIdentity()
+      .then(() => myFriends())
+      .then(
+        (r) => {
+          setFriends(r.friends);
+          setPending(r.pending);
+          setFailed(false);
+        },
+        () => setFailed(true),
+      );
+  useEffect(() => {
+    refresh();
+    // a new request, or someone accepting one, shows without a reload
+    const t = setInterval(refresh, 4000);
+    return () => clearInterval(t);
+  }, []);
+
+  const makeLink = async () => {
+    if (making) return;
+    setMaking(true);
+    try {
+      const { token } = await createFriendLink();
+      setLink(`${location.origin}/build/?friend=${token}`);
+    } catch {
+      setStatus({ ok: false, text: "Couldn't make a link; try again." });
+    }
+    setMaking(false);
+  };
+
+  const respond = async (id: string, accept: boolean) => {
+    if (acting) return;
+    setActing(true);
+    await respondToFriendRequest(id, accept).catch(() => setStatus({ ok: false, text: "Couldn't answer that request; try again." }));
+    setActing(false);
+    refresh();
+  };
+
+  // accepting a link reuses the same respond endpoint as a direct request
+  const openByToken = async () => {
+    const raw = openToken.trim();
+    if (!raw || acting) return;
+    // a whole pasted link works as well as its token
+    const token = raw.includes("friend=") ? new URL(raw, location.origin).searchParams.get("friend") ?? raw : raw;
+    setActing(true);
+    const result = await openFriendLink(token).catch(() => ({ ok: false, code: "invalid" }) as { ok: boolean; requestId?: string; code?: string });
+    if (!result.ok || !result.requestId) {
+      setActing(false);
+      setStatus({ ok: false, text: result.code === "self" ? "That's your own link." : result.code === "already_friends" ? "You're already friends." : "That link isn't valid." });
+      return;
+    }
+    const r = await respondToFriendRequest(result.requestId, true).catch(() => ({ ok: false }));
+    setActing(false);
+    setStatus(r.ok ? { ok: true, text: "Friend request accepted." } : { ok: false, text: "Couldn't accept it; try again." });
+    if (r.ok) setOpenToken("");
+    refresh();
+  };
+
+  const names = useDisplayNames([...pending.map((p) => p.fromVisitor), ...(friends ?? [])]);
+
+  const body = (
+    <>
+      {!bare && <h2>Friends</h2>}
+      {!bare && <p className="lobby-hint">Friendship never opens an invite-only room by itself; you still need a specific invitation.</p>}
+      {pending.length > 0 && (
+        <>
+          <h3 className="kit-subhead">Waiting for your answer</h3>
+          <ul className="room-list">
+            {pending.map((p) => (
+              <li key={p.id} className="room-row">
+                <span className="room-name">Friend request from {who(p.fromVisitor, selfId, names)}</span>
+                <span className="field-row">
+                  <button className="btn btn-small btn-red" onClick={() => void respond(p.id, true)} aria-disabled={acting}>
+                    Accept
+                  </button>
+                  <button className="btn btn-small btn-danger danger" onClick={() => void respond(p.id, false)} aria-disabled={acting}>
+                    Decline
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {failed && friends === null ? (
+        <p className="lobby-error" role="alert">Couldn't load your friends; try again in a moment.</p>
+      ) : friends === null ? (
+        <p className="kit-state" role="status">Loading your friends…</p>
+      ) : friends.length === 0 ? (
+        <p className="kit-state">No friends yet.</p>
+      ) : (
+        <ul className="room-list">
+          {friends.map((id) => (
+            <li key={id} className="room-row">
+              <span className="room-name">{who(id, selfId, names)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3 className="kit-subhead">Add a friend</h3>
+      <div className="field-row">
+        <button className="btn btn-small" onClick={() => void makeLink()} aria-disabled={making}>
+          {making ? "Making a link…" : "Get a friend-request link"}
+        </button>
+        {link && <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} aria-label="Your friend-request link" />}
+      </div>
+      <p className="lobby-hint fineprint">Send it to someone you know. Whoever opens it can accept and become your friend; it never lets them into a room.</p>
+      <div className="field-row">
+        <input value={openToken} onChange={(e) => setOpenToken(e.target.value)} placeholder="Paste a friend's link token" aria-label="Friend link token" />
+        <button className="btn btn-small" onClick={() => void openByToken()} aria-disabled={!openToken.trim() || acting}>
+          Use it
+        </button>
+      </div>
+      {status && (
+        <p className={status.ok ? "kit-ok" : "lobby-error"} role="status">
+          {status.text}
+        </p>
+      )}
+    </>
+  );
+  return bare ? (
+    <div id="friends">{body}</div>
+  ) : (
+    <div className="card lobby-card" id="friends">
+      {body}
+    </div>
+  );
+}
+
+// ---- identity and another device ----------------------------------------------------
+
+/**
+ * Guest-identity recovery codes are specifically for an anonymous guest
+ * identity that was never password-protected (ADR 0006), not a weaker,
+ * password-free side door into an account (ADR 0010). When this browser is
+ * signed in, "Generate" is hidden rather than left to fail server-side; the
+ * server refuses it either way.
+ */
+export function IdentityPanel({ accountName }: { accountName: string | null }) {
+  const [code, setCode] = useState<string | null>(null);
+  const [redeem, setRedeem] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+
+  const generate = async () => {
+    const { code } = await createRecoveryCode();
+    setCode(code);
+  };
+
+  const recover = async () => {
+    const result = await redeemRecoveryCode(redeem.trim());
+    setStatus(result.message ?? (result.ok ? "Recovered." : "That code didn't work."));
+    if (result.ok) setTimeout(() => location.reload(), 800);
+  };
+
+  return (
+    <details className="card lobby-card">
+      <summary>Identity and another device</summary>
+      {accountName ? (
+        <p className="lobby-hint">
+          You're signed in as <strong>{accountName}</strong>. Reach this account from another device by signing in there
+          with its username and password — recovery codes are only for an anonymous guest identity, never a shortcut into
+          a password-protected account. Sign out first if you want to switch this browser to a guest identity by code.
+        </p>
+      ) : (
+        <>
+          <p className="lobby-hint">
+            You don't need an account to build. If you want to reach the same rooms and friends from a second device,
+            generate a one-time code here and enter it there — it only works once.
+          </p>
+          <div className="field-row">
+            <button className="btn btn-small" onClick={() => void generate()}>
+              Generate a recovery code
+            </button>
+            {code && <input readOnly value={code} onFocus={(e) => e.currentTarget.select()} aria-label="Your recovery code" />}
+          </div>
+          <div className="field-row">
+            <input value={redeem} onChange={(e) => setRedeem(e.target.value)} placeholder="Enter a code from another device" aria-label="Recovery code to redeem" />
+            <button className="btn btn-small" onClick={() => void recover()} aria-disabled={!redeem.trim()}>
+              Use it here
+            </button>
+          </div>
+        </>
+      )}
+      {status && <p className="lobby-hint" role="status">{status}</p>}
+    </details>
+  );
+}
