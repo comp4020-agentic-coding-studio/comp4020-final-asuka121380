@@ -46,9 +46,10 @@ import {
 const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 
 // the scene's suggested colours come first; every colour stays available
-const info = sceneInfo(scene.id);
-const SUGGESTED = (info?.suggestedColours ?? []).map((id) => COLOURS.find((c) => c.id === id)!).filter(Boolean);
-const OTHERS = COLOURS.filter((c) => !SUGGESTED.includes(c));
+function colourRuns() {
+  const suggested = (sceneInfo(scene.id)?.suggestedColours ?? []).map((id) => COLOURS.find((c) => c.id === id)!).filter(Boolean);
+  return [suggested, COLOURS.filter((c) => !suggested.includes(c))];
+}
 
 const GROUPS: { id: "all" | PartDefinition["group"]; label: string }[] = [
   { id: "all", label: "All" },
@@ -94,7 +95,7 @@ function ConnectionChip() {
 function Swatches({ value, onPick, label }: { value: string; onPick: (id: string) => void; label: string }) {
   return (
     <div className="swatches" role="radiogroup" aria-label={label}>
-      {[SUGGESTED, OTHERS].map((list, i) => (
+      {colourRuns().map((list, i) => (
         <span key={i} className="swatch-run">
           {list.map((c) => (
             <button
@@ -523,7 +524,7 @@ function Target({ pics, open, onToggle }: { pics: Pictures | null; open: boolean
   return (
     <div className="target">
       <button className="chip-button" aria-expanded={open} onClick={onToggle}>
-        {open ? "Hide target" : "Target house"}
+        {open ? "Hide target" : (sceneInfo(scene.id)?.targetLabel ?? "Target")}
       </button>
       {open && (
         <figure className="target-card">
@@ -534,7 +535,7 @@ function Target({ pics, open, onToggle }: { pics: Pictures | null; open: boolean
             <span>The target</span>
           </div>
           {pics ? (
-            <img src={pics.target} alt="The target: a small house with a pointed roof, a door between two walls, and a tree beside it." width={360} height={300} />
+            <img src={pics.target} alt={sceneInfo(scene.id)?.targetAlt ?? "The target model."} width={360} height={300} />
           ) : (
             <span className="thumb-wait" />
           )}
@@ -867,9 +868,14 @@ export function App() {
   const [dockHeight, setDockHeight] = useState(0);
   const [reserve, setReserve] = useState(0);
 
+  // the room's scene is known once its snapshot has loaded (state/store.ts)
+  const sceneId = useApp((s) => s.snapshot?.sceneId ?? null);
+  const info = sceneInfo(scene.id);
   useEffect(() => {
+    if (!sceneId) return;
+    document.title = `${info?.title ?? sceneId} · Brick Commons`;
     void pictures(scene.reference).then(setPics);
-  }, []);
+  }, [sceneId]);
   useLayoutEffect(() => {
     const el = dockRef.current;
     if (!el) return; // not mounted when the AccessScreen replaces the dock
@@ -898,7 +904,7 @@ export function App() {
   return (
     <div className={`app${navTool ? " navigating" : ""}`} style={{ "--dock-h": `${dockHeight}px` } as CSSProperties}>
       <div className="stage" role="img" aria-label={`${info?.title ?? "The scene"}, with your plot of ${scene.bounds.w} by ${scene.bounds.d} studs; ${placed} parts placed.`}>
-        <Workbench dock={reserve} />
+        {sceneId ? <Workbench key={sceneId} dock={reserve} /> : null}
       </div>
 
       <header className="overlay overlay-left">

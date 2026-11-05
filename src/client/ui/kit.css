@@ -101,6 +101,77 @@
   box-shadow: 0 5px 0 var(--yellow-edge);
 }
 
+/* ---- the scene choice (ADR 0015): one radio card per playable scene -------- */
+
+.kit .scene-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.8rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+.kit .scene-picker legend {
+  margin-bottom: 0.45rem;
+  padding: 0;
+  font: 800 1rem var(--font-display);
+  color: var(--kit-ink);
+}
+.kit .scene-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.55rem;
+  border: 2px solid var(--kit-line);
+  border-radius: var(--radius-lg);
+  background: var(--kit-card);
+  box-shadow: 0 3px 0 var(--kit-line-strong);
+  cursor: pointer;
+}
+.kit .scene-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.kit .scene-option:has(input:focus-visible) {
+  outline: 3px solid var(--focus, #1f6feb);
+  outline-offset: 2px;
+}
+.kit .scene-option.is-chosen {
+  border-color: var(--red);
+  box-shadow: 0 3px 0 var(--red-edge);
+  background: var(--red-soft);
+}
+.kit .scene-option img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.kit .scene-option-text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.kit .scene-option-text strong {
+  font: 800 1.02rem var(--font-display);
+  color: var(--kit-ink);
+}
+.kit .scene-option-text > span {
+  font-size: 0.84rem;
+  color: var(--kit-ink-soft);
+  line-height: 1.35;
+}
+.kit .scene-option .scene-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+}
+
 /* ---- two ways to begin: compact baseplate tiles, a form that unfolds ------- */
 
 /* Bolder pass (author's brief, 5 Nov 2026): replaces a short "Build alone"

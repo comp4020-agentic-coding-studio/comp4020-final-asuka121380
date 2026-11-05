@@ -634,6 +634,16 @@ kbd {
   .narrow-only {
     display: inline;
   }
+  /* a scene title wraps to a second line rather than running under the right-hand chips */
+  .title-chip {
+    max-width: calc(38vw - 1.5rem);
+    gap: 0.4rem;
+  }
+  .chip-title {
+    min-width: 0;
+    font-size: 0.88rem;
+    line-height: 1.05;
+  }
   .target-card {
     width: 11rem;
   }

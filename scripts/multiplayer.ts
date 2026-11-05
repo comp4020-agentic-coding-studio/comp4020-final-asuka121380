@@ -72,6 +72,8 @@ pageB.on("console", (m) => m.type() === "error" && errorsB.push(m.text()));
 // editor it opens already has the debug hooks installed.
 const label = `Multiplayer check ${Date.now()}`; // unique per run, so a prior run's leftover public room is never matched
 await pageA.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
+// the lobby's room form unfolds from the "Start a shared room" tile (731c920)
+await pageA.locator(".start-plot-shared").click();
 await pageA.waitForSelector("text=Create and open");
 await pageA.fill('input[placeholder="e.g. Saturday build"]', label);
 await pageA.getByRole("button", { name: "Create and open" }).click();
@@ -85,7 +87,7 @@ check("A creates a room through the lobby and it's a fresh, empty room", (await 
 // completely independent visitor (a fresh context has never had a cookie)
 await pageB.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
 await pageB.waitForSelector("text=Public lobby");
-const row = pageB.locator(".room-row", { hasText: label });
+const row = pageB.locator(".room-card-tile, .room-row", { hasText: label }).first();
 await row.waitFor({ timeout: 5000 });
 await row.getByRole("button", { name: /Join/ }).click();
 await pageB.waitForURL(new RegExp(`/build/room/${roomId}.*debug`));

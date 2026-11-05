@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { sceneInfo } from "./scenes/registry.ts";
-import { STREET_SCENE as scene } from "../domain/scene.ts";
 import { previewAdmission, type AdmissionPreview } from "./state/api.ts";
 
 // Pre-join confirmation for a direct room URL (the brief: "a first-time
@@ -17,8 +16,6 @@ import { previewAdmission, type AdmissionPreview } from "./state/api.ts";
 // reconnect without unnecessary repeated confirmation."
 
 type Status = { kind: "loading" } | { kind: "ready"; preview: AdmissionPreview } | { kind: "invalid" };
-
-const info = sceneInfo(scene.id);
 
 export function PreJoinGate({ roomId, onProceed }: { roomId: string; onProceed: () => void }) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
@@ -81,7 +78,7 @@ export function PreJoinGate({ roomId, onProceed }: { roomId: string; onProceed: 
       <div className="card access-card">
         <h1>{preview.label || `Room ${preview.id.slice(0, 8)}`}</h1>
         <p className="lobby-hint">
-          <strong>Scene:</strong> {info?.title ?? preview.sceneId}
+          <strong>Scene:</strong> {sceneInfo(preview.sceneId)?.title ?? preview.sceneId}
           <br />
           <strong>Visibility:</strong> {preview.visibility === "public" ? "Public — anyone can join while there's room" : "Invite-only"}
           <br />

@@ -28,6 +28,7 @@ import { PartMesh } from "./PartMesh.tsx";
 import { ENVIRONMENTS } from "../scenes/environments.tsx";
 import { keepCameraOutside } from "./obstacles.ts";
 import { Plot } from "./Plot.tsx";
+import { sceneInfo } from "../scenes/registry.ts";
 
 // The 3D workbench: camera, light, the street and the player's parts, and the
 // pointer path into the same store actions the dock and the keyboard use.
@@ -40,10 +41,12 @@ import { Plot } from "./Plot.tsx";
 // one finger orbits, two fingers pan and pinch. A press that moves more than
 // a few pixels is a camera drag and never edits on release.
 
-const PLOT_CENTRE = new THREE.Vector3(scene.bounds.w / 2, 4, scene.bounds.d / 2);
+// These follow the room's scene, which is known once its snapshot has
+// loaded; the editor remounts the workbench when it changes (App.tsx).
+const plotCentre = () => new THREE.Vector3(scene.bounds.w / 2, 4, scene.bounds.d / 2);
 // the observation centre may go a margin past the plot and up the tallest build
 const PAN_MIN = new THREE.Vector3(-4, 0, -4);
-const PAN_MAX = new THREE.Vector3(scene.bounds.w + 4, (scene.bounds.h * 0.4) + 2, scene.bounds.d + 4);
+const panMax = () => new THREE.Vector3(scene.bounds.w + 4, scene.bounds.h * 0.4 + 2, scene.bounds.d + 4);
 // low enough that a strip of horizon shows above the street
 const DEFAULT_POLAR = 1.32;
 const DEFAULT_AZIMUTH = 0.2;
@@ -54,8 +57,9 @@ const MAX_DISTANCE = 95;
 const TARGET_AT = 0.6;
 // what the opening view frames around the target: the plot's width, a
 // two-storey house above (the reference house tops out near 12 units), and
-// the plot's front edge below
-const FRAME = { across: 12, above: 11, below: 6 };
+// the plot's front edge below; a scene may set its own
+const DEFAULT_FRAME = { across: 12, above: 11, below: 6 };
+const frame = () => sceneInfo(scene.id)?.frame ?? DEFAULT_FRAME;
 const DRAG_PX = { mouse: 6, pen: 6, touch: 10 } as const;
 
 /** The angles from the orbit target to the edges of the screen the dock leaves clear. */
@@ -73,10 +77,11 @@ function viewAngles(camera: THREE.PerspectiveCamera, width: number, height: numb
 
 function fitDistance(camera: THREE.PerspectiveCamera, width: number, height: number, dock: number, top: boolean): number {
   const a = viewAngles(camera, width, height, dock);
-  // seen from above the plot is 8 deep on screen and sits a target-height below
+  const f = frame();
+  // seen from above the plot is its depth on screen and sits a target-height below
   const d = top
-    ? Math.max(FRAME.across / Math.tan(a.across), 5 / Math.tan(Math.min(a.above, a.below))) + PLOT_CENTRE.y
-    : Math.max(FRAME.across / Math.tan(a.across), FRAME.above / Math.tan(a.above), FRAME.below / Math.tan(a.below));
+    ? Math.max(f.across / Math.tan(a.across), Math.max(5, scene.bounds.d * 0.6) / Math.tan(Math.min(a.above, a.below))) + plotCentre().y
+    : Math.max(f.across / Math.tan(a.across), f.above / Math.tan(a.above), f.below / Math.tan(a.below));
   return THREE.MathUtils.clamp(d, 24, MAX_DISTANCE);
 }
 
@@ -104,8 +109,8 @@ function CameraRig({ dock }: { dock: number }) {
     if (!c) return;
     const dist = fitDistance(cam, size.width, size.height, dock, request.kind === "top");
     if (request.kind === "reset") {
-      c.target.copy(PLOT_CENTRE);
-      cam.position.copy(PLOT_CENTRE).add(new THREE.Vector3().setFromSphericalCoords(dist, DEFAULT_POLAR, DEFAULT_AZIMUTH));
+      c.target.copy(plotCentre());
+      cam.position.copy(plotCentre()).add(new THREE.Vector3().setFromSphericalCoords(dist, DEFAULT_POLAR, DEFAULT_AZIMUTH));
     } else if (request.kind === "focus") {
       // frame the selection from the current heading and pitch, a little
       // tighter than the part's size needs, and make it the new centre
@@ -113,7 +118,7 @@ function CameraRig({ dock }: { dock: number }) {
       if (!p) return;
       const def = partDef(p.partId)!;
       const sz = rotatedSize(def, p.rot);
-      const centre = new THREE.Vector3(p.x + sz.w / 2, (p.y + def.h / 2) * PLATE, p.z + sz.d / 2).clamp(PAN_MIN, PAN_MAX);
+      const centre = new THREE.Vector3(p.x + sz.w / 2, (p.y + def.h / 2) * PLATE, p.z + sz.d / 2).clamp(PAN_MIN, panMax());
       const radius = Math.max(sz.w, sz.d, def.h * PLATE);
       const near = THREE.MathUtils.clamp(radius * 3.2 + 6, MIN_DISTANCE + 1, 30);
       const from = new THREE.Spherical().setFromVector3(cam.position.clone().sub(c.target));
@@ -135,7 +140,7 @@ function CameraRig({ dock }: { dock: number }) {
     if (!new URLSearchParams(location.search).has("debug")) return;
     (window as unknown as { __camera: () => object }).__camera = () => {
       const c = controls.current;
-      const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(c?.target ?? PLOT_CENTRE));
+      const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(c?.target ?? plotCentre()));
       return {
         position: camera.position.toArray(),
         target: c?.target.toArray(),
@@ -176,7 +181,7 @@ function CameraRig({ dock }: { dock: number }) {
     const c = controls.current;
     if (!c) return;
     setViewAzimuth(c.getAzimuthalAngle());
-    const clamped = c.target.clone().clamp(PAN_MIN, PAN_MAX);
+    const clamped = c.target.clone().clamp(PAN_MIN, panMax());
     if (!clamped.equals(c.target)) {
       const d = clamped.sub(c.target);
       c.target.add(d);
@@ -186,6 +191,7 @@ function CameraRig({ dock }: { dock: number }) {
   };
 
   // left is the builder's button unless a navigation tool claims it
+  const target = useMemo(plotCentre, []);
   const mouseButtons = {
     LEFT: navTool === "orbit" ? THREE.MOUSE.ROTATE : navTool === "pan" ? THREE.MOUSE.PAN : (-1 as THREE.MOUSE),
     MIDDLE: THREE.MOUSE.PAN,
@@ -196,7 +202,7 @@ function CameraRig({ dock }: { dock: number }) {
     <OrbitControls
       ref={controls}
       makeDefault
-      target={PLOT_CENTRE}
+      target={target}
       enableDamping
       dampingFactor={0.12}
       minPolarAngle={0.02}
@@ -441,7 +447,7 @@ function Build({ isDrag, pressed }: { isDrag: (e: MouseEvent) => boolean; presse
 
   return (
     <group onPointerMove={onMove} onClick={onClick}>
-      <Plot />
+      <Plot w={scene.bounds.w} d={scene.bounds.d} tone={sceneInfo(scene.id)?.plot} />
       {snapshot?.parts.map((p) => (
         <PartMesh
           key={p.id}

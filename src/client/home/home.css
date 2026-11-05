@@ -616,15 +616,41 @@ body.home {
   font-size: 1rem;
 }
 /* the scene: its picture and facts, like the label on the tray */
+/* the playable scenes (ADR 0015): one card each, a single choice */
+.home .scene-cards {
+  display: grid;
+  gap: 0.55rem;
+}
 .home .scene-card {
   display: grid;
   grid-template-columns: 9.5rem 1fr;
   gap: 0.8rem;
   align-items: center;
+  width: 100%;
   padding: 0.55rem;
   border: 2px solid var(--kit-line);
   border-radius: var(--radius);
   background: var(--white);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home .scene-card.is-chosen {
+  border-color: var(--red);
+  box-shadow: 0 3px 0 var(--red-edge);
+}
+.home .scene-card:disabled {
+  cursor: default;
+}
+.home .scene-card:disabled:not(.is-chosen) {
+  display: none;
+}
+.home .scene-card-text {
+  display: grid;
+}
+.home .scene-card-title {
+  font: 800 1.15rem var(--font-display);
 }
 .home .scene-card img {
   width: 100%;
@@ -632,10 +658,6 @@ body.home {
   aspect-ratio: 16 / 10;
   object-fit: cover;
   border-radius: 8px;
-}
-.home .scene-card h3 {
-  margin: 0;
-  font-size: 1.15rem;
 }
 .home .scene-card-text .kit-help {
   margin: 0.15rem 0 0.4rem;

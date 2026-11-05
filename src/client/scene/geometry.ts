@@ -96,6 +96,53 @@ function ridge(def: PartDefinition): THREE.BufferGeometry {
   return g;
 }
 
+// An arch along x: solid legs at both ends and a lintel, with a round-topped
+// opening between them. The rules hold it up only by its legs.
+function arch(def: PartDefinition): THREE.BufferGeometry {
+  const h = def.h * PLATE - GAP;
+  const w = def.w - GAP;
+  const d = def.d - GAP;
+  const leg = 1 - GAP / 2;
+  const span = w - 2 * leg;
+  const lintel = 0.3;
+  const rx = span / 2;
+  const ry = Math.min(rx, h - lintel - 0.15);
+  const spring = h - lintel - ry;
+  const s = new THREE.Shape();
+  s.moveTo(-w / 2, 0);
+  s.lineTo(-w / 2 + leg, 0);
+  s.lineTo(-w / 2 + leg, spring);
+  s.absellipse(0, spring, rx, ry, Math.PI, 0, true, 0);
+  s.lineTo(w / 2 - leg, 0);
+  s.lineTo(w / 2, 0);
+  s.lineTo(w / 2, h);
+  s.lineTo(-w / 2, h);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 18 });
+  g.translate(0, 0, -d / 2);
+  return g;
+}
+
+// An inverted slope: the back row is a full-height block it rests on, and
+// the underside rises at 45° towards the front, under a flat studded top.
+function invertedSlope(def: PartDefinition): THREE.BufferGeometry {
+  const h = def.h * PLATE - GAP;
+  const d = def.d - GAP;
+  const w = def.w - GAP;
+  const back = -d / 2;
+  const s = new THREE.Shape();
+  s.moveTo(back, 0);
+  s.lineTo(back + 1, 0);
+  s.lineTo(d / 2, h - LIP);
+  s.lineTo(d / 2, h);
+  s.lineTo(back, h);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth: w, bevelEnabled: false });
+  g.rotateY(-Math.PI / 2);
+  g.translate(w / 2, 0, 0);
+  return g;
+}
+
 const FRAME = "#f2f1ec";
 const GLASS = "#cfe6f2";
 const BRASS = "#f0d77a";
@@ -278,6 +325,15 @@ function build(def: PartDefinition): PartGeometry {
       body.translate(0, (H - GAP) / 2, 0);
       return { pieces: [{ role: "main", geometry: merge([body, ...studsOnTop(def, H - GAP)]) }] };
     }
+    case "round-brick": {
+      const body = new THREE.CylinderGeometry(0.48, 0.48, H - GAP, 24);
+      body.translate(0, (H - GAP) / 2, 0);
+      return { pieces: [{ role: "main", geometry: merge([body, ...studsOnTop(def, H - GAP)]) }] };
+    }
+    case "arch":
+      return { pieces: [{ role: "main", geometry: merge([arch(def), ...studsOnTop(def, H - GAP)]) }] };
+    case "slope45-inverted":
+      return { pieces: [{ role: "main", geometry: merge([invertedSlope(def), ...studsOnTop(def, H - GAP)]) }] };
     case "door":
       return door(def);
     case "flower":

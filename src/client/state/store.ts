@@ -16,7 +16,8 @@ import {
   type PlanFit,
   type Rejection,
 } from "../../domain/rules.ts";
-import { STREET_SCENE } from "../../domain/scene.ts";
+import { sceneById, STREET_SCENE, type SceneTemplate } from "../../domain/scene.ts";
+import { sceneInfo } from "../scenes/registry.ts";
 import { ensureIdentity, resetIdentity } from "./identity.ts";
 import { onIdentityChangedElsewhere } from "./session-events.ts";
 import { AccessError, NetworkError, RoomFullError, type Transport } from "./transport.ts";
@@ -106,7 +107,23 @@ export interface AppState {
   selfId: string | null;
 }
 
-export const scene = STREET_SCENE;
+/**
+ * The scene of the room this page opened: Beach Houses until the room's
+ * snapshot arrives, then whatever scene that room stores (ADR 0015). It is
+ * set once per page load, before the snapshot is published to the UI, and
+ * never changes after that; opening another room is a new page load.
+ */
+export let scene: SceneTemplate = STREET_SCENE;
+/** The catalogue entries this scene's kit holds, in catalogue order. */
+export let catalog = CATALOG.filter((d) => d.id in scene.kit);
+
+function adoptScene(sceneId: string): void {
+  if (sceneId === scene.id) return;
+  scene = sceneById(sceneId);
+  catalog = CATALOG.filter((d) => d.id in scene.kit);
+  const start = sceneInfo(sceneId)?.startColour;
+  if (start) state = { ...state, colour: start };
+}
 
 /**
  * The room this editor opened (from the URL, ADR 0007), or null for the
@@ -202,6 +219,7 @@ export async function start(t: Transport): Promise<void> {
     // the same answer (state/identity.ts)
     if (t.durable) set({ selfId: (await ensureIdentity()).visitorId });
     const snapshot = await t.load();
+    adoptScene(snapshot.sceneId);
     set({ snapshot, save: { status: "saved" } });
     if (t.durable) connectRealtime(snapshot.roomId);
   } catch (e) {
@@ -711,4 +729,3 @@ export async function markPlanForEveryone(planId: string): Promise<void> {
   }
 }
 
-export const catalog = CATALOG.filter((d) => d.id in scene.kit);

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { STREET_SCENE } from "../../../domain/scene.ts";
-import { SCENE_LIST } from "../../scenes/registry.ts";
+import { SCENE_LIST, sceneInfo, templateOf } from "../../scenes/registry.ts";
 import { ensureIdentity } from "../../state/identity.ts";
 import { getSnapshot, mySnapshots, whoAmI, type SnapshotSummary } from "../../state/api.ts";
 import { creationSvg } from "../../ui/creationPreview.ts";
-import { Friends, Invites, JoinByCode, MyRooms, NEW_ROOM, PublicRooms, RoomSettings, useCreateRoom, useSoloRoom, type RoomDraft } from "../../lobby/parts.tsx";
+import { buildersOf, Friends, Invites, JoinByCode, MyRooms, NEW_ROOM, PublicRooms, RoomSettings, useCreateRoom, useSoloRoom, type RoomDraft } from "../../lobby/parts.tsx";
 import { ENTER_EDITOR, StepBack } from "./TablePanel.tsx";
 
 // What each table entrance opens (ADR 0014). The forms and lists are the
@@ -31,35 +30,51 @@ function useSelf(): string | null {
 type ScenesStep = "choose" | "shared";
 
 /**
- * The scene tray's panel: the one playable scene, then how to build. Solo
+ * The scene tray's panel: the playable scenes (ADR 0015), then how to build. Solo
  * opens this visitor's own solo room (created on first use, as the lobby
  * does). Shared opens the room's settings in place; creating it is the
  * final, explicit action. Stepping back keeps what was typed.
  */
 export function ScenesPanel() {
-  const info = SCENE_LIST[0];
+  const [sceneId, setSceneId] = useState(SCENE_LIST[0].id);
+  const info = sceneInfo(sceneId)!;
+  const template = templateOf(info);
   const [step, setStep] = useState<ScenesStep>("choose");
   const [draft, setDraft] = useState<RoomDraft>(NEW_ROOM);
-  const solo = useSoloRoom(enterRoom);
-  const create = useCreateRoom(enterRoom);
+  const solo = useSoloRoom(enterRoom, sceneId);
+  const create = useCreateRoom(enterRoom, sceneId);
 
   return (
     <>
-      <div className="scene-card">
-        <img src={info.cover} alt={info.coverAlt} width={480} height={300} loading="lazy" />
-        <div className="scene-card-text">
-          <h3>{info.title}</h3>
-          <p className="kit-help">{info.setting}.</p>
-          <p className="scene-facts">
-            <span className="tag tag-muted">
-              {STREET_SCENE.maxPlayers === 1 ? "1 builder" : `1–${STREET_SCENE.maxPlayers} builders`}
-            </span>
-            <span className="tag tag-muted">
-              Plot {STREET_SCENE.bounds.w}×{STREET_SCENE.bounds.d} studs
-            </span>
-            <span className="tag tag-ok">Playable</span>
-          </p>
-        </div>
+      <div className="scene-cards" role="radiogroup" aria-label="Scene">
+        {SCENE_LIST.map((s) => {
+          const t = templateOf(s);
+          const chosen = s.id === sceneId;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={chosen}
+              className={`scene-card${chosen ? " is-chosen" : ""}`}
+              onClick={() => setSceneId(s.id)}
+              disabled={step !== "choose"}
+            >
+              <img src={s.cover} alt={s.coverAlt} width={480} height={300} loading="lazy" />
+              <span className="scene-card-text">
+                <span className="scene-card-title">{s.title}</span>
+                <span className="kit-help">{s.setting}.</span>
+                <span className="scene-facts">
+                  <span className="tag tag-muted">{buildersOf(s)}</span>
+                  <span className="tag tag-muted">
+                    Plot {t.bounds.w}×{t.bounds.d} studs
+                  </span>
+                  <span className="tag tag-ok">Playable</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {step === "choose" ? (
@@ -78,7 +93,7 @@ export function ScenesPanel() {
             <div className="choice">
               <div>
                 <h3>Start a shared room</h3>
-                <p className="kit-help">Up to {STREET_SCENE.maxPlayers} people share one plot and one kit of parts.</p>
+                <p className="kit-help">Up to {template.maxPlayers} people share one plot and one kit of parts.</p>
               </div>
               <button className="btn btn-red" onClick={() => setStep("shared")} aria-disabled={solo.busy}>
                 Set up a room

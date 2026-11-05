@@ -486,7 +486,7 @@ export const BEACH_SLOT = { x: -2.9, z: -0.2, w: 5, d: 6 };
 /** The scene's name, on a low stand in front of its slot. */
 export const SCENE_LABEL = { x: BEACH_SLOT.x, z: SCENE_TRAY.d / 2 + 1.1, w: 6, h: 1.3, y: 0.5 };
 
-/** A wooden tray with room for several scene miniatures; only Beach Houses, the one playable scene, sits in it. */
+/** A wooden tray with room for several scene miniatures; only the Beach Houses miniature sits in it so far. */
 export function sceneTray(): Batch {
   const b = new Batch();
   const { w, d } = SCENE_TRAY;

@@ -528,7 +528,13 @@ async function entrances(browser: Browser): Promise<void> {
   await ready(page);
   await page.locator('[data-panel="scenes-panel"]').waitFor({ timeout: 4000 });
   const tags = await page.locator(".scene-card .tag").allTextContents();
-  check("scene tray: only Beach Houses, with its player count and Playable", (await page.locator(".scene-card").count()) === 1 && (await page.locator(".scene-card h3").textContent()) === "Beach Houses" && tags.some((t) => /builders/i.test(t)) && tags.some((t) => /playable/i.test(t)), tags);
+  const titles = await page.locator(".scene-card .scene-card-title").allTextContents();
+  check(
+    "scene tray: the playable scenes, each with its real player count and Playable",
+    titles.join("|") === "Beach Houses|Medieval Castle" && tags.includes("1–2 builders") && tags.includes("1–4 builders") && tags.filter((t) => /playable/i.test(t)).length === 2,
+    { titles, tags },
+  );
+  check("scene tray: Beach Houses is chosen first", (await page.locator('.scene-card[aria-checked="true"] .scene-card-title').textContent()) === "Beach Houses");
   const camBefore = await cam(page);
   await page.getByRole("button", { name: "Set up a room" }).click();
   await page.getByPlaceholder("e.g. Saturday build").fill("Table check room");

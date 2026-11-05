@@ -1017,10 +1017,10 @@ function Entrances({ props }: { props: SceneProps }) {
   const invites = props.invitations > 0 ? `, ${props.invitations} room invitation${props.invitations === 1 ? "" : "s"} waiting` : "";
   return (
     <>
-      <EntranceObject {...common} entrance="scenes" place={P.scenes} buttonRef={props.entranceRefs.scenes} ariaLabel="Beach Houses scene tray: choose how to build" face="Beach Houses">
+      <EntranceObject {...common} entrance="scenes" place={P.scenes} buttonRef={props.entranceRefs.scenes} ariaLabel="Scene tray: choose a scene and how to build" face="Scenes">
         <Own id="scenes" />
         <LocalLabel x={SCENE_LABEL.x} y={SCENE_LABEL.y} z={SCENE_LABEL.z + 0.16} w={SCENE_LABEL.w} h={SCENE_LABEL.h}>
-          Beach Houses
+          Scenes
         </LocalLabel>
       </EntranceObject>
       <EntranceObject {...common} entrance="rooms" place={P.board} buttonRef={props.entranceRefs.rooms} ariaLabel="Noticeboard: join a room" face="Join a room">

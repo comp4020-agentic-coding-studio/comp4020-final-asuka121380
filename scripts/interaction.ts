@@ -74,6 +74,8 @@ async function open(context: BrowserContext): Promise<{ page: Page; commands: ()
   // (or, here, by never having one yet and letting "Create and open" make
   // the first) a room through the real lobby UI, exactly as a visitor would.
   await page.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
+  // the lobby's room form unfolds from the "Start a shared room" tile (731c920)
+  await page.locator(".start-plot-shared").click();
   await page.getByRole("button", { name: "Create and open" }).click();
   await page.waitForURL(/\/build\/room\//);
   await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__camera && (window as any).__project);

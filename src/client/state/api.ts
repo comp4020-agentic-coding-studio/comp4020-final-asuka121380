@@ -109,7 +109,8 @@ export async function displayNamesFor(ids: readonly string[]): Promise<Record<st
 }
 
 /** The visitor's own default solo room, fetched-or-created, exactly as C8's single build (ADR 0007). */
-export const myDefaultRoom = (): Promise<{ roomId: string }> => fetch("/api/build").then((r) => json(r));
+export const myDefaultRoom = (sceneId: string): Promise<{ roomId: string }> =>
+  fetch(`/api/build?scene=${encodeURIComponent(sceneId)}`).then((r) => json(r));
 
 export const publicLobby = (): Promise<LobbyRoom[]> => fetch("/api/rooms").then((r) => json(r));
 
@@ -119,11 +120,11 @@ export const myInvites = (): Promise<RoomInvite[]> => fetch("/api/my/invites").t
 
 export const myFriends = (): Promise<{ friends: string[]; pending: FriendRequest[] }> => fetch("/api/friends").then((r) => json(r));
 
-export function createRoom(visibility: "public" | "invite_only", allowPublish: boolean, label?: string): Promise<{ roomId: string }> {
+export function createRoom(sceneId: string, visibility: "public" | "invite_only", allowPublish: boolean, label?: string): Promise<{ roomId: string }> {
   return fetch("/api/rooms", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ visibility, allowPublish, label }),
+    body: JSON.stringify({ sceneId, visibility, allowPublish, label }),
   }).then((r) => json(r));
 }
 

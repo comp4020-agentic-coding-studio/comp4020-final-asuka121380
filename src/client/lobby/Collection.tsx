@@ -316,7 +316,7 @@ function SnapshotPage({ id, published, selfId }: { id: string; published?: boole
       <div className="snapshot-layout">
         <div className="card snapshot-viewer">
           <Suspense fallback={<div className="viewer-loading">Loading the view…</div>}>
-            <SnapshotView parts={partsOf(detail)} />
+            <SnapshotView parts={partsOf(detail)} sceneId={detail.sceneId} />
           </Suspense>
           <p className="viewer-hint">Drag to look around. Read-only: nothing here can be changed.</p>
         </div>

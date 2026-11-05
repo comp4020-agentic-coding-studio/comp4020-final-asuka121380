@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
-import { scene } from "../state/store.ts";
 import { plastic } from "./PartMesh.tsx";
 
 // The editable plot, the same in every scene: a studded base plate the size
@@ -10,21 +9,40 @@ import { plastic } from "./PartMesh.tsx";
 const PLATE_COLOUR = "#d4d1ca";
 const EDGE = "#ece6da";
 
-export function Plot() {
-  const { w, d } = scene.bounds;
+/** A scene's plot surface: its colour, and how much 2×2 flagstones may vary in shade (0 = none). */
+export interface PlotTone {
+  colour: string;
+  vary: number;
+}
+
+const flag = (x: number, z: number): number => {
+  const s = Math.sin(Math.floor(x / 2) * 127.1 + Math.floor(z / 2) * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+
+export function Plot({ w, d, tone }: { w: number; d: number; tone?: PlotTone }) {
   const studs = useRef<THREE.InstancedMesh>(null);
+  const colour = tone?.colour ?? PLATE_COLOUR;
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
+    const c = new THREE.Color();
     let i = 0;
-    for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) studs.current!.setMatrixAt(i++, m.makeTranslation(x + 0.5, 0.09, z + 0.5));
+    for (let x = 0; x < w; x++) {
+      for (let z = 0; z < d; z++) {
+        studs.current!.setMatrixAt(i, m.makeTranslation(x + 0.5, 0.09, z + 0.5));
+        if (tone?.vary) studs.current!.setColorAt(i, c.set("#ffffff").multiplyScalar(1 - tone.vary + flag(x, z) * tone.vary * 2));
+        i++;
+      }
+    }
     studs.current!.instanceMatrix.needsUpdate = true;
-  }, [w, d]);
+    if (studs.current!.instanceColor) studs.current!.instanceColor.needsUpdate = true;
+  }, [w, d, tone?.vary]);
   return (
     <group>
-      <mesh position={[w / 2, -0.07, d / 2]} material={plastic(PLATE_COLOUR)} receiveShadow raycast={() => null}>
+      <mesh position={[w / 2, -0.07, d / 2]} material={plastic(colour)} receiveShadow raycast={() => null}>
         <boxGeometry args={[w, 0.14, d]} />
       </mesh>
-      <instancedMesh ref={studs} args={[undefined, plastic(PLATE_COLOUR), w * d]} receiveShadow castShadow raycast={() => null}>
+      <instancedMesh ref={studs} args={[undefined, plastic(colour), w * d]} receiveShadow castShadow raycast={() => null}>
         <cylinderGeometry args={[0.3, 0.3, 0.18, 14]} />
       </instancedMesh>
       {/* a low edge on three sides; the front stays open to the street or shore */}

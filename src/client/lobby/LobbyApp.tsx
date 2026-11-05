@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { sceneInfo } from "../scenes/registry.ts";
-import { STREET_SCENE as scene } from "../../domain/scene.ts";
+import { SCENE_LIST, templateOf } from "../scenes/registry.ts";
 import { AccountPage } from "./Account.tsx";
 import { CollectionPage, ShowcasePage, SnapshotViewerPage } from "./Collection.tsx";
 import { FriendLink, Friends, IdentityPanel, Invites, JoinByCode, MyRooms, PublicRooms, StartChoices } from "./parts.tsx";
@@ -17,7 +16,8 @@ import { whoAmI } from "../state/api.ts";
 // components the table's panels use (parts.tsx), so there is one version of
 // each, with one set of rules behind it.
 
-const info = sceneInfo(scene.id);
+const capacities = [...new Set(SCENE_LIST.map((s) => templateOf(s).maxPlayers))].sort((a, b) => a - b);
+const capacityWords = capacities.length === 1 ? `Up to ${capacities[0]} people` : `Up to ${capacities.slice(0, -1).join(", ")} or ${capacities.at(-1)} people, depending on the scene,`;
 
 export function LobbyApp() {
   const [selfId, setSelfId] = useState<string | null>(null);
@@ -105,10 +105,10 @@ export function LobbyApp() {
   return (
     <PageShell section="lobby" accountLabel={accountLabel}>
       <div className="lobby-page">
-        <PageHead title={`${info?.title ?? scene.id}: choose a room`}>
+        <PageHead title="Choose a scene and a room">
           <p className="lobby-hint">
-            Up to {scene.maxPlayers} people share one room's inventory and construction. Plans and marks let you suggest ideas
-            without spending anyone's stock.
+            {capacityWords} share one room's inventory and construction. Plans and marks let you suggest ideas without spending
+            anyone's stock.
           </p>
           <p className="lobby-hint lobby-status">{accountName ? `Signed in as ${accountName}` : "Guest — no account needed to build"}</p>
         </PageHead>

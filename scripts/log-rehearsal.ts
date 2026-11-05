@@ -67,9 +67,10 @@ const idA = await selfId(pageA);
 const idB = await selfId(pageB);
 check("two independent visitors", idA !== idB, `${idA.slice(0, 8)} / ${idB.slice(0, 8)}`);
 
-// 1. A creates an invite-only room
+// 1. A creates an invite-only room (the form unfolds from the "Start a shared room" tile, 731c920)
+await pageA.locator(".start-plot-shared").click();
 await pageA.fill('input[placeholder="e.g. Saturday build"]', "Rehearsal");
-await pageA.locator('input[name="visibility"]').nth(1).check();
+await pageA.locator('input[name="start-visibility"]').nth(1).check();
 await pageA.getByRole("button", { name: "Create and open" }).click();
 await pageA.waitForURL(/\/build\/room\//);
 const roomId = pageA.url().match(/\/build\/room\/([^/?]+)/)![1];

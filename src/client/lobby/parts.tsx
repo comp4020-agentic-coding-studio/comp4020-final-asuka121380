@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { STREET_SCENE } from "../../domain/scene.ts";
-import { sceneInfo } from "../scenes/registry.ts";
+import { SCENE_LIST, sceneInfo, templateOf, type SceneInfo } from "../scenes/registry.ts";
 import { ensureIdentity } from "../state/identity.ts";
 import { useDisplayNames, who } from "../state/names.ts";
 import { soloPlotScene, sharedPlotScene } from "../ui/brickScenes.ts";
@@ -62,10 +61,51 @@ export function Seats({ occupancy, capacity }: { occupancy: number; capacity: nu
   );
 }
 
+// ---- choosing a scene ------------------------------------------------------------
+
+/** "1–4 builders": the scene's real room capacity, from its template. */
+export const buildersOf = (info: SceneInfo): string => {
+  const n = templateOf(info).maxPlayers;
+  return n === 1 ? "1 builder" : `1–${n} builders`;
+};
+
+/**
+ * The playable scenes as a single choice (ADR 0015): each shows its cover
+ * (rendered from the scene itself), title, setting, real capacity and plot
+ * size. Choosing one creates nothing; it only says which scene the next
+ * solo plot or new room will build.
+ */
+export function ScenePicker({ value, onChange, name }: { value: string; onChange: (id: string) => void; name: string }) {
+  return (
+    <fieldset className="scene-picker">
+      <legend>Scene</legend>
+      {SCENE_LIST.map((info) => {
+        const t = templateOf(info);
+        return (
+          <label key={info.id} className={`scene-option${value === info.id ? " is-chosen" : ""}`}>
+            <input type="radio" name={name} value={info.id} checked={value === info.id} onChange={() => onChange(info.id)} />
+            <img src={info.cover} alt="" width={160} height={100} loading="lazy" />
+            <span className="scene-option-text">
+              <strong>{info.title}</strong>
+              <span>{info.setting}.</span>
+              <span className="scene-facts">
+                <span className="tag tag-muted">{buildersOf(info)}</span>
+                <span className="tag tag-muted">
+                  Plot {t.bounds.w}×{t.bounds.d} studs
+                </span>
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
+
 // ---- building alone ------------------------------------------------------------
 
-/** Opens this visitor's own solo room (fetched or created), then hands over its id. Guards against a double click. */
-export function useSoloRoom(onOpen: (roomId: string) => void) {
+/** Opens this visitor's own solo room for a scene (fetched or created), then hands over its id. Guards against a double click. */
+export function useSoloRoom(onOpen: (roomId: string) => void, sceneId: string) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -76,7 +116,7 @@ export function useSoloRoom(onOpen: (roomId: string) => void) {
     setError(null);
     try {
       await ensureIdentity();
-      const { roomId } = await myDefaultRoom();
+      const { roomId } = await myDefaultRoom(sceneId);
       onOpen(roomId);
     } catch {
       setError("Couldn't open your build; try again.");
@@ -108,9 +148,11 @@ type StartPath = "solo" | "shared" | null;
  */
 export function StartChoices({ onOpen, onCreated }: { onOpen: (roomId: string) => void; onCreated: (roomId: string) => void }) {
   const [path, setPath] = useState<StartPath>(null);
-  const solo = useSoloRoom(onOpen);
+  const [sceneId, setSceneId] = useState(SCENE_LIST[0].id);
+  const scene = sceneInfo(sceneId)!;
+  const solo = useSoloRoom(onOpen, sceneId);
   const [draft, setDraft] = useState<RoomDraft>(NEW_ROOM);
-  const create = useCreateRoom(onCreated);
+  const create = useCreateRoom(onCreated, sceneId);
   const formId = useId();
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +166,7 @@ export function StartChoices({ onOpen, onCreated }: { onOpen: (roomId: string) =
 
   return (
     <div className="start-choices">
+      <ScenePicker value={sceneId} onChange={setSceneId} name="start-scene" />
       <div className="start-plots" role="group" aria-label="How to begin">
         <button
           type="button"
@@ -148,14 +191,14 @@ export function StartChoices({ onOpen, onCreated }: { onOpen: (roomId: string) =
           <span className="start-plot-art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: sharedPlotScene() }} />
           <span className="start-plot-text">
             <strong>Start a shared room</strong>
-            <span>Up to {STREET_SCENE.maxPlayers} people build together, sharing one kit of parts.</span>
+            <span>Up to {templateOf(scene).maxPlayers} people build together, sharing one kit of parts.</span>
           </span>
         </button>
       </div>
       {path === "solo" && (
         <div className="start-unfold">
           <button className="btn btn-yellow btn-big" onClick={() => void solo.open()} aria-disabled={solo.busy}>
-            {solo.busy ? "Opening…" : "Build alone"}
+            {solo.busy ? "Opening…" : `Build alone: ${scene.title}`}
           </button>
           {solo.error && <p className="lobby-error" role="alert">{solo.error}</p>}
         </div>
@@ -204,7 +247,7 @@ export function StartChoices({ onOpen, onCreated }: { onOpen: (roomId: string) =
           </label>
           {create.error && <p className="lobby-error" role="alert">{create.error}</p>}
           <button type="submit" className="btn btn-red" aria-disabled={create.busy}>
-            {create.busy ? "Creating…" : "Create and open"}
+            {create.busy ? "Creating…" : `Create and open: ${scene.title}`}
           </button>
         </form>
       )}
@@ -265,7 +308,7 @@ export function RoomSettings({ draft, onChange, name = "visibility" }: { draft: 
 }
 
 /** Creates the room once per submission, however many times the button is pressed while it's in flight. */
-export function useCreateRoom(onCreated: (roomId: string) => void) {
+export function useCreateRoom(onCreated: (roomId: string) => void, sceneId: string) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -276,7 +319,7 @@ export function useCreateRoom(onCreated: (roomId: string) => void) {
     setError(null);
     try {
       await ensureIdentity();
-      const room = await createRoom(draft.visibility, draft.allowPublish, draft.label.trim() || undefined);
+      const room = await createRoom(sceneId, draft.visibility, draft.allowPublish, draft.label.trim() || undefined);
       onCreated(room.roomId);
     } catch {
       setError("Couldn't create the room. Nothing was created; try again.");

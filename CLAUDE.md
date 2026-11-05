@@ -17,9 +17,11 @@ Real-time sync, shared inventory, transparent plans, live marks, durable
 contributor attribution and immutable snapshots are now in scope and
 specified in ADRs 0006–0009. Still out of scope until the author says
 otherwise: similarity scoring, text/voice chat or any player-written
-communication beyond plans and marks, runtime LLM features, multiple
-playable scenes, physics/collapse, and competitive scoring or brick-count
-rankings (author, phase 2 brief). Cooperation is no longer only described:
+communication beyond plans and marks, runtime LLM features, playable
+scenes beyond Beach Houses and the Medieval Castle (ADR 0015),
+physics/collapse, and competitive scoring or brick-count rankings
+(author, phase 2 brief; the castle scene by the author's brief of
+5 Nov 2026). Cooperation is no longer only described:
 it is implemented, but only to the extent recorded as DONE in
 `DEVELOPMENT_LOG.md` at any given time — never claim a brief's requirement
 is met before its tests and evidence exist.
@@ -319,6 +321,26 @@ Each entry gives, in proportion to the change:
 - Assets: self-made, or a checked licence with the source recorded. Nothing
   loaded from third-party services at runtime.
 
+## Second scene: Medieval Castle (author, 5 Nov 2026; ADR 0015)
+
+- Its kit comes from the primary model in the official LEGO Creator 31120
+  instructions (booklet 1, bags 1–3 and 6), counted from the step callouts,
+  never from photographs or the set's piece count. Allocated quantity is
+  `ceil(required × 1.30)`. Sources, page references, counts, mapping and
+  every substitution are in `doc/research/0002-medieval-castle-reference.md`.
+  The booklets and their renders stay outside the repo and `public/`.
+- New castle rooms start empty. The adapted reference is a target picture
+  and a test fixture, never pre-placed.
+- Arches and the inverted slope rest only on their `sockets` (legs, back
+  row) and collide as their whole box. Parts without `sockets` rest on
+  their whole footprint, so Beach Houses' rules are unchanged.
+- The environment is a bright medieval valley: stone road and open grass in
+  front, with nothing tall between the default camera and the courtyard;
+  the plot as a paved courtyard; low ruins outside the bounds; hills, sparse
+  woodland and mountains behind, with a quiet skyline behind the courtyard;
+  a clear afternoon with the sun to the side or rear-side. No moat, fog,
+  darkness or colour grading.
+
 ## Scene and camera (author, 6 Oct 2026; supersedes the finite base and restricted orbit in ADR 0002)
 
 - The 3D world fills the viewport behind floating UI. There is a sky, distant
@@ -430,7 +452,11 @@ Each entry gives, in proportion to the change:
   this never replaces the cookie/visitor model, only layers a login over
   one visitor_id (ADR 0010).
 - **Rooms, not per-visitor builds.** A build belongs to a room with up to
-  the scene's configured `maxPlayers` (Beach Houses: 2). A room is public
+  the scene's configured `maxPlayers` (Beach Houses: 2; Medieval Castle: 4).
+  A room's scene is chosen when it is created, stored on the room, and read
+  from there by every server and client path; it never changes. Continuing
+  a snapshot keeps its scene. A visitor has one solo plot per scene
+  (ADR 0015). A room is public
   (listed, joinable while capacity allows) or invite-only (unlisted,
   requires a checked server-side invitation; friendship never substitutes
   for one). The inventory is shared by the whole room; joining or leaving

@@ -1,4 +1,4 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { installKeyboard } from "./keyboard.ts";
@@ -7,6 +7,7 @@ import { PreJoinGate } from "./PreJoin.tsx";
 import { getState, preview, setRoomId, start } from "./state/store.ts";
 import { viewQuadrant } from "./state/view.ts";
 import { localTransport, roomTransport } from "./state/transport.ts";
+import { isSceneId } from "../domain/scene.ts";
 import "@fontsource-variable/fredoka";
 import "@fontsource-variable/nunito";
 import "./ui/theme.css";
@@ -14,15 +15,22 @@ import "./styles.css";
 
 // `?local` runs the rules in the browser with nothing saved: the visual
 // preview. `?local&reference` starts it with the reference house built.
-const local = new URLSearchParams(location.search).has("local");
+// `?scene=<id>` picks the scene for `?local` and for the default solo room.
+const params = new URLSearchParams(location.search);
+const local = params.has("local");
+const sceneParam = params.get("scene");
+const sceneId = isSceneId(sceneParam) ? sceneParam : undefined;
 // /build/room/:id (ADR 0007). A bare /build/room/ (no id) falls back to the
 // visitor's own default solo room, the same one C8's /build/ always opened.
 const roomMatch = location.pathname.match(/^\/build\/room\/([^/]+)\/?$/);
 const roomId = roomMatch?.[1];
 setRoomId(roomId ?? null);
 
+let started = false;
 function proceed(): void {
-  void start(local ? localTransport() : roomTransport(roomId));
+  if (started) return;
+  started = true;
+  void start(local ? localTransport(sceneId) : roomTransport(roomId, sceneId));
   installKeyboard();
   // `?debug` lets the browser tests read the state, the computed preview and
   // the snapped camera quadrant; none of these can change anything
@@ -42,6 +50,10 @@ function proceed(): void {
  */
 function Root() {
   const [confirmed, setConfirmed] = useState(!roomId || local);
+  // nothing to confirm: start once, the same way a confirmation would
+  useEffect(() => {
+    if (confirmed && !started) proceed();
+  }, []);
   if (!confirmed) return <PreJoinGate roomId={roomId!} onProceed={() => { proceed(); setConfirmed(true); }} />;
   return <App />;
 }

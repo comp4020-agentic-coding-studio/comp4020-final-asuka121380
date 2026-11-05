@@ -1,6 +1,6 @@
 import type { CommandEnvelope, CommandResult, Snapshot } from "../../domain/commands.ts";
 import { applyCommand, applyPlacement, validateCommand, type BuildState } from "../../domain/rules.ts";
-import { STREET_SCENE } from "../../domain/scene.ts";
+import { sceneById, STREET_SCENE } from "../../domain/scene.ts";
 
 export interface Transport {
   /** Resume this visitor's build, or start one. */
@@ -20,8 +20,8 @@ export class RoomFullError extends Error {}
  * room", the back-compat path the server still serves at `/api/build` and
  * `/api/command` for a visitor with no room chosen yet.
  */
-export function roomTransport(roomId: string | undefined): Transport {
-  const buildUrl = roomId ? `/api/rooms/${roomId}` : "/api/build";
+export function roomTransport(roomId: string | undefined, sceneId?: string): Transport {
+  const buildUrl = roomId ? `/api/rooms/${roomId}` : sceneId ? `/api/build?scene=${encodeURIComponent(sceneId)}` : "/api/build";
   const commandUrl = roomId ? `/api/rooms/${roomId}/command` : "/api/command";
   return {
     durable: true,
@@ -65,8 +65,8 @@ export const httpTransport: Transport = roomTransport(undefined);
 
 // In-browser stand-in for the server, for the visual preview (`?local`). It
 // runs the same rules but keeps nothing: `durable` is false and the UI says so.
-export function localTransport(): Transport {
-  const scene = STREET_SCENE;
+export function localTransport(sceneId: string = STREET_SCENE.id): Transport {
+  const scene = sceneById(sceneId);
   let state: BuildState = { parts: [], inventory: { ...scene.kit }, plans: [] };
   let revision = 0;
   let n = 0;

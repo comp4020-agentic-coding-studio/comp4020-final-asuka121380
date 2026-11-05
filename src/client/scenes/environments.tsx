@@ -6,4 +6,5 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 
 export const ENVIRONMENTS: Readonly<Record<string, LazyExoticComponent<ComponentType>>> = {
   "street-01": lazy(() => import("./beach/Environment.tsx").then((m) => ({ default: m.BeachEnvironment }))),
+  "castle-01": lazy(() => import("./castle/Environment.tsx").then((m) => ({ default: m.CastleEnvironment }))),
 };
