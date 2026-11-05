@@ -3256,3 +3256,84 @@ failures are in evidence 0019.
   permissions); anyone running `pnpm test` without an explicit `APP_URL`
   should confirm nothing stale is listening there first.
 - Nothing pushed or deployed.
+
+## 2026-11-05 14:32 AEDT — Visual polish pass: backgrounds, blue selection, page structure, empty states, one emblem
+
+Decided by the author: a bounded non-gameplay visual polish pass fixing
+five specific defects found in the prior colour/loading work — beige
+outer margins on dedicated pages, red-looking selected controls, weak
+page structure, bare-text empty states, and three inconsistent brand
+marks. Not a 3D redesign or feature expansion.
+[`217188f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/217188f).
+
+**Implemented.**
+- `src/client/ui/site-colors.css`: added `html:has(body.home),
+  html:has(body.lobby)` alongside the existing `body.home, body.lobby`
+  selectors. Custom properties inherit down the DOM tree only, so a
+  property set on `body` never reached `<html>`'s own background
+  resolution — the root cause of the beige margins on wide or short
+  dedicated pages. The game editor (neither class) is unaffected.
+- `src/client/ui/kit.css`: `.radio-row:has(input:checked)` and
+  `.check-row:has(input:checked)` recoloured from red border/fill to
+  `--blue`/`--blue-soft`, with `accent-color` matched; red is kept for
+  primary actions and genuine errors. Affects the room-creation "Public"
+  choice, the publish-setting checkbox, and every other checked control
+  built on these two classes, in both the tabletop's panels and the
+  dedicated pages.
+- `src/client/lobby/lobby.css`: `.page-bar` (every dedicated page's
+  header, via `Shell.tsx`) changed from a translucent blurred bar to a
+  solid `--blue` band with white brand/nav text and a white "current
+  section" pill — one consistent structural treatment, not a different
+  one per page.
+- `src/client/lobby/Shell.tsx`: new `EmptyState` component (an original
+  blue-bordered shelf illustration, a heading, one line, 0–2 actions),
+  full-size and compact variants, kept strictly separate from the
+  existing loading (`role="status"`) and failed (`role="alert"`) states.
+- `src/client/lobby/Collection.tsx`, `src/client/lobby/parts.tsx`: wired
+  `EmptyState` into the collection, the showcase, and the tabletop's own
+  rooms/friends/invitations panels, replacing bare dashed-box text; no
+  fabricated sample data.
+- `src/client/ui/iso.ts`: new `emblemMark()`/`decorativeEmblemMark()` — a
+  brick-assembly emblem (blue base, two studded red walls with a gap, a
+  yellow cap), built from the same pure, DOM-free string builder the
+  editor's own `brandMark()` uses, kept as a separate export so gameplay
+  branding is untouched.
+- `src/client/index.html`, `src/client/home/HomeApp.tsx`,
+  `src/server/readme.ts`: the one new emblem wired into the static
+  splash, the React loading state, the tabletop's brand link and
+  fallback heading, every dedicated page's header, and the README
+  header, replacing three previously inconsistent marks (a small
+  loading-screen symbol, an older brick icon, and text alone).
+- `scripts/tabletop.ts`: updated one assertion that still expected the
+  pre-polish `.kit-state` empty-state text; the check itself (a real
+  empty state for a visitor with no rooms) is unchanged.
+
+**Tests run** (production build, local server on a confirmed-empty port
+9105, fresh temporary `DATA_DIR`, confirmed healthy via
+`GET /api/me/peek` before use):
+- `pnpm typecheck`: passed.
+- `APP_URL=http://localhost:9105 pnpm test`: 228/228, unchanged from the
+  prior pass's baseline.
+- `node scripts/tabletop.ts http://localhost:9105 <dir>`, run three
+  times: 127/129, then 168/169 (after fixing the stale assertion), then
+  **173/173** clean. The two earlier failures were isolated timeouts in
+  different, unrelated steps that did not reproduce on the third run —
+  judged machine-load flakes, not caused by this pass.
+- Visual review in Chrome (swiftshader software WebGL) at 1200×900 and
+  390×844: the loading splash, the tabletop brand link, the focused
+  account panel, create-room controls (selected/unselected), the
+  dedicated lobby at a wide viewport, the collection and showcase both
+  empty and populated (disposable local rooms/snapshots created for this
+  check only), the tabletop's own compact empty states, the README
+  header, and a mobile lobby layout.
+
+**Observed.** Screenshots and full detail in evidence 0020; this pass's
+section is also recorded in ADR 0014.
+
+**Known limitations.**
+- Checked only in Chrome, with swiftshader software WebGL; not checked in
+  Safari, WebKit, a real GPU, or a physical device.
+- The `spec/plans-and-attribution.test.ts` failures noted as pre-existing
+  in the prior entry were not re-investigated here; they did not appear
+  in this pass's 228/228 full-suite run.
+- Nothing pushed or deployed.
