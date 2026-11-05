@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { sceneInfo } from "../scenes/registry.ts";
 import { ensureIdentity } from "../state/identity.ts";
 import { useDisplayNames, who } from "../state/names.ts";
+import { EmptyState } from "./Shell.tsx";
 import {
   createFriendLink,
   createRecoveryCode,
@@ -352,7 +353,7 @@ export function PublicRooms({ onJoined, heading = "Public lobby", bare = false }
       ) : rooms.kind === "failed" ? (
         <p className="lobby-error" role="alert">Couldn't load the public rooms. They'll appear here when the connection is back.</p>
       ) : rooms.items.length === 0 ? (
-        <p className="kit-state">No public rooms right now. Start one from the scene tray, or by "Start a room".</p>
+        <EmptyState compact heading="No public rooms right now" body={`Start one from the scene tray, or by "Start a room".`} />
       ) : (
         <ul className="room-list">
           {rooms.items.map((r) => {
@@ -403,7 +404,7 @@ export function MyRooms({ onOpen, showEmpty = false, bare = false }: { onOpen: (
       ) : rooms.kind === "failed" ? (
         <p className="lobby-error" role="alert">Couldn't load your rooms; try again in a moment.</p>
       ) : rooms.items.length === 0 ? (
-        <p className="kit-state">You haven't joined a room yet.</p>
+        <EmptyState compact heading="You haven't joined a room yet" body="Build alone, start a room, or join one from the public lobby." primary={{ href: "/build/", label: "Build or join" }} />
       ) : (
         <ul className="room-list">
           {rooms.items.map((r) => (
@@ -487,7 +488,7 @@ export function Invites({ onJoined, selfId, showEmpty = false, bare = false, onC
       ) : invites.kind === "failed" ? (
         <p className="lobby-error" role="alert">Couldn't check your invitations; try again in a moment.</p>
       ) : items.length === 0 ? (
-        <p className="kit-state">No invitations right now. When a friend invites you to a room, it appears here.</p>
+        <EmptyState compact heading="No invitations right now" body="When a friend invites you to a room, it appears here." />
       ) : (
         <ul className="room-list">
           {items.map((i) => {
@@ -706,7 +707,7 @@ export function Friends({ selfId, bare = false }: { selfId: string | null; bare?
       ) : friends === null ? (
         <p className="kit-state" role="status">Loading your friends…</p>
       ) : friends.length === 0 ? (
-        <p className="kit-state">No friends yet.</p>
+        <EmptyState compact heading="No friends yet" body="Send a friend-request link to someone you build with, below." />
       ) : (
         <ul className="room-list">
           {friends.map((id) => (

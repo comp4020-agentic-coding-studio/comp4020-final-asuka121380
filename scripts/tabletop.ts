@@ -497,8 +497,8 @@ async function entrances(browser: Browser): Promise<void> {
   check("rooms: switching tabs keeps the camera where it is", !after.moving && after.position.every((v, i) => Math.abs(v - still.position[i]) < 1e-6));
   await page.getByRole("tab", { name: "Your rooms" }).click();
   await page.waitForTimeout(400);
-  await page.waitForSelector('[role="dialog"] .kit-state, [role="dialog"] .room-row', { timeout: 5000 });
-  check("rooms: Your rooms says so when there are none (a fresh visitor has joined nothing)", (await page.locator('[role="dialog"] .kit-state').textContent())?.trim() === "You haven't joined a room yet.");
+  await page.waitForSelector('[role="dialog"] .empty-state, [role="dialog"] .kit-state, [role="dialog"] .room-row', { timeout: 5000 });
+  check("rooms: Your rooms says so when there are none (a fresh visitor has joined nothing)", (await page.locator('[role="dialog"] .empty-state h2').textContent())?.trim() === "You haven't joined a room yet");
   await page.goBack();
   await settled(page);
   await page.waitForTimeout(150);

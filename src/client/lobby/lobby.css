@@ -26,6 +26,9 @@ body {
   /* a faint cool wash at the top, like the table's room */
   background: linear-gradient(var(--white), var(--paper) 18rem);
 }
+/* a solid blue header band with white branding and nav text: dedicated
+   pages' one consistent structural treatment (ADR 0014, "Visual polish
+   pass") — never layered with other coloured frames on the same bar */
 .page-bar {
   position: sticky;
   top: 0;
@@ -35,16 +38,13 @@ body {
   align-items: center;
   gap: 0.5rem 1.2rem;
   padding: 0.7rem max(1rem, env(safe-area-inset-right)) 0.7rem max(1rem, env(safe-area-inset-left));
-  border-bottom: 2px solid var(--line);
-  background: rgb(255 255 255 / 0.94);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: var(--blue);
 }
 .home-link {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--kit-ink, var(--ink));
+  color: var(--white);
   font: 700 1.1rem/1 var(--font-display);
   text-decoration: none;
 }
@@ -61,24 +61,25 @@ body {
 .page-nav a {
   padding: 0.45rem 0.7rem;
   border-radius: 10px;
-  color: var(--kit-ink-soft, var(--ink-soft));
+  color: rgb(255 255 255 / 0.82);
   font-weight: 800;
   font-size: 0.92rem;
   text-decoration: none;
 }
 .page-nav a:hover {
-  background: var(--blue-soft);
-  color: var(--ink);
+  background: rgb(255 255 255 / 0.14);
+  color: var(--white);
 }
 .page-nav a[aria-current="page"] {
   background: var(--white);
-  color: var(--ink);
-  box-shadow:
-    inset 0 0 0 2px var(--blue),
-    0 2px 0 var(--blue);
+  color: var(--blue-edge);
+  box-shadow: 0 2px 0 var(--blue-edge);
 }
 .to-table {
   white-space: nowrap;
+  --face: var(--white);
+  --text: var(--blue-edge);
+  --edge: #d8e1ea;
 }
 
 /* ---- page bodies ------------------------------------------------------------ */

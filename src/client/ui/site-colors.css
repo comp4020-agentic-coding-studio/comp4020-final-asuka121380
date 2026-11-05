@@ -15,8 +15,20 @@
  * `--ok` and `--danger` (success/error) are intentionally NOT overridden
  * here: green confirmation and red error meaning must stay distinct from
  * the brand red used for primary actions and emphasis.
+ *
+ * `<html>` is also matched (via `:has()`, so `<html>`'s own rules — e.g.
+ * lobby.css's `html, body { background: var(--paper); }` — get these
+ * values declared directly on `<html>` itself. A custom property set only
+ * on `body.lobby` would never reach `<html>`'s own background: custom
+ * properties inherit DOWN the tree, and `<html>` is `body`'s ancestor, not
+ * its descendant, so without this `<html>` would keep resolving `--paper`
+ * from `:root`'s older cream value, showing as a beige band outside the
+ * page content on wide screens or short pages (found and fixed, 5 Nov
+ * 2026, ADR 0014 "Visual polish pass").
  */
 
+html:has(body.home),
+html:has(body.lobby),
 body.home,
 body.lobby {
   --red: #d92328;

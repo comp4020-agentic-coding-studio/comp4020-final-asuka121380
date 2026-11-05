@@ -17,7 +17,7 @@ import {
 } from "../state/api.ts";
 import { useDisplayNames, who } from "../state/names.ts";
 import { creationSvg } from "../ui/creationPreview.ts";
-import { PageHead } from "./Shell.tsx";
+import { EmptyState, PageHead } from "./Shell.tsx";
 
 // The collection (a visitor's own saved versions) and the public showcase
 // (ADR 0009), as display pages in the workshop (ADR 0014): each creation on
@@ -430,9 +430,12 @@ export function CollectionPage({ selfId }: { selfId: string | null }) {
       ) : snapshots === "failed" ? (
         <p className="lobby-error" role="alert">Couldn't load your collection; try again in a moment.</p>
       ) : snapshots.length === 0 ? (
-        <div className="kit-state empty-shelf">
-          <p>Nothing saved yet. Open a room and use "Save a copy" from its Room panel, or save one you like from the <a href="/build/?view=showcase">showcase</a>.</p>
-        </div>
+        <EmptyState
+          heading="Nothing saved yet"
+          body={`Open a room and use "Save a copy" from its Room panel, or save one you like from the public showcase.`}
+          primary={{ href: "/build/", label: "Start building" }}
+          secondary={{ href: "/build/?view=showcase", label: "Browse the showcase" }}
+        />
       ) : (
         <ul className="creation-grid">
           {snapshots.map((s) => (
@@ -481,7 +484,7 @@ export function ShowcasePage({ selfId }: { selfId: string | null }) {
       ) : entries === "failed" ? (
         <p className="lobby-error" role="alert">Couldn't load the showcase; try again in a moment.</p>
       ) : entries.length === 0 ? (
-        <p className="kit-state">Nothing published yet. When someone publishes a saved version, it appears here.</p>
+        <EmptyState heading="Nothing published yet" body="When someone publishes a saved version, it appears here." primary={{ href: "/build/", label: "Start building" }} />
       ) : (
         <ul className="creation-grid">
           {entries.map((e) => (

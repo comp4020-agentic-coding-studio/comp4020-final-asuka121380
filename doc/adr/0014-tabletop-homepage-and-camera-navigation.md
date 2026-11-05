@@ -593,6 +593,92 @@ rather than assumed away. Evidence: doc/evidence/0019.
   own local tokens, never `:root` or a shared token, re-verified not to
   reach the editor.
 
+## Visual polish pass: backgrounds, selection colour, page structure, empty states, one emblem (author's brief, 5 Nov 2026; mechanisms agent)
+
+A bounded, non-gameplay visual pass, continuing from evidence 0019.
+Preserves all tabletop interaction, loading behaviour and existing
+functionality; no 3D redesign, no feature expansion. Evidence:
+doc/evidence/0020.
+
+- **Beige outer margins, fixed.** CSS custom properties inherit down the
+  DOM tree only: `body.home`/`body.lobby` redeclaring the palette tokens
+  never reached `<html>`'s own background, since `<html>` is `body`'s
+  ancestor, not its descendant. `site-colors.css` now also matches
+  `html:has(body.home), html:has(body.lobby)`, declaring the same tokens
+  directly on `<html>`. Verified live: both `<html>` and `<body>` resolve
+  to `rgb(242, 245, 248)` on the lobby's wide and short pages; the editor
+  (neither class) is unaffected, confirmed unchanged.
+- **Selection recoloured from red to blue.** `.radio-row:has(input:checked)`
+  and `.check-row:has(input:checked)` (`kit.css`) used a red border and a
+  near-white-pink fill — indistinguishable at a glance from an error state.
+  Both now use `--blue`/`--blue-soft`, with the native checkbox/radio
+  `accent-color` matched; red is reserved for primary actions and genuine
+  errors. Applies uniformly to the room-creation "Public" choice, the
+  publish-setting checkbox, and every other checked radio/checkbox built
+  on the same two classes, in both the tabletop's panels and the dedicated
+  pages (they share `kit.css`).
+- **One consistent structural treatment for dedicated pages.** `Shell.tsx`'s
+  shared `<header class="page-bar">` (used by every dedicated page) is now
+  a solid `--blue` band with white brand text and nav links; the current
+  section gets a white "pill" with blue text, matching the existing
+  focused-account-panel and README treatments named as references. No
+  change to the tabletop itself — no navigation bar added over the 3D
+  scene, per the brief's explicit exclusion.
+- **One empty-state family, not a bare dashed box.** A new `EmptyState`
+  component (`Shell.tsx`): a small original illustration (a blue-bordered
+  display shelf with grey studs, implying nothing is on it), a heading, one
+  line of explanation, and 0–2 visible actions. Used, full-size, for the
+  collection ("Nothing saved yet" → *Start building* / *Browse the
+  showcase*) and the showcase ("Nothing published yet" → *Start building*);
+  used, compact, inside the tabletop's own panels for the public-rooms
+  list, "Your rooms", invitations and friends (`parts.tsx`). Strictly
+  distinct from the pre-existing loading (`role="status"`) and failed
+  (`role="alert"`) states, which are untouched and never replaced by this
+  component. No fabricated sample data anywhere — every empty state still
+  reflects a real, successful, zero-result response.
+- **One shared emblem, not three.** `ui/iso.ts` gains `emblemMark()` /
+  `decorativeEmblemMark()`: a small toy-brick assembly (a blue base, two
+  studded red walls with a deliberate gap, a yellow cap) built from the
+  same pure, DOM-free `isoSvg()` string builder the editor's own
+  `brandMark()` already uses, kept as a fully separate export so gameplay
+  branding is never touched. Used in all five required places: the static
+  HTML splash and `<noscript>` fallback (`index.html`, a lightweight
+  hand-written SVG kept visually in sync, documented in a comment, rather
+  than inlining the generator's full ~12–16 KB output before React
+  loads), the React loading state and the tabletop's own brand link and
+  `Fallback` heading (`HomeApp.tsx`), every dedicated page's header
+  (`Shell.tsx`), and the server-rendered README header (`readme.ts`,
+  importing the same client-side generator directly, since it has no
+  DOM/React dependency). No change to the no-artificial-minimum-duration,
+  reduced-motion, slow-load-navigation or WebGL/no-JS fallback behaviour
+  the loading screen already had.
+- **A stale assertion in `scripts/tabletop.ts` was updated, not weakened.**
+  One check asserted the old, bare `.kit-state` empty text ("You haven't
+  joined a room yet.") for the tabletop's "Your rooms" tab; that text is
+  now the new `EmptyState`'s heading (no trailing period, by the
+  component's own heading convention). The selector and expected text were
+  updated to match the new, intentionally different markup; nothing about
+  what the check verifies (a real empty state appears when a fresh visitor
+  has joined nothing) was loosened.
+- **Checks run:** `pnpm typecheck` (clean); `pnpm test` against a freshly
+  built server on a confirmed-empty port, with explicit `APP_URL` —
+  **228/228 passed**, no change from evidence 0019's baseline;
+  `node scripts/tabletop.ts <url> <dir>` — **173/173 passed** on a clean
+  re-run (two earlier runs each hit one isolated timeout, in different,
+  unrelated steps, that did not reproduce on a third run — judged
+  machine-load flakes, not changes caused by this pass, since nothing
+  touched by this pass changed interaction, camera or dock behaviour).
+  Visual review in Chrome (software WebGL) at 1200×900 and mobile
+  390×844: loading splash, tabletop brand link, focused account panel,
+  create-room controls (selected/unselected), the dedicated lobby at a
+  wide viewport (including outer margins), collection and showcase both
+  empty and populated (disposable local rooms/snapshots created and
+  published for this check only), the tabletop's own compact empty
+  states (friends, invitations, public rooms), the README header, and a
+  mobile lobby layout — screenshots in doc/evidence/shots/0020. All
+  checks were Chrome/Playwright with the swiftshader software GPU path,
+  not a physical device or Safari.
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with

@@ -2,10 +2,13 @@ import { Component, createRef, lazy, Suspense, useCallback, useEffect, useMemo, 
 import { IdentityGate } from "../IdentityGate.tsx";
 import type { Account } from "../state/api.ts";
 import { onIdentityChangedElsewhere } from "../state/session-events.ts";
+import { decorativeEmblemMark } from "../ui/iso.ts";
 import { AccountPanel } from "./tabletop/AccountPanel.tsx";
 import { ENTRANCES, isEntrance, layoutFor, prefersReducedMotion, type Entrance, type Focus, type Layout } from "./tabletop/focus.ts";
 import { LinkList, QuickLinks } from "./tabletop/QuickLinks.tsx";
 import { TablePanel } from "./tabletop/TablePanel.tsx";
+
+const BRAND_MARK = decorativeEmblemMark();
 
 // The homepage (ADR 0014): a building table seen from a seat in front of it.
 // three.js loads only once WebGL is known to work; until then, and if loading,
@@ -29,21 +32,34 @@ type Status = "loading" | "ready" | "failed";
 
 /**
  * The same emblem painted statically in index.html (`#static-splash`),
- * before this bundle loads: an unfinished house, missing its third wall —
- * room for someone else's idea, not a finished logo. Plain CSS shapes, no
- * three.js. The optional settle-in is skipped entirely under reduced
- * motion (an immediate, static shape, never required to understand it),
- * and is never more than a one-off entrance: nothing loops or repeats.
+ * before this bundle loads: an unfinished house or shared baseplate, with
+ * a visible gap — room for someone else's idea, not a finished logo.
+ * Mirrors index.html's silhouette (a blue base, two studded red walls, a
+ * yellow cap brick) with its own CSS-animatable parts, rather than
+ * importing `emblemMark()`'s heavier generated SVG for a shape shown on
+ * every page load. The optional settle-in is skipped entirely under
+ * reduced motion (an immediate, static shape, never required to
+ * understand it), and is never more than a one-off entrance: nothing
+ * loops or repeats.
  */
 function LoadingEmblem() {
   return (
-    <svg className="loading-emblem" width="88" height="88" viewBox="0 0 64 64" role="img" aria-label="Brick Commons">
-      <rect className="loading-emblem-base" x="4" y="46" width="56" height="10" rx="2" fill="#0065bd" />
-      <rect className="loading-emblem-wall" x="10" y="22" width="12" height="24" rx="1.5" fill="#d92328" />
-      <rect className="loading-emblem-wall" x="42" y="22" width="12" height="24" rx="1.5" fill="#d92328" />
-      <rect className="loading-emblem-roof" x="10" y="16" width="44" height="6" rx="1.5" fill="#ffd43b" />
-      <circle className="loading-emblem-roof" cx="16" cy="19" r="2.1" fill="#ffe27a" />
-      <circle className="loading-emblem-roof" cx="48" cy="19" r="2.1" fill="#ffe27a" />
+    <svg className="loading-emblem" width="104" height="104" viewBox="0 0 64 64" role="img" aria-label="Brick Commons">
+      <rect className="loading-emblem-base" x="4" y="44" width="56" height="11" rx="2" fill="#0065bd" />
+      <g className="loading-emblem-wall">
+        <rect x="9" y="20" width="16" height="24" rx="1.5" fill="#d92328" />
+        <circle cx="14" cy="17" r="2.6" fill="#ea262b" />
+        <circle cx="20" cy="17" r="2.6" fill="#ea262b" />
+      </g>
+      <g className="loading-emblem-wall">
+        <rect x="39" y="20" width="16" height="24" rx="1.5" fill="#d92328" />
+        <circle cx="44" cy="17" r="2.6" fill="#ea262b" />
+        <circle cx="50" cy="17" r="2.6" fill="#ea262b" />
+      </g>
+      <g className="loading-emblem-roof">
+        <rect x="27" y="30" width="10" height="8" rx="1.5" fill="#ffd43b" />
+        <circle cx="32" cy="27" r="2.3" fill="#ffe27a" />
+      </g>
     </svg>
   );
 }
@@ -282,6 +298,7 @@ export function HomeApp() {
 
       <header className="table-corner" inert={panelOpen || undefined}>
         <a className="table-brand" href="/" aria-label="Brick Commons (working title): home">
+          <span className="table-brand-mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: BRAND_MARK }} />
           Brick Commons
         </a>
         <QuickLinks hidden={status !== "ready"} />
@@ -320,7 +337,10 @@ export function Fallback({ signedInAs }: { signedInAs: string | null }) {
   return (
     <main className="fallback">
       <div className="fallback-card">
-        <h1>Brick Commons</h1>
+        <h1>
+          <span className="fallback-mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: BRAND_MARK }} />
+          Brick Commons
+        </h1>
         <p className="fallback-lede">A shared table for building with bricks, alone or with someone else. The 3D table couldn't be shown on this device, so here is everything it leads to.</p>
         <p>
           <a className="btn btn-red" href="/build/?view=account">

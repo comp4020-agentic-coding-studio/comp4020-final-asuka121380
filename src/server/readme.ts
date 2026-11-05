@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { marked } from "marked";
+import { decorativeEmblemMark } from "../client/ui/iso.ts";
 
 // /readme/ is README.md rendered on the server, so the whole argument is in
 // the HTML a visitor (or the shipped check) receives, with no script needed.
@@ -16,6 +17,11 @@ import { marked } from "marked";
 // from anywhere: the page is one response.
 
 const escape = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+// The one non-gameplay emblem (ui/iso.ts, shared with the client bundles),
+// rendered once at module load: iso.ts has no DOM/React dependency, so its
+// pure string output works unchanged on the server.
+const MARK = decorativeEmblemMark();
 
 const ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect y='5' width='16' height='11' rx='2' fill='%23e3241b'/%3E%3Crect x='2' y='2' width='4' height='4' rx='1' fill='%23e3241b'/%3E%3Crect x='10' y='2' width='4' height='4' rx='1' fill='%23e3241b'/%3E%3C/svg%3E";
@@ -68,7 +74,8 @@ export function renderReadme(path: string): string {
     background: rgb(255 255 255 / 0.94);
     border-bottom: 2px solid var(--line);
   }
-  .brand { font: 700 1.05rem/1 var(--display); color: var(--ink); text-decoration: none; }
+  .brand { display: inline-flex; align-items: center; gap: 0.45rem; font: 700 1.05rem/1 var(--display); color: var(--ink); text-decoration: none; }
+  .brand svg { width: 24px; height: 24px; }
   .back {
     display: inline-flex;
     align-items: center;
@@ -125,7 +132,7 @@ export function renderReadme(path: string): string {
 </head>
 <body>
 <header class="bar">
-<a class="brand" href="/">Brick Commons</a>
+<a class="brand" href="/">${MARK}Brick Commons</a>
 <a class="back" href="/"><span aria-hidden="true">←</span> Back to the table</a>
 </header>
 <main>
