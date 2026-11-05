@@ -8,8 +8,11 @@ import type { Cell, Rotation } from "./grid.ts";
 // bricks and plates and an approximation for slopes and specials: two slopes
 // cannot interlock and nothing can tuck under a slope's overhang.
 //
-// Connection: every footprint cell has an anti-stud underneath, and `studs`
-// lists the footprint cells (at rotation 0) that can carry a part above.
+// Connection: `studs` lists the footprint cells (at rotation 0) that can carry
+// a part above, and `sockets` the cells with an anti-stud underneath (every
+// footprint cell unless listed). An arch rests only on its legs and an
+// inverted slope only on its back row, so neither is held up by a part
+// under its hollow span or its overhang.
 
 export type GeometryKey =
   | "window"
@@ -21,7 +24,10 @@ export type GeometryKey =
   | "slope45-double"
   | "door"
   | "flower"
-  | "round-plate";
+  | "round-plate"
+  | "round-brick"
+  | "arch"
+  | "slope45-inverted";
 
 export interface PartDefinition {
   id: string;
@@ -38,6 +44,8 @@ export interface PartDefinition {
   h: number;
   /** Footprint cells at rotation 0 that carry studs on top. */
   studs: "all" | readonly Cell[];
+  /** Footprint cells at rotation 0 with an anti-stud underneath; all of them if absent. */
+  sockets?: readonly Cell[];
   /** Rotations that give distinct results; symmetric parts list fewer. */
   rotations: readonly Rotation[];
   geometry: GeometryKey;
@@ -79,6 +87,18 @@ export const CATALOG: readonly PartDefinition[] = [
   // A planter box with its flowers as one part; the flowers' height is part
   // of its collision box, so nothing can be stacked into them.
   { id: "planter-1x2", code: "PL2", name: "Planter with flowers", group: "details", category: "special", w: 2, d: 1, h: 5, studs: [], rotations: HALF, geometry: "planter", colourRegion: "box", defaultColour: "bark" },
+  // Medieval Castle parts (doc/research/0002-medieval-castle-reference.md).
+  { id: "brick-1x1", code: "B11", name: "Brick 1×1", group: "bricks", category: "brick", w: 1, d: 1, h: 3, studs: "all", rotations: ONE, geometry: "brick", defaultColour: "stone" },
+  { id: "brick-1x4", code: "B14", name: "Brick 1×4", group: "bricks", category: "brick", w: 4, d: 1, h: 3, studs: "all", rotations: HALF, geometry: "brick", defaultColour: "stone" },
+  { id: "round-brick-1x1", code: "RB1", name: "Round brick 1×1", group: "bricks", category: "brick", w: 1, d: 1, h: 3, studs: "all", rotations: ONE, geometry: "round-brick", defaultColour: "stone" },
+  { id: "plate-1x2", code: "P12", name: "Plate 1×2", group: "bricks", category: "plate", w: 2, d: 1, h: 1, studs: "all", rotations: HALF, geometry: "plate", defaultColour: "bark" },
+  { id: "plate-2x4", code: "P24", name: "Plate 2×4", group: "bricks", category: "plate", w: 4, d: 2, h: 1, studs: "all", rotations: HALF, geometry: "plate", defaultColour: "sand" },
+  { id: "plate-6x6", code: "P66", name: "Plate 6×6", group: "bricks", category: "plate", w: 6, d: 6, h: 1, studs: "all", rotations: ONE, geometry: "plate", defaultColour: "sand" },
+  // Arches along x at rotation 0, standing on their two end cells.
+  { id: "arch-1x4", code: "A14", name: "Arch 1×4", group: "openings", category: "special", w: 4, d: 1, h: 3, studs: "all", sockets: [{ x: 0, z: 0 }, { x: 3, z: 0 }], rotations: HALF, geometry: "arch", defaultColour: "stone" },
+  { id: "arch-1x8x2", code: "A82", name: "Arch 1×8×2", group: "openings", category: "special", w: 8, d: 1, h: 6, studs: "all", sockets: [{ x: 0, z: 0 }, { x: 7, z: 0 }], rotations: HALF, geometry: "arch", defaultColour: "stone" },
+  // Rests on its back row (z = 0) and widens towards +z, studs all over the top.
+  { id: "inv-slope-2x2", code: "I22", name: "Inverted slope 45° 2×2", group: "roofs", category: "slope", w: 2, d: 2, h: 3, studs: "all", sockets: [{ x: 0, z: 0 }, { x: 1, z: 0 }], rotations: ALL, geometry: "slope45-inverted", defaultColour: "charcoal" },
 ];
 
 const byId = new Map(CATALOG.map((p) => [p.id, p]));

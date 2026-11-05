@@ -1,5 +1,6 @@
 import type { Rotation } from "./grid.ts";
 import type { Placement } from "./rules.ts";
+import { CASTLE_SCENE } from "./castle.ts";
 
 // A versioned scene: the editable plot, the reference model and the kit.
 // Fixed scenery (street, neighbours, hedge) is drawn by the client and is
@@ -144,4 +145,18 @@ export const STREET_SCENE: SceneTemplate = {
   maxPlayers: 2,
 };
 
-export const SCENES: Readonly<Record<string, SceneTemplate>> = { [STREET_SCENE.id]: STREET_SCENE };
+export const SCENES: Readonly<Record<string, SceneTemplate>> = {
+  [STREET_SCENE.id]: STREET_SCENE,
+  [CASTLE_SCENE.id]: CASTLE_SCENE,
+};
+
+export const isSceneId = (id: unknown): id is string => typeof id === "string" && Object.hasOwn(SCENES, id);
+
+/** The template a stored scene id names. Rows are only ever written with ids from SCENES. */
+export function sceneById(id: string): SceneTemplate {
+  const scene = isSceneId(id) ? SCENES[id] : undefined;
+  if (!scene) throw new Error(`unknown scene ${id}`);
+  return scene;
+}
+
+export { CASTLE_SCENE };

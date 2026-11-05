@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { accountForVisitor, authRateLimited, confirmSignIn, displayNamesFor, register, signOut, verifyCredentials, visitorHasOwnWork } from "./accounts.ts";
 import { buildFor, parseEnvelope, roomSnapshot, runCommand, summaryFor } from "./builds.ts";
 import { openDatabase } from "./db.ts";
+import { isSceneId, STREET_SCENE } from "../domain/scene.ts";
 import { createRecoveryCode, createSession, deleteSession, findVisitor, hashToken, recoveryRateLimited, redeemRecoveryCode, visitorFor } from "./identity.ts";
 import { areFriends, createFriendLink, friendsOf, openFriendLink, pendingRequestsFor, requestFriend, respondToRequest } from "./friends.ts";
 import { renderReadme } from "./readme.ts";
@@ -190,7 +191,9 @@ app.use("/api", (req, res, next) => {
 
 app.get("/api/build", (req, res) => {
   const visitorId = identify(req, res);
-  res.json(buildFor(db, visitorId));
+  // an unknown or absent scene falls back to Beach Houses, as before ADR 0015
+  const sceneId = isSceneId(req.query.scene) ? req.query.scene : STREET_SCENE.id;
+  res.json(buildFor(db, visitorId, sceneId));
 });
 
 // the homepage's "Continue my build": read-only, and sets no cookie
@@ -444,9 +447,15 @@ app.post("/api/rooms", (req, res) => {
   const visibility = req.body?.visibility === "public" ? "public" : "invite_only";
   const allowPublish = typeof req.body?.allowPublish === "boolean" ? req.body.allowPublish : visibility === "public";
   const roomLabel = typeof req.body?.label === "string" ? req.body.label.slice(0, 80) : undefined;
-  const room = createRoom(db, visitorId, { visibility, allowPublish, label: roomLabel });
+  const sceneId = req.body?.sceneId === undefined ? STREET_SCENE.id : req.body.sceneId;
+  if (!isSceneId(sceneId)) {
+    ev(res, { event: "room.create", outcome: "rejected", reason: "unknown_scene", actor: label(visitorId) });
+    res.status(400).json({ ok: false, code: "bad_request", message: "That scene doesn't exist." });
+    return;
+  }
+  const room = createRoom(db, visitorId, { visibility, allowPublish, label: roomLabel, sceneId });
   // the room's free-text label is never logged
-  ev(res, { event: "room.create", outcome: "changed", actor: label(visitorId), room: room.id, visibility: room.visibility });
+  ev(res, { event: "room.create", outcome: "changed", actor: label(visitorId), room: room.id, visibility: room.visibility, scene: room.scene_id });
   res.json(snapshotOf(db, room));
 });
 
@@ -949,7 +958,7 @@ app.post("/api/snapshots/:id/continue", (req, res) => {
   const visibility = req.body?.visibility === "public" ? "public" : "invite_only";
   const allowPublish = typeof req.body?.allowPublish === "boolean" ? req.body.allowPublish : visibility === "public";
   const room = createRoom(db, visitorId, { visibility, allowPublish, fromSnapshotId: snapshot.id });
-  ev(res, { event: "snapshot.continue", outcome: "changed", actor: label(visitorId), room: room.id, source: snapshot.id, visibility: room.visibility });
+  ev(res, { event: "snapshot.continue", outcome: "changed", actor: label(visitorId), room: room.id, source: snapshot.id, visibility: room.visibility, scene: room.scene_id });
   res.json(snapshotOf(db, room));
 });
 

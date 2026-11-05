@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Contributor, Member, Snapshot } from "../domain/commands.ts";
 import type { Plan, PlacedPart } from "../domain/rules.ts";
-import { STREET_SCENE } from "../domain/scene.ts";
+import { sceneById, STREET_SCENE } from "../domain/scene.ts";
 import { transaction, type Db } from "./db.ts";
 import { emitRoomEvent } from "./realtime.ts";
 
@@ -11,7 +11,7 @@ import { emitRoomEvent } from "./realtime.ts";
 // creating, finding, joining, and assembling the snapshot every command path
 // and every SSE connection reads.
 
-const scene = STREET_SCENE;
+const capacityOf = (sceneId: string): number => sceneById(sceneId).maxPlayers;
 const now = (): string => new Date().toISOString();
 
 export interface RoomRow {
@@ -42,6 +42,7 @@ function roomRow(db: Db, roomId: string): RoomRow | undefined {
  * new stock, never touches an existing part, quantity or revision).
  */
 function upgrade(db: Db, room: RoomRow): RoomRow {
+  const scene = sceneById(room.scene_id);
   if (room.template_version >= scene.version) return room;
   const add = db.prepare("INSERT OR IGNORE INTO inventory (build_id, part_id, quantity) VALUES (?, ?, ?)");
   for (let v = room.template_version + 1; v <= scene.version; v++) {
@@ -56,10 +57,13 @@ export function findRoom(db: Db, roomId: string): RoomRow | undefined {
   return room && upgrade(db, room);
 }
 
-/** This visitor's one default (C8-style, solo, invite-only) room, created on first use. */
-export function defaultRoomFor(db: Db, visitorId: string): RoomRow {
+/** This visitor's one default (C8-style, solo, invite-only) room for a scene, created on first use. */
+export function defaultRoomFor(db: Db, visitorId: string, sceneId: string = STREET_SCENE.id): RoomRow {
+  const scene = sceneById(sceneId);
   return transaction(db, () => {
-    const existing = db.prepare("SELECT id FROM rooms WHERE host_id = ? AND is_default = 1").get(visitorId) as { id: string } | undefined;
+    const existing = db.prepare("SELECT id FROM rooms WHERE host_id = ? AND scene_id = ? AND is_default = 1").get(visitorId, scene.id) as
+      | { id: string }
+      | undefined;
     if (existing) return findRoom(db, existing.id)!;
     const id = randomUUID();
     const t = now();
@@ -85,6 +89,8 @@ export interface CreateRoomOptions {
   visibility: "public" | "invite_only";
   allowPublish: boolean;
   label?: string;
+  /** Which scene the room builds; a continued snapshot always keeps its own. */
+  sceneId?: string;
   /** A room may be created fresh, or seeded from a snapshot (ADR 0009's "continue"). */
   fromSnapshotId?: string;
 }
@@ -107,13 +113,18 @@ export function createRoom(db: Db, hostId: string, opts: CreateRoomOptions): Roo
     const t = now();
     let visibility = opts.visibility;
     let allowPublish = opts.allowPublish;
+    let sceneId = opts.sceneId ?? STREET_SCENE.id;
     if (opts.fromSnapshotId) {
-      const src = db.prepare("SELECT allow_publish FROM snapshots WHERE id = ?").get(opts.fromSnapshotId) as { allow_publish: number } | undefined;
+      const src = db.prepare("SELECT allow_publish, scene_id FROM snapshots WHERE id = ?").get(opts.fromSnapshotId) as
+        | { allow_publish: number; scene_id: string }
+        | undefined;
+      if (src) sceneId = src.scene_id;
       if (!src?.allow_publish) {
         visibility = "invite_only";
         allowPublish = false;
       }
     }
+    const scene = sceneById(sceneId);
     db.prepare("INSERT INTO builds (id, visitor_id, scene_id, template_version, revision, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)").run(
       id,
       hostId,
@@ -275,7 +286,8 @@ function admitActive(db: Db, roomId: string, visitorId: string, createIfAbsent: 
     return { ok: true, changed: false };
   }
   const { n } = db.prepare("SELECT count(*) AS n FROM room_members WHERE room_id = ? AND active = 1").get(roomId) as { n: number };
-  if (n >= scene.maxPlayers) return { ok: false, code: "room_full" };
+  const room = db.prepare("SELECT scene_id FROM rooms WHERE id = ?").get(roomId) as { scene_id: string } | undefined;
+  if (!room || n >= capacityOf(room.scene_id)) return { ok: false, code: "room_full" };
   if (existing) {
     db.prepare("UPDATE room_members SET active = 1, last_seen_at = ? WHERE room_id = ? AND visitor_id = ?").run(t, roomId, visitorId);
   } else if (createIfAbsent) {
@@ -417,7 +429,7 @@ export function pendingInvitesFor(db: Db, visitorId: string): RoomInvite[] {
     createdAt: r.created_at,
     allowPublish: !!r.allow_publish,
     occupancy: r.occupancy,
-    capacity: scene.maxPlayers,
+    capacity: capacityOf(r.scene_id),
   }));
 }
 
@@ -498,7 +510,7 @@ export function publicLobby(db: Db): LobbyRoom[] {
        FROM rooms r WHERE r.visibility = 'public' ORDER BY r.created_at DESC`,
     )
     .all() as { id: string; scene_id: string; label: string | null; allow_publish: number; occupancy: number }[];
-  return rows.map((r) => ({ id: r.id, sceneId: r.scene_id, label: r.label, occupancy: r.occupancy, capacity: scene.maxPlayers, allowPublish: !!r.allow_publish }));
+  return rows.map((r) => ({ id: r.id, sceneId: r.scene_id, label: r.label, occupancy: r.occupancy, capacity: capacityOf(r.scene_id), allowPublish: !!r.allow_publish }));
 }
 
 // ---- pre-join admission preview --------------------------------------------
@@ -551,7 +563,8 @@ export function admissionPreview(db: Db, roomId: string, visitorId: string): Adm
   const { active } = (db.prepare("SELECT active FROM room_members WHERE room_id = ? AND visitor_id = ?").get(room.id, visitorId) as
     | { active: number }
     | undefined) ?? { active: 0 };
-  const canJoin = !!active || occupancy < scene.maxPlayers;
+  const capacity = capacityOf(room.scene_id);
+  const canJoin = !!active || occupancy < capacity;
   return {
     id: room.id,
     sceneId: room.scene_id,
@@ -559,7 +572,7 @@ export function admissionPreview(db: Db, roomId: string, visitorId: string): Adm
     visibility: room.visibility,
     allowPublish: !!room.allow_publish,
     occupancy,
-    capacity: scene.maxPlayers,
+    capacity,
     canJoin,
     reason: canJoin ? undefined : "room_full",
     alreadyMember,
@@ -616,7 +629,7 @@ export function snapshotOf(db: Db, room: RoomRow): Snapshot {
     sceneId: room.scene_id,
     templateVersion: room.template_version,
     revision: room.revision,
-    maxPlayers: scene.maxPlayers,
+    maxPlayers: capacityOf(room.scene_id),
     visibility: room.visibility,
     allowPublish: !!room.allow_publish,
     hostId: room.host_id,

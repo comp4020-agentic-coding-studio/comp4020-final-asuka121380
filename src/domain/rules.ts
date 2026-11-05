@@ -95,6 +95,15 @@ export function studCells(def: PartDefinition, p: Pick<Placement, "x" | "z" | "r
   });
 }
 
+/** The footprint cells with an anti-stud underneath: what can rest on studs below. */
+export function socketCells(def: PartDefinition, p: Pick<Placement, "x" | "z" | "rot">): Cell[] {
+  if (!def.sockets) return footprint(def, p);
+  return def.sockets.map((c) => {
+    const r = rotateCell(c, def, p.rot);
+    return { x: p.x + r.x, z: p.z + r.z };
+  });
+}
+
 /** Which part fills each grid cell, keyed by `x,y,z`. */
 export function occupancy(parts: readonly PlacedPart[]): Map<string, PlacedPart> {
   const occ = new Map<string, PlacedPart>();
@@ -110,7 +119,7 @@ export function occupancy(parts: readonly PlacedPart[]): Map<string, PlacedPart>
 
 /** The parts whose studs carry a part sitting at `p`. Empty means unsupported, unless on the plot. */
 function supporters(def: PartDefinition, p: Placement, parts: readonly PlacedPart[]): PlacedPart[] {
-  const below = new Set(footprint(def, p).map((c) => `${c.x},${c.z}`));
+  const below = new Set(socketCells(def, p).map((c) => `${c.x},${c.z}`));
   return parts.filter((q) => {
     const qd = partDef(q.partId);
     if (!qd || q.y + qd.h !== p.y) return false;

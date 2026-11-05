@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Command, CommandEnvelope, CommandResult, Snapshot } from "../domain/commands.ts";
 import { rotatedPlacement, validateCommand, type BuildState, type PlacedPart } from "../domain/rules.ts";
-import { STREET_SCENE } from "../domain/scene.ts";
+import { sceneById } from "../domain/scene.ts";
 import { transaction, type Db } from "./db.ts";
 import { emitRoomEvent } from "./realtime.ts";
 import { defaultRoomFor, findRoom, isActiveMember, snapshotOf, type RoomRow } from "./rooms.ts";
@@ -16,7 +16,6 @@ import { defaultRoomFor, findRoom, isActiveMember, snapshotOf, type RoomRow } fr
 // gated on the room's whole revision; `remove`/`recolour`/`rotate` are gated
 // on the targeted part's own revision when the client supplies one.
 
-const scene = STREET_SCENE;
 const now = (): string => new Date().toISOString();
 
 /**
@@ -27,15 +26,16 @@ const now = (): string => new Date().toISOString();
 export function summaryFor(db: Db, findVisitorId: () => string | null): { hasBuild: boolean; parts: number } {
   const visitorId = findVisitorId();
   if (!visitorId) return { hasBuild: false, parts: 0 };
-  const row = db.prepare("SELECT id FROM rooms WHERE host_id = ? AND is_default = 1").get(visitorId) as { id: string } | undefined;
-  if (!row) return { hasBuild: false, parts: 0 };
-  const { n } = db.prepare("SELECT count(*) AS n FROM parts WHERE build_id = ?").get(row.id) as { n: number };
-  return { hasBuild: true, parts: n };
+  const rows = db.prepare("SELECT id FROM rooms WHERE host_id = ? AND is_default = 1").all(visitorId) as { id: string }[];
+  if (rows.length === 0) return { hasBuild: false, parts: 0 };
+  const count = db.prepare("SELECT count(*) AS n FROM parts WHERE build_id = ?");
+  const parts = rows.reduce((sum, r) => sum + (count.get(r.id) as { n: number }).n, 0);
+  return { hasBuild: true, parts };
 }
 
 /** The visitor's default solo room, started with the whole kit on first visit. Never replaces an existing one. */
-export function buildFor(db: Db, visitorId: string): Snapshot {
-  return snapshotOf(db, defaultRoomFor(db, visitorId));
+export function buildFor(db: Db, visitorId: string, sceneId?: string): Snapshot {
+  return snapshotOf(db, defaultRoomFor(db, visitorId, sceneId));
 }
 
 export function roomSnapshot(db: Db, roomId: string): Snapshot | undefined {
@@ -191,7 +191,7 @@ export function runCommand(db: Db, visitorId: string, roomId: string, envelope: 
     const state: BuildState = snapshot;
     const { command } = envelope;
     const meta = commandMeta(state, command);
-    const rejection = validateCommand(scene, state, command);
+    const rejection = validateCommand(sceneById(room.scene_id), state, command);
     if (rejection) {
       const conflict = rejection.code === "part_conflict";
       return {

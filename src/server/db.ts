@@ -290,6 +290,13 @@ const MIGRATIONS: string[] = [
   ALTER TABLE visitors ADD COLUMN account_id TEXT REFERENCES accounts(id);
   CREATE UNIQUE INDEX visitors_one_primary_per_account ON visitors(account_id) WHERE account_id IS NOT NULL;
   `,
+  // 5 (ADR 0015): several playable scenes. A visitor keeps one default solo room
+  // per scene, so the one-default rule is per (host, scene). Only the index
+  // changes; no existing row is touched.
+  `
+  DROP INDEX rooms_one_default_per_host;
+  CREATE UNIQUE INDEX rooms_one_default_per_host_scene ON rooms(host_id, scene_id) WHERE is_default = 1;
+  `,
 ];
 
 export function openDatabase(path: string): Db {

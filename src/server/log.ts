@@ -52,6 +52,8 @@ export interface Fields {
   /** Command correlation (`commandRef`): the client's UUID command id, or a hash of any other id. */
   cmd?: string;
   visibility?: "public" | "invite_only";
+  /** The scene a room builds, as stored on the room (ADR 0015). */
+  scene?: string;
   /** SSE: live connections this visitor has in this room after the event. */
   open?: number;
   /** HTTP status sent, for `http.*` events. */
@@ -128,6 +130,7 @@ const VALIDATE: { [K in keyof Fields]-?: (v: unknown) => unknown } = {
   rev: int,
   cmd: (v) => (typeof v === "string" && (UUID.test(v) || /^h-[0-9a-f]{16}$/.test(v)) ? v.toLowerCase() : undefined),
   visibility: (v) => (v === "public" || v === "invite_only" ? v : undefined),
+  scene: token,
   open: int,
   status: int,
   method: pattern(/^[A-Z]{3,7}$/),
