@@ -3337,3 +3337,109 @@ section is also recorded in ADR 0014.
   in the prior entry were not re-investigated here; they did not appear
   in this pass's 228/228 full-suite run.
 - Nothing pushed or deployed.
+
+## 2026-11-05 17:39 AEDT — Artistic identity pass: red-led redesign of the dedicated pages and README (ADR 0014)
+
+Decided by the author: a full artistic redesign of the dedicated pages'
+shared template and `/readme/`, explicitly rejecting a "generic
+dashboard" look, with vivid brick red superseding the prior pass's
+blue-led balance as the leading identity colour (blue demoted to
+supporting links). Preserves all out-of-scope behaviour (account/
+identity, rooms, friends, collections/publication, persistence/
+realtime, existing URLs, tabletop camera and gameplay); the only
+gameplay-interface change authorized was removing the game editor's
+persistent toolbar About entry.
+[`7b184da`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7b184da).
+
+**Implemented.**
+- `src/client/ui/site-colors.css`: the palette token block rewritten
+  around `--red`/`--red-edge`/`--red-deep` leading branding, structure
+  and primary actions, `--white`/`--paper` for readable surfaces,
+  `--yellow` as a warmth accent, and `--blue` kept only for links and
+  small supporting details. Verified against WCAG contrast thresholds
+  with a relative-luminance script, not eyeballed.
+- `src/client/lobby/Shell.tsx`, `src/client/lobby/lobby.css`: the
+  dedicated-page header (`PageShell`) rewritten from `.page-bar` to a
+  full-bleed `.page-beam` — a solid red band standing in for a brick
+  wall's top course, with a seam and stud row along its lower edge,
+  starting flush with the viewport's top, no outer inset. Reading
+  columns widened (68rem/82rem/40rem). An "About" nav link added. A
+  small decorative brick-stack SVG (`PageHead`) added above each page's
+  heading, moved to its own block after an earlier absolutely-positioned
+  version was found, by screenshot, to overlap the heading text.
+- `src/client/ui/kit.css`: fixed a nav-contrast bug — `.kit a:not(.btn)`
+  (the site-wide link-blue rule) had equal specificity with the new
+  `.page-nav a` white-text rule, leaving nav links illegible on the red
+  beam, the exact mistake the brief flagged from the prior pass. Fixed
+  by scoping to `.page-beam .page-nav a`.
+- `src/client/App.tsx`: removed the toolbar's persistent `About` chip
+  only (it returned players to the homepage mid-build, interrupting
+  building); the Help panel's own `About Brick Commons` link is
+  unchanged, since the brief's stated problem was the persistent
+  toolbar entry specifically.
+- `src/client/ui/iso.ts`, `src/client/index.html`,
+  `src/client/home/HomeApp.tsx`: the one shared emblem (`emblemMark()`)
+  recoloured in place to the new red/cream/yellow assembly at all five
+  existing call sites; no new emblem source added.
+- `src/server/readme.ts`: rewritten around a new `splitSections(md)`
+  helper, which splits `README.md` by its own headings into chunks
+  (each chunk still containing its own heading line), rendering a
+  narrative page (a hero, alternating illustrated/compact chapters, a
+  closing scene) with original `aria-hidden` SVG illustrations and a
+  one-off, reduced-motion-safe entrance animation
+  (`[data-anim]`/`.anim-in`, forced fully visible under
+  `:not(.anim-in)` and under `prefers-reduced-motion: reduce`), while
+  keeping the same URL, the complete unmodified README prose and links,
+  and the same heading order verified directly against
+  `spec/invariants.test.ts`'s own assertion logic. The closing scene
+  carries the author's required exact text, "Made with love ♥ by
+  Asuka121380", with a small original heart-capped-brick motif and a
+  "Back to the table" button; per the brief's instruction, the external
+  page it referenced for tone
+  (`comp4020-ass1-Asuka121380`'s own ending) was opened and reviewed
+  earlier in this session before this section was designed, and none of
+  its specific artwork or interactions were reused.
+  - One illustration (`joiningArt`, two brick stacks joining) was
+    redrawn after a first version's isolated stud circles read as
+    disconnected from their rectangles rather than as bricks.
+  - A missing `--white` custom property in this file's own inline
+    `:root` (separate from the client bundle's tokens, since this page
+    is server-rendered standalone HTML) was found and fixed after it
+    caused one chapter's house illustration to render with solid black
+    walls.
+- `scripts/tabletop.ts`: updated one stale hardcoded colour assertion
+  (`lobby keeps its own paper background`) from the prior pass's
+  blue-led value to this pass's new warm paper tone; the check itself
+  (the lobby's background stays independent of the table) is unchanged.
+
+**Tests run** (production build, local server on a confirmed-empty port
+9301, fresh temporary `DATA_DIR`):
+- `pnpm typecheck`: passed.
+- `APP_URL=http://localhost:9301 pnpm test`: 228/228 passed, including
+  `spec/invariants.test.ts` specifically, 2/2.
+- `pnpm check:evidence`: passed.
+- `node scripts/tabletop.ts http://localhost:9301 <dir>`, run five times
+  while iterating: 149/152 (one stale assertion, fixed), 172/173 (one
+  stray timeout), 85/90 and 11/20 (cascading timeouts traced to ~15
+  unrelated stale `node src/server/index.ts` processes left running from
+  earlier, unrelated sessions on this shared development machine, none
+  on this check's own port, driving load average to ~11 on an 8-core
+  machine; stopped by PID), then **173/173** clean immediately after.
+  Full detail and the specific PIDs involved are in evidence 0021 §1.
+- Visual review in Chrome (swiftshader software WebGL) at desktop and
+  390×844: the redesigned dedicated-page template (lobby, account,
+  collection, showcase, empty and populated), a real `:hover` and a
+  keyboard `:focus-visible` state, and `/readme/`'s opening hero, a
+  joining-themed chapter and the closing scene, at desktop and mobile
+  widths and under `prefers-reduced-motion: reduce`.
+
+**Observed.** Screenshots and full detail in evidence 0021; this pass's
+section is also recorded in ADR 0014.
+
+**Known limitations.**
+- Checked only in Chrome, with swiftshader software WebGL; not checked
+  on a physical device or in Safari/WebKit.
+- The three cascading-timeout `tabletop.ts` runs are recorded in
+  evidence 0021 rather than omitted, together with their confirmed,
+  unrelated cause and the clean rerun that followed.
+- Nothing pushed or deployed.
