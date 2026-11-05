@@ -45,19 +45,19 @@ type Status = "loading" | "ready" | "failed";
 function LoadingEmblem() {
   return (
     <svg className="loading-emblem" width="104" height="104" viewBox="0 0 64 64" role="img" aria-label="Brick Commons">
-      <rect className="loading-emblem-base" x="4" y="44" width="56" height="11" rx="2" fill="#0065bd" />
+      <rect className="loading-emblem-base" x="4" y="44" width="56" height="11" rx="2" fill="#d2242c" />
       <g className="loading-emblem-wall">
-        <rect x="9" y="20" width="16" height="24" rx="1.5" fill="#d92328" />
-        <circle cx="14" cy="17" r="2.6" fill="#ea262b" />
-        <circle cx="20" cy="17" r="2.6" fill="#ea262b" />
+        <rect x="9" y="20" width="16" height="24" rx="1.5" fill="#d2242c" />
+        <circle cx="14" cy="17" r="2.6" fill="#e34a50" />
+        <circle cx="20" cy="17" r="2.6" fill="#e34a50" />
       </g>
       <g className="loading-emblem-wall">
-        <rect x="39" y="20" width="16" height="24" rx="1.5" fill="#d92328" />
-        <circle cx="44" cy="17" r="2.6" fill="#ea262b" />
-        <circle cx="50" cy="17" r="2.6" fill="#ea262b" />
+        <rect x="39" y="20" width="16" height="24" rx="1.5" fill="#fdf6ec" />
+        <circle cx="44" cy="17" r="2.6" fill="#ffffff" />
+        <circle cx="50" cy="17" r="2.6" fill="#ffffff" />
       </g>
       <g className="loading-emblem-roof">
-        <rect x="27" y="30" width="10" height="8" rx="1.5" fill="#ffd43b" />
+        <rect x="27" y="30" width="10" height="8" rx="1.5" fill="#ffcf3d" />
         <circle cx="32" cy="27" r="2.3" fill="#ffe27a" />
       </g>
     </svg>

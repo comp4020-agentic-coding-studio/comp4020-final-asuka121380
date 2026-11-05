@@ -94,11 +94,11 @@
 .kit .lobby-card[open] > summary {
   margin-bottom: 0.5rem;
 }
-/* the one primary card on a page: solo building, a yellow label */
+/* the one primary card on a page: solo building, a confident yellow slab */
 .kit .lobby-card-solo {
   border-color: var(--yellow-edge);
-  background: var(--kit-yellow-soft);
-  box-shadow: 0 3px 0 var(--yellow-edge);
+  background: linear-gradient(165deg, var(--kit-yellow-soft), var(--yellow-soft, var(--kit-yellow-soft)) 60%, var(--yellow) 160%);
+  box-shadow: 0 5px 0 var(--yellow-edge);
 }
 
 /* ---- tags: small printed labels ------------------------------------------- */
@@ -512,6 +512,19 @@
   background: var(--kit-card);
   box-shadow: 0 4px 0 var(--kit-line-strong);
   overflow: hidden;
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+}
+.kit .creation-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 7px 0 var(--kit-line-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kit .creation-card {
+    transition: none;
+  }
+  .kit .creation-card:hover {
+    transform: none;
+  }
 }
 /* the display: a light stage with a low plinth edge, like a shelf */
 .kit .creation-stage {

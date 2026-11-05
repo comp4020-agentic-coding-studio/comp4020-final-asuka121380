@@ -927,9 +927,6 @@ export function App() {
         <button className="chip-button" aria-label="Reset view" onClick={() => requestCamera("reset")}>
           Reset<span className="wide-only"> view</span> <kbd>Home</kbd>
         </button>
-        <a className="chip-button wide-only-flex" href="/readme/">
-          About
-        </a>
       </nav>
 
       <Notice />

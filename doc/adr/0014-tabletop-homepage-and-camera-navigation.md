@@ -679,6 +679,141 @@ doc/evidence/0020.
   checks were Chrome/Playwright with the swiftshader software GPU path,
   not a physical device or Safari.
 
+## Artistic identity pass: red-led redesign of the dedicated pages and the README (author's brief, 5 Nov 2026; mechanisms agent)
+
+A full artistic redesign of the dedicated pages' shared template
+(`Shell.tsx`/`lobby.css`) and `/readme/`, explicitly moving away from a
+"generic dashboard" look, and **superseding the blue-led balance of the
+5 Nov "visual polish pass"** above with vivid brick red as the primary
+identity colour, blue demoted to limited supporting details and links.
+Preserves everything out of scope: account/identity behaviour, room
+creation/joining/capacity/permissions, friends/invitations,
+collections/publication rules/attribution, persistence/realtime, existing
+direct URLs, tabletop camera-led interactions, and all gameplay scenery,
+brick models, lighting, building rules and toolbar styling. Evidence:
+doc/evidence/0021.
+
+- **A new palette, re-deriving hierarchy rather than relabelling it.**
+  `site-colors.css`'s token block (still scoped to `body.home`/`body.lobby`
+  via the same `html:has()`/`body` selectors, leaving the editor
+  untouched) is rewritten: `--red`/`--red-edge`/`--red-deep` lead
+  branding, structure and primary actions; `--white`/`--paper` carry
+  readable surfaces; `--yellow` is a warmth accent; `--blue` is kept only
+  for links and small supporting details; `--ink`/`--ink-soft` stay dark
+  charcoal for body text. Verified with a WCAG contrast script (relative
+  luminance) rather than eyeballed: every pairing in active use passes
+  (white-on-red 5.21:1, red-edge-on-white 8.30:1, ink-on-paper 15.70:1,
+  white-on-blue 5.33:1, ink-on-yellow 11.53:1, the 3:1 UI-component
+  threshold for input borders).
+- **An edge-to-edge page frame, not a boxed dashboard.** Every dedicated
+  page's header (`Shell.tsx`'s `PageShell`) is now a full-bleed `.page-beam`
+  standing in for a brick wall's top course: solid red, a thin seam and a
+  faint row of studs along its lower edge, starting flush with the top of
+  the viewport, with no outer inset or frame. A comfortable reading column
+  (widened from the prior pass: 68rem default, 82rem for `page-wide`, 40rem
+  for `page-narrow`) still sits inside that full-bleed page, so body text
+  is never stretched edge to edge. `PageHead` adds one small decorative
+  brick-stack SVG per page (not studs behind every heading), positioned as
+  its own block above the `<h1>` after an earlier version was found, by
+  screenshot, to overlap the heading's first letter.
+- **The nav-legibility bug the brief explicitly warned against, found and
+  fixed before review.** `kit.css`'s `.kit a:not(.btn)` (sets the
+  site-wide link-blue colour) had equal source-order specificity with the
+  new `.page-nav a` white-text rule, leaving nav links in illegible blue on
+  the new red beam — the exact mistake the brief called out from the prior
+  blue-header pass. Fixed by raising specificity (`.page-beam .page-nav a`),
+  confirmed by screenshot: legible white nav text, and a white
+  "current section" pill with red text that stays visually distinct from
+  both a plain link and a keyboard `:focus-visible` ring (a separate blue
+  outline), so selected/current, focused and error states never collapse
+  into one look under the red-led palette.
+- **An "About" link added to the shared dedicated-page nav**, pointing at
+  `/readme/`, alongside the existing Rooms/My collection/Showcase/Account
+  entries — not previously present in the dedicated-page nav.
+- **The game editor's persistent About entry removed, narrowly.** The
+  toolbar's `About` chip (`App.tsx`) is removed, per the brief's explicit,
+  narrow authorization: leaving via it and returning dropped the player
+  back at the homepage, interrupting active building. The Help panel's own
+  `About Brick Commons` link stays, since the brief's stated problem was
+  specifically the persistent toolbar entry point, not all About access
+  from the editor. No other editor file, style, or behaviour changed.
+- **One shared emblem, recoloured in place, not duplicated.**
+  `iso.ts`'s `emblemMark()` is updated to the new red/cream/yellow brick
+  assembly; every one of its five call sites (the static HTML splash and
+  `<noscript>` fallback, the React loading state, the tabletop's own brand
+  link and `Fallback` heading, every dedicated page's header, and the
+  server-rendered README header) stays a single shared source, so the
+  silhouette only needed changing once.
+- **`/readme/` rebuilt into a narrative page while preserving its
+  publication contract exactly.** `src/server/readme.ts` is rewritten
+  around a `splitSections(md)` helper that splits `README.md` by its own
+  `#`/`##` headings into chunks, each still containing its own heading
+  line, so each chunk's own rendered heading text and order are unchanged
+  from a plain `marked.parse(md)` — verified directly against
+  `spec/invariants.test.ts`'s own assertion (fetch `/readme/`, strip
+  tags/links, normalise, assert each of `README.md`'s heading texts
+  appears, in order, as plain text), which does not inspect markup or
+  classes at all. This gave full creative freedom over the page's HTML,
+  layout and decoration while keeping the URL, the complete server-rendered
+  prose and links, the heading order, and every shipped invariant check
+  unchanged. No sentence of the author's own README prose was rewritten,
+  and no invented user stories, testimonials or results were added — all
+  decorative SVG illustrations (`heroArt`, `joiningArt`, `neighbourhoodArt`,
+  `keepsakeArt`, `checklistArt`, `finaleArt`) are `aria-hidden`, original,
+  and grounded in the surrounding paragraph rather than illustrating
+  anything not already claimed in the prose.
+  - One illustration (`joiningArt`, two brick stacks joining across a
+    yellow seam) went through one visible-bug iteration: isolated
+    `<circle>` studs floating apart from their rectangles read as two
+    disconnected mascot shapes rather than bricks, fixed into proper
+    two-tier stack geometry with each stud correctly seated on its own
+    rectangle.
+  - A missing `--white` custom property in `readme.ts`'s own inline
+    `:root` (distinct from the client bundle's `site-colors.css`, since
+    this page is server-rendered standalone HTML) caused one chapter's
+    house illustration to render with solid black walls; added and
+    reverified by screenshot.
+- **Animation is a one-off entrance, never required to read the page.** A
+  tiny inline `<script>` adds an `.anim-in` class to `[data-anim]`
+  elements after load, which is the only thing CSS `@keyframes` respond
+  to; `:not(.anim-in)` rules force full opacity/position with no
+  animation, so the page is 100% complete and readable the instant HTML
+  arrives, confirmed by `curl` (which never runs the script) showing full
+  content. `prefers-reduced-motion: reduce` forces the same fully-visible,
+  non-animated state even with JavaScript enabled (screenshot:
+  `readme-reduced-motion.png`).
+- **The closing scene.** Per the brief's explicit instruction, the page
+  referenced in the brief
+  (`comp4020-agentic-coding-studio.github.io/comp4020-ass1-Asuka121380`)
+  was opened and its ending reviewed earlier in this session before this
+  section was designed (see evidence 0021 §3): a plain, sincere personal
+  sign-off, not an elaborate set-piece. `/readme/`'s finale borrows only
+  that restraint — one short line of the exact required text, **"Made with
+  love ♥ by Asuka121380"**, a small original heart-capped brick motif, and
+  a clear "Back to the table" button — using none of that page's
+  music-specific artwork, layout or interaction pattern.
+- **A stale assertion in `scripts/tabletop.ts` updated, not weakened.**
+  `[other pages unchanged] lobby keeps its own paper background` compared
+  against the prior pass's hardcoded blue-led background colour
+  (`rgb(242, 245, 248)`); updated to this pass's new warm paper tone
+  (`rgb(251, 245, 238)`, `--paper`). What the check verifies (the lobby's
+  background stays independent of the table's) is unchanged.
+- **Checks run:** `pnpm typecheck` (clean); `pnpm test` — **228/228
+  passed**, including `spec/invariants.test.ts` specifically — **2/2
+  passed**; `pnpm check:evidence` (clean); `node scripts/tabletop.ts <url>
+  <dir>` — **173/173 passed** on a clean run, after an intermediate run's
+  cascading timeouts were traced to ~15 unrelated stale
+  `node src/server/index.ts` processes accumulated from earlier, unrelated
+  sessions on this shared development machine (none on this check's own
+  port), stopped by PID (full account in evidence 0021 §1). Visual review
+  in Chrome (software WebGL) at desktop and 390×844: the redesigned
+  dedicated-page template (lobby, account, collection, showcase, both
+  empty and populated), hover and keyboard-focus states, and `/readme/`'s
+  full narrative (opening hero, a joining-themed chapter, the closing
+  scene) at desktop and mobile widths and under `prefers-reduced-motion`.
+  Screenshots in doc/evidence/shots/0021. All checks were Chrome/Playwright
+  with the swiftshader software GPU path, not a physical device or Safari.
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with

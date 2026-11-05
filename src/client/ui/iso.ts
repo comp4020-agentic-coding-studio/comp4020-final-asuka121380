@@ -126,24 +126,27 @@ export const brandMark = (): string =>
   ).replace('role="img" aria-label=""', 'aria-hidden="true"');
 
 /**
- * The one brand emblem for the non-gameplay site (ADR 0014, "Visual
- * polish pass"): a blue baseplate, two red studded walls and a yellow cap
- * brick, with a visible gap on the open side — a small unfinished house
- * or shared baseplate with room for someone else's idea, not a finished
- * logo. Built from the same isoSvg primitive as `brandMark`, so there is
- * one brick-drawing system, not two; deliberately NOT exported from a
- * second, hand-copied SVG string (the loading screen's earlier inline
- * `<svg>` was replaced by this shared source, since a hand-copied twin
- * will drift). Pure string output with no DOM/React dependency, so it can
- * be imported by both client code and `src/server/readme.ts`.
+ * The one brand emblem for the non-gameplay site (ADR 0014, "Artistic
+ * identity pass", 5 Nov 2026: red leads, superseding the blue-led version
+ * from "Visual polish pass" a few hours earlier the same day): a red
+ * baseplate, a red wall and a lighter cream wall meeting with a visible
+ * gap between them — two different pieces joining, not a finished
+ * building — and a yellow cap brick on top. Built from the same isoSvg
+ * primitive as `brandMark`, so there is one brick-drawing system, not two;
+ * deliberately NOT exported from a second, hand-copied SVG string (the
+ * loading screen's own inline `<svg>` is kept visually equivalent to this
+ * by hand, documented where it's defined, since inlining this generator's
+ * full output there would cost first-paint weight). Pure string output
+ * with no DOM/React dependency, so it can be imported by both client code
+ * and `src/server/readme.ts`.
  */
 export const emblemMark = (): string =>
   isoSvg(
     [
-      { x: 0, y: 0, z: 0, w: 5, d: 3, h: 1, colour: "#0065bd", smooth: true },
-      { x: 0, y: 0, z: 1, w: 2, d: 3, h: 2, colour: "#d92328" },
-      { x: 3, y: 0, z: 1, w: 2, d: 3, h: 2, colour: "#d92328" },
-      { x: 1, y: 1, z: 3, w: 2, d: 1, h: 1, colour: "#ffd43b" },
+      { x: 0, y: 0, z: 0, w: 5, d: 3, h: 1, colour: "#d2242c", smooth: true },
+      { x: 0, y: 0, z: 1, w: 2, d: 3, h: 2, colour: "#d2242c" },
+      { x: 3, y: 0, z: 1, w: 2, d: 3, h: 2, colour: "#fdf6ec" },
+      { x: 1, y: 1, z: 3, w: 2, d: 1, h: 1, colour: "#ffcf3d" },
     ],
     "Brick Commons",
   );

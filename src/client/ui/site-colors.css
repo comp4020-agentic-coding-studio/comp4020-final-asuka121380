@@ -1,55 +1,55 @@
 /*
- * The non-gameplay colour system (author's brief, 4 Nov 2026): white, red,
- * blue and yellow, read as colourful toy bricks rather than cream paper.
- * This never touches `:root` — it redeclares the SAME custom properties
- * `theme.css` defines (`--red`, `--blue`, `--yellow`, `--ink`, `--paper`,
- * `--line`, `--white`, …) but only inside `body.home` and `body.lobby`,
- * the two bundles that are never the game editor's. Every existing rule in
- * theme.css, kit.css, home.css and lobby.css that already reads one of
- * these tokens therefore picks up the brighter values automatically, with
- * no need to touch each individual colour literal. The editor's own
- * `<body>` carries neither class, so it keeps `:root`'s original values
- * untouched (ADR 0014: "introduce appropriate non-gameplay scoping… so the
- * editor remains unchanged").
+ * The non-gameplay colour system (author's brief, 5 Nov 2026: "Artistic
+ * identity pass"; supersedes the blue-led balance of 4 Nov's "Colour
+ * system"): vivid brick red leads — branding, structure, primary actions —
+ * with white surfaces, sunny yellow for warmth and emphasis, and blue kept
+ * as a secondary accent (links, selected-state fill: see kit.css's
+ * "Selection vs. error" rule, unchanged). This never touches `:root` — it
+ * redeclares the SAME custom properties `theme.css` defines (`--red`,
+ * `--blue`, `--yellow`, `--ink`, `--paper`, `--line`, `--white`, …) but
+ * only inside `body.home` and `body.lobby`, the two bundles that are never
+ * the game editor's. Every existing rule in theme.css, kit.css, home.css
+ * and lobby.css that already reads one of these tokens therefore picks up
+ * the warm values automatically, with no need to touch each individual
+ * colour literal. The editor's own `<body>` carries neither class, so it
+ * keeps `:root`'s original values untouched (ADR 0014: "introduce
+ * appropriate non-gameplay scoping… so the editor remains unchanged").
  *
  * `--ok` and `--danger` (success/error) are intentionally NOT overridden
  * here: green confirmation and red error meaning must stay distinct from
  * the brand red used for primary actions and emphasis.
  *
- * `<html>` is also matched (via `:has()`, so `<html>`'s own rules — e.g.
+ * `<html>` is also matched (via `:has()`), so `<html>`'s own rules — e.g.
  * lobby.css's `html, body { background: var(--paper); }` — get these
- * values declared directly on `<html>` itself. A custom property set only
- * on `body.lobby` would never reach `<html>`'s own background: custom
- * properties inherit DOWN the tree, and `<html>` is `body`'s ancestor, not
- * its descendant, so without this `<html>` would keep resolving `--paper`
- * from `:root`'s older cream value, showing as a beige band outside the
- * page content on wide screens or short pages (found and fixed, 5 Nov
- * 2026, ADR 0014 "Visual polish pass").
+ * values declared directly on `<html>` itself (custom properties inherit
+ * DOWN the tree only; found and fixed 5 Nov 2026, ADR 0014 "Visual polish
+ * pass").
  */
 
 html:has(body.home),
 html:has(body.lobby),
 body.home,
 body.lobby {
-  --red: #d92328;
-  --red-edge: #a8171b;
-  --red-soft: #fbe3e4;
+  --red: #d2242c;
+  --red-edge: #9c141c;
+  --red-deep: #7a0f17;
+  --red-soft: #fbe3e2;
 
-  --blue: #0065bd;
-  --blue-edge: #004d91;
-  --blue-soft: #e6f0fa;
+  --yellow: #ffcf3d;
+  --yellow-edge: #d99f00;
+  --yellow-soft: #fff3cf;
 
-  --yellow: #ffd43b;
-  --yellow-edge: #d6a700;
-  --yellow-soft: #fff6d9;
+  --blue: #1f6fae;
+  --blue-edge: #134f85;
+  --blue-soft: #e5f0f8;
 
   --white: #ffffff;
-  --paper: #f2f5f8;
-  --ink: #172b45;
-  --ink-soft: #4d5e76;
-  --line: #d8e1ea;
-  --line-strong: #9cb3c9;
+  --paper: #fbf5ee;
+  --ink: #241a17;
+  --ink-soft: #5c4f49;
+  --line: #ecdfd2;
+  --line-strong: #cdb9a4;
 
   /* a readable border on white without crossing into --blue's own weight */
-  --input-border: #7e96ae;
+  --input-border: #9c8b7c;
 }

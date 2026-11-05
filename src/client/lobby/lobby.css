@@ -4,6 +4,12 @@
  * tokens (ui/theme.css) and the shared panel and form look (ui/kit.css);
  * this file only lays the pages out. Only the lobby's bundle imports it, so
  * the editor's own styles are untouched.
+ *
+ * "Artistic identity pass" (author's brief, 5 Nov 2026; ADR 0014): an
+ * edge-to-edge page, a full-bleed red beam for its header (standing in for
+ * a brick wall, not a conventional dashboard bar), and a bolder, more
+ * asymmetric body composition — while keeping one comfortable reading
+ * column inside that full-bleed page, per page, not stretched prose.
  */
 
 html,
@@ -18,39 +24,53 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---- the page frame: brand, sections, the way back to the table ---------- */
+/* ---- the page frame: a brick-wall beam, edge to edge, flush with the top -- */
 
 .page {
   min-height: 100vh;
   min-height: 100dvh;
-  /* a faint cool wash at the top, like the table's room */
-  background: linear-gradient(var(--white), var(--paper) 18rem);
+  background: var(--paper);
 }
-/* a solid blue header band with white branding and nav text: dedicated
-   pages' one consistent structural treatment (ADR 0014, "Visual polish
-   pass") — never layered with other coloured frames on the same bar */
-.page-bar {
+/* the one consistent structural treatment (ADR 0014): a solid red beam,
+   full width, starting at the very top of the viewport — never inset, never
+   floating over a frame of its own. A thin seam and a faint row of studs
+   mark its lower edge like the top course of a brick wall; both stay out
+   of the readable row beneath them. */
+.page-beam {
   position: sticky;
   top: 0;
   z-index: 5;
+  background: linear-gradient(180deg, var(--red) 0%, var(--red) 82%, var(--red-edge) 100%);
+  box-shadow: 0 3px 0 var(--red-deep, var(--red-edge));
+}
+.page-beam-studs {
+  height: 7px;
+  background-image: radial-gradient(circle at 50% 35%, rgb(255 255 255 / 0.4) 0 28%, transparent 30%);
+  background-size: 22px 100%;
+  background-position: 11px 0;
+  background-repeat: repeat-x;
+  opacity: 0.55;
+}
+.page-beam-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1.2rem;
-  padding: 0.7rem max(1rem, env(safe-area-inset-right)) 0.7rem max(1rem, env(safe-area-inset-left));
-  background: var(--blue);
+  padding: 0.65rem max(1.1rem, env(safe-area-inset-right)) 0.75rem max(1.1rem, env(safe-area-inset-left));
 }
 .home-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   color: var(--white);
-  font: 700 1.1rem/1 var(--font-display);
+  font: 800 1.2rem/1 var(--font-display);
+  letter-spacing: -0.01em;
   text-decoration: none;
 }
 .home-link svg {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.18));
 }
 .page-nav {
   display: flex;
@@ -58,51 +78,72 @@ body {
   gap: 0.25rem;
   margin-right: auto;
 }
-.page-nav a {
-  padding: 0.45rem 0.7rem;
+/* higher specificity than kit.css's `.kit a:not(.btn)` (same source order
+   would otherwise leave nav links in link-blue on the red beam — exactly
+   the illegible-nav-text mistake the brief called out from the last pass) */
+.page-beam .page-nav a {
+  padding: 0.5rem 0.75rem;
   border-radius: 10px;
-  color: rgb(255 255 255 / 0.82);
-  font-weight: 800;
-  font-size: 0.92rem;
-  text-decoration: none;
-}
-.page-nav a:hover {
-  background: rgb(255 255 255 / 0.14);
   color: var(--white);
+  font-weight: 800;
+  font-size: 0.94rem;
+  text-decoration: none;
+  opacity: 0.88;
 }
-.page-nav a[aria-current="page"] {
+.page-beam .page-nav a:hover {
+  background: rgb(255 255 255 / 0.16);
+  opacity: 1;
+}
+.page-beam .page-nav a[aria-current="page"] {
   background: var(--white);
-  color: var(--blue-edge);
-  box-shadow: 0 2px 0 var(--blue-edge);
+  color: var(--red-deep, var(--red-edge));
+  opacity: 1;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.18);
+}
+.btn-ghost-light {
+  --face: rgb(255 255 255 / 0.14);
+  --edge: rgb(255 255 255 / 0.4);
+  --text: var(--white);
+  backdrop-filter: blur(2px);
+}
+.btn-ghost-light:hover {
+  --face: rgb(255 255 255 / 0.22);
 }
 .to-table {
   white-space: nowrap;
-  --face: var(--white);
-  --text: var(--blue-edge);
-  --edge: #d8e1ea;
 }
 
-/* ---- page bodies ------------------------------------------------------------ */
+/* ---- page bodies: one reading column inside a full-bleed page ------------- */
 
 .lobby,
 .page > main {
-  max-width: 64rem;
+  max-width: 68rem;
   margin: 0 auto;
-  padding: 1.6rem 1rem 4rem;
+  padding: clamp(1.6rem, 4vw, 3.2rem) clamp(1rem, 4vw, 2.5rem) 5rem;
 }
 .page-narrow {
-  max-width: 38rem !important;
+  max-width: 40rem !important;
 }
 .page-wide > main {
-  max-width: 76rem;
+  max-width: 82rem;
 }
 .lobby-header {
-  margin-bottom: 1.4rem;
+  margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
 }
 .lobby-header h1,
 .page-head h1 {
-  margin: 0.2rem 0 0.35rem;
-  font: 700 clamp(1.6rem, 3vw, 2.1rem) / 1.15 var(--font-display);
+  margin: 0.2rem 0 0.4rem;
+  font: 800 clamp(2rem, 4.2vw, 3rem) / 1.08 var(--font-display);
+  letter-spacing: -0.015em;
+}
+/* the one playful graphic moment per page: a small brick stack sitting
+   above the heading, never overlapping its letters */
+.page-head-bricks {
+  display: block;
+  width: 3rem;
+  height: auto;
+  margin-bottom: 0.2rem;
+  filter: drop-shadow(0 4px 6px rgb(36 26 23 / 0.16));
 }
 .lobby-status {
   font-weight: 800;
@@ -110,16 +151,18 @@ body {
 
 .lobby-grid {
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
 }
-/* the lobby: starting things on the left, finding people and rooms on the right */
+/* the lobby: a generous primary column for starting something, a narrower
+   one beside it for finding people and rooms — deliberately asymmetric,
+   not two equal boxes */
 .lobby-columns {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   align-items: start;
 }
 .lobby-col {
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
 }
 .kit-subhead {
   margin: 1rem 0 0.3rem;
@@ -179,7 +222,7 @@ body {
   }
 }
 @media (max-width: 560px) {
-  .page-bar {
+  .page-beam-row {
     gap: 0.4rem 0.6rem;
   }
   .page-nav {
@@ -197,6 +240,10 @@ body {
   }
   .lobby,
   .page > main {
-    padding: 1.1rem 0.75rem 3rem;
+    padding: 1.2rem 0.9rem 3.5rem;
+  }
+  .lobby-header h1,
+  .page-head h1 {
+    font-size: clamp(1.7rem, 7vw, 2.1rem);
   }
 }

@@ -353,7 +353,7 @@ async function others(browser: Browser): Promise<void> {
     check(`${path} loads without console errors`, errors.length === 0, errors.join(" | "));
   }
   const bg = await page.goto(`${base}/build/`, { waitUntil: "networkidle" }).then(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor));
-  check("lobby keeps its own paper background (home styles don't leak)", bg === "rgb(242, 245, 248)", bg);
+  check("lobby keeps its own paper background (home styles don't leak)", bg === "rgb(251, 245, 238)", bg);
   await page.goto(`${base}/build/#friends`, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
   check("/build/#friends lands on the Friends card", await page.evaluate(() => !!document.getElementById("friends")));
