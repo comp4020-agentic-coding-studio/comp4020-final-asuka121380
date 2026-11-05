@@ -584,8 +584,13 @@ async function entrances(browser: Browser): Promise<void> {
   check("booklet: the camera approaches first, saying where it is going", approach.moving && approach.path === "/" && approach.status === "Opening the booklet…", approach);
   await leave;
   check("booklet: arrives at /readme/", page.url().endsWith("/readme/"), page.url());
-  const back = await page.locator("a.back").getAttribute("href");
-  check("README: has a Back to the table link", back === "/" && (await page.locator("a.back").textContent())!.includes("Back to the table"));
+  // README.md's header now shares the same markup every dedicated page
+  // uses (ui/pageHeader.ts, "Artistic identity pass" refinement), so its
+  // way back is `.to-table`, not a README-only `.back` class; the page
+  // also has a second, separate "Back to the table" link in its closing
+  // scene (`.finale-table`) — this checks the header's own one specifically.
+  const back = await page.locator(".page-beam .to-table").getAttribute("href");
+  check("README: has a Back to the table link", back === "/" && (await page.locator(".page-beam .to-table").textContent())!.includes("Back to the table"));
   await page.screenshot({ path: `${out}/readme-desktop.png`, fullPage: false });
   await page.goBack();
   await ready(page);

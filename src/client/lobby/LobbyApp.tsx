@@ -103,7 +103,7 @@ export function LobbyApp() {
 
   return (
     <PageShell section="lobby" accountLabel={accountLabel}>
-      <div className="lobby">
+      <div className="lobby-page">
         <PageHead title={`${info?.title ?? scene.id}: choose a room`}>
           <p className="lobby-hint">
             Up to {scene.maxPlayers} people share one room's inventory and construction. Plans and marks let you suggest ideas
@@ -111,20 +111,21 @@ export function LobbyApp() {
           </p>
           <p className="lobby-hint lobby-status">{accountName ? `Signed in as ${accountName}` : "Guest — no account needed to build"}</p>
         </PageHead>
-        <main className="lobby-grid lobby-columns">
-          <div className="lobby-col">
-            <BuildAlone onOpen={goTo} />
-            <Invites onJoined={goTo} selfId={selfId} />
-            <MyRooms onOpen={goTo} />
-            <CreateRoom onCreated={goTo} />
-          </div>
-          <div className="lobby-col">
-            <PublicRooms onJoined={goTo} />
+        <section className="lobby-start">
+          <BuildAlone onOpen={goTo} />
+          <Invites onJoined={goTo} selfId={selfId} />
+          <MyRooms onOpen={goTo} />
+          <CreateRoom onCreated={goTo} />
+        </section>
+        <section className="lobby-discover">
+          <h2 className="lobby-section-head">Find a room</h2>
+          <PublicRooms onJoined={goTo} grid />
+          <div className="lobby-discover-side">
             <JoinByCode onJoined={goTo} />
             <Friends selfId={selfId} />
             <IdentityPanel accountName={accountName} />
           </div>
-        </main>
+        </section>
       </div>
     </PageShell>
   );

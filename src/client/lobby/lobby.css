@@ -10,11 +10,27 @@
  * a brick wall, not a conventional dashboard bar), and a bolder, more
  * asymmetric body composition — while keeping one comfortable reading
  * column inside that full-bleed page, per page, not stretched prose.
+ *
+ * Refinement (author's brief, 5 Nov 2026, same day): a real browser check at
+ * http://localhost:9301 found the page was still a centred, fixed-width
+ * column with visible paper on both sides, despite `.page-beam` itself
+ * reaching the edges. Root cause: `<body class="lobby">` (set in
+ * build/index.html so `site-colors.css` can scope the red/white/yellow
+ * tokens to this bundle) collided with `.lobby`, a class this file
+ * declared for the *inner* room-lobby wrapper div to carry its own
+ * `max-width`/`margin: 0 auto` reading column. Both rules matched `<body>`
+ * on every dedicated page (account, collection, showcase, a saved version),
+ * not only the room lobby, confining the whole document to a centred
+ * 68rem box no matter what `.page`/`.page-beam` declared. Fixed by renaming
+ * the inner wrapper to `.lobby-page` (LobbyApp.tsx) and only ever applying
+ * a max-width to elements explicitly inside `.page`, never to `html`/`body`
+ * themselves.
  */
 
 html,
 body {
   margin: 0;
+  width: 100%;
   min-height: 100%;
   background: var(--paper);
 }
@@ -27,6 +43,7 @@ body {
 /* ---- the page frame: a brick-wall beam, edge to edge, flush with the top -- */
 
 .page {
+  width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--paper);
@@ -58,7 +75,15 @@ body {
   gap: 0.5rem 1.2rem;
   padding: 0.65rem max(1.1rem, env(safe-area-inset-right)) 0.75rem max(1.1rem, env(safe-area-inset-left));
 }
-.home-link {
+/* higher specificity than kit.css's `.kit a:not(.btn)` — which is itself
+   (0,2,1): a class, an element and :not()'s class argument — so a single
+   extra class here isn't enough; `.kit` doubles as the selector's own
+   ancestor requirement, matching the same `.kit page` div the header sits
+   inside, giving this rule (0,3,1), definitively above it regardless of
+   source order. (Same class of mistake already fixed for `.page-nav a`
+   below, found again here: a plain `.page-beam .home-link` at (0,2,0)
+   still lost to kit.css's rule in a real browser check.) */
+.kit .page-beam .home-link {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -67,7 +92,11 @@ body {
   letter-spacing: -0.01em;
   text-decoration: none;
 }
-.home-link svg {
+.kit .page-beam .home-link:hover,
+.kit .page-beam .home-link:focus-visible {
+  color: var(--white);
+}
+.page-beam .home-link svg {
   width: 32px;
   height: 32px;
   filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.18));
@@ -113,22 +142,33 @@ body {
   white-space: nowrap;
 }
 
-/* ---- page bodies: one reading column inside a full-bleed page ------------- */
+/* ---- page bodies: full-bleed, with a comfortable column inside ------------- */
 
-.lobby,
+/* every dedicated page's content sits inside this horizontal gutter, which
+   scales with the viewport but never a fixed centred box: a page uses the
+   full available width (brief: "make purposeful use of wider screens"),
+   with each section below choosing its own inner max-width instead of one
+   blanket column for every page */
+.page > main,
+.lobby-page {
+  width: 100%;
+  padding: clamp(1.6rem, 4vw, 3.2rem) clamp(1rem, 5vw, 3.5rem) 5rem;
+}
+/* most pages (account, a saved version, a friend link): one reading column,
+   centred, since there's exactly one thing to look at or fill in */
 .page > main {
   max-width: 68rem;
   margin: 0 auto;
-  padding: clamp(1.6rem, 4vw, 3.2rem) clamp(1rem, 4vw, 2.5rem) 5rem;
 }
 .page-narrow {
   max-width: 40rem !important;
 }
 .page-wide > main {
-  max-width: 82rem;
+  max-width: 96rem;
 }
 .lobby-header {
-  margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
+  max-width: 68rem;
+  margin: 0 auto clamp(1.6rem, 3vw, 2.4rem);
 }
 .lobby-header h1,
 .page-head h1 {
@@ -152,21 +192,48 @@ body {
 .lobby-grid {
   display: grid;
   gap: 1.1rem;
-}
-/* the lobby: a generous primary column for starting something, a narrower
-   one beside it for finding people and rooms — deliberately asymmetric,
-   not two equal boxes */
-.lobby-columns {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  align-items: start;
-}
-.lobby-col {
-  display: grid;
-  gap: 1.1rem;
+  max-width: 68rem;
+  margin: 0 auto;
 }
 .kit-subhead {
   margin: 1rem 0 0.3rem;
   font: 700 0.95rem var(--font-display);
+}
+
+/* ---- the room lobby: two separate tasks, not one growing column ----------- */
+
+/* Refinement (author's brief, 5 Nov 2026): a public-room list that simply
+   grows to fit every public room left the left-hand "start/return" column
+   short and static beside an indefinitely long right column once there were
+   many rooms. Starting or returning to a build (above) and discovering
+   existing rooms (below) are now two separate sections, stacked, each
+   choosing the width its own content actually needs — a bounded column for
+   a handful of forms, the full page width for a room grid. */
+.lobby-start {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: start;
+  gap: 1.1rem;
+  max-width: 68rem;
+  margin: 0 auto 2.2rem;
+}
+.lobby-discover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  align-items: start;
+  gap: 1.5rem;
+  max-width: 96rem;
+  margin: 0 auto;
+}
+.lobby-discover-side {
+  display: grid;
+  gap: 1.1rem;
+}
+.lobby-section-head {
+  grid-column: 1 / -1;
+  margin: 0 0 0.6rem;
+  font: 800 1.3rem var(--font-display);
+  color: var(--ink);
 }
 
 /* ---- a saved version: the view beside its label ---------------------------- */
@@ -212,8 +279,15 @@ body {
   margin: 0;
 }
 
+@media (max-width: 1024px) {
+  .lobby-discover {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 860px) {
-  .lobby-columns,
+  .lobby-start {
+    grid-template-columns: 1fr;
+  }
   .snapshot-layout {
     grid-template-columns: 1fr;
   }

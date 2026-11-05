@@ -814,6 +814,136 @@ doc/evidence/0021.
   Screenshots in doc/evidence/shots/0021. All checks were Chrome/Playwright
   with the swiftshader software GPU path, not a physical device or Safari.
 
+## Refinement: full-width framing, lobby-grid rooms, shared header, readable About (author's brief, 5 Nov 2026, same day; mechanisms agent)
+
+A real browser review at `http://localhost:9301` of the artistic identity
+pass above found several concrete defects, not new scope: the dedicated
+pages were still a centred, fixed-width column; the public-room list grew
+indefinitely in a narrow right column; the brand name and the booklet's
+own header were still link-blue, not white, on the red beam; About had its
+own separate header rather than the shared nav; and About's middle
+chapters squeezed prose into a narrow column beside an oversized
+illustration. Evidence: doc/evidence/0022.
+
+- **Root cause of the "still boxed" page, found by inspecting live computed
+  styles, not by re-reading the CSS.** `<body class="lobby">`
+  (`build/index.html`, scoping `site-colors.css`'s palette tokens to this
+  bundle) collided with `.lobby`, a class `lobby.css` separately declared
+  for the *inner* room-lobby wrapper div (`max-width: 68rem; margin: 0
+  auto`). Both rules matched `<body>` on every dedicated page — not only
+  the room lobby — confining the whole document, including `.page-beam`'s
+  own full-bleed ancestor, to a centred 68rem box regardless of what
+  `.page`/`.page-beam` themselves declared. A plain "inspect the CSS" pass
+  would have missed this, since neither rule looks wrong in isolation; it
+  only showed up as `getComputedStyle(document.body)` returning a real
+  `max-width` and `margin` nobody had intentionally put on `<body>`. Fixed
+  by renaming the inner wrapper to `.lobby-page` (`LobbyApp.tsx`), so
+  `.lobby` is now free, and `html`/`body`/`.page` carry no max-width at
+  all; each section inside chooses its own column width explicitly.
+- **The room lobby split into two sections, not one growing column.**
+  `LobbyApp.tsx`'s single `.lobby-columns` grid (a 1.35fr/1fr pair) is
+  replaced with `.lobby-start` (Build alone, invitations, your rooms,
+  start-a-room — a bounded, centred column, since these are a handful of
+  forms) followed by `.lobby-discover` (public rooms, full page width,
+  beside a narrower column for join-by-code/friends/identity). `parts.tsx`'s
+  `PublicRooms` gained a `grid` prop: a responsive `.room-grid` of
+  `.room-card-tile`s with client-side "Load more" pagination (`/api/rooms`
+  already returns every public room in one response — confirmed by reading
+  `src/server/rooms.ts`'s `publicLobby()` before choosing client-side
+  paging over a server change — so this only paces rendering, nothing is
+  hidden from the real result set) and a visible total count. `bare`
+  (the tabletop noticeboard, `RoomsPanel` in `home/tabletop/panels.tsx`)
+  is untouched: it keeps the original compact row-per-room list suited to
+  a scrolling dialog, confirmed unaffected by screenshot. Long or
+  translated room names are clipped with an ellipsis
+  (`text-overflow: ellipsis`) rather than breaking the card, verified with
+  a disposable, deliberately very long test room name.
+- **Two more nav-contrast bugs of the same kind already partly fixed in the
+  prior pass.** `.home-link` (the brand link) and the README's own header
+  were still rendering link-blue, found by reading `getComputedStyle` live
+  rather than assuming the earlier `.page-nav a` fix covered every link.
+  `kit.css`'s `.kit a:not(.btn)` is specificity (0,2,1) — a class, an
+  element, and `:not()`'s argument class — so the brand link's first fix
+  attempt, `.page-beam .home-link` at (0,2,0), still lost. Resolved by
+  adding `.kit` as an extra ancestor qualifier (`.kit .page-beam
+  .home-link`, specificity (0,3,1)), confirmed by a live
+  `getComputedStyle` check returning white, not by reasoning about the
+  rule alone.
+- **One header definition, not two.** A new `ui/pageHeader.ts` exports
+  `pageHeaderHtml()`: a pure string builder (same pattern as `iso.ts`'s
+  `isoSvg`) producing the exact beam/brand/nav/back-button markup.
+  `Shell.tsx`'s `PageShell` renders it via `dangerouslySetInnerHTML`
+  instead of its own JSX; `src/server/readme.ts` imports the same function
+  and embeds its output directly into the server-rendered page, replacing
+  About's separate `.bar`/`.brand`/`.back` markup. This is still plain
+  HTML with no script producing it, so About's no-JavaScript operation is
+  unchanged — confirmed by `curl` and the no-JS Playwright context used
+  elsewhere in this ADR. About now shows the same five-item nav (Rooms, My
+  collection, Showcase, Account, About) as every other dedicated page,
+  with "About" itself marked `aria-current="page"`.
+- **About's chapters recomposed instead of mechanically alternating one
+  two-column template.** The longest, most substantive chapter
+  ("A shared building, a shared memory") now reads at a full, comfortable
+  measure (`max-width: 50rem` on the copy, not the section), with its
+  illustration floated beside the heading as a smaller accent rather than
+  squeezed into a permanent narrow side column (`.chapter-wide`). The two
+  shorter, scene-setting chapters keep a supporting-illustration column,
+  sized to the text rather than overwhelming it (`.chapter-support`). The
+  closing, informational chapter keeps one compact column with a small
+  inline icon (`.chapter-compact`). An unrecognised extra section (if
+  README.md ever gains one) still renders, undecorated but never broken,
+  via a new `.chapter-plain` fallback. `joiningArt()` was also redrawn
+  from two separate stacks meeting to one shared wall with a single
+  proposed (yellow) brick still descending into the one gap left for
+  it — a more literal reading of the chapter's own sentence ("a roof
+  colour, a garden, or an unusual window can emerge from another person's
+  suggestion"), and no longer two disconnected shapes.
+- **Sticky-header overlap, found and fixed.** Scrolling to a chapter (via
+  Playwright's `scrollIntoView`, standing in for any future in-page
+  anchor or a browser's own find-in-page jump) landed each heading
+  partly behind the sticky red beam. Fixed with `scroll-margin-top` on
+  every heading and chapter section, sized to the beam's own measured
+  height at each breakpoint (desktop vs. the taller, wrapped mobile beam),
+  confirmed by a before/after screenshot rather than assumed from the CSS
+  value alone.
+- **A stale README-specific selector in `scripts/tabletop.ts` updated, not
+  weakened.** `README: has a Back to the table link` looked for `a.back`,
+  a class that existed only in About's old, separate header markup; now
+  that the header is the shared `pageHeaderHtml()` output, the equivalent
+  element carries the shared `.to-table` class instead (`.page-beam
+  .to-table`, to specifically target the header's link rather than the
+  closing scene's separate "Back to the table" button). What the check
+  verifies — a working way back to the table from the README's header —
+  is unchanged.
+- **The game editor's last About entrance removed.** The Help panel's
+  `<a href="/readme/">About Brick Commons</a>` fine-print link
+  (`App.tsx`), left in place by the prior pass's narrower "remove the
+  persistent toolbar chip only" reading, is now also removed per the
+  author's explicit instruction that *every* About entrance leave
+  gameplay. Confirmed by opening the Help panel live and counting
+  `a[href="/readme/"]` in the DOM (zero). Gameplay help content itself
+  (building, camera, keys) is untouched.
+- **Checks run:** `pnpm typecheck` (clean); `pnpm build` (succeeds);
+  `pnpm test` — **228/228 passed**, including `spec/invariants.test.ts`
+  2/2; `pnpm check:evidence` (clean); `node scripts/tabletop.ts <url>
+  <dir>` — **173/173 passed** on a clean run after fixing the one stale
+  selector above. Visual review in Chrome (software WebGL) confirmed, by
+  screenshot, at 1920×1080, 1024×900, 768×1024 and 390×844: the full-width
+  header and page background at every width; a 43-room public lobby as a
+  responsive grid with working "Load more" pagination and a visible count,
+  with no tall isolated column; an empty and a two-room lobby; a
+  deliberately full (2/2) room rendering "Full"; a deliberately very long
+  room name clipped with an ellipsis rather than breaking its card; the
+  tabletop noticeboard's own compact list, confirmed unchanged; white
+  (not blue) brand text on every dedicated page and on About; About's
+  shared nav with "About" marked current; About's wide, supporting and
+  compact chapter compositions with no sticky-header clipping; About
+  under `prefers-reduced-motion`, fully visible with no animation; and
+  zero `a[href="/readme/"]` anywhere in the game editor, including its
+  Help panel. Screenshots in doc/evidence/shots/0022. All checks were
+  Chrome/Playwright with the swiftshader software GPU path, not a
+  physical device or Safari.
+
 ## Consequences
 
 - The homepage now downloads three.js (about 248 KB gzipped, shared with

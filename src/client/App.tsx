@@ -607,9 +607,6 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             always uses the real count.
           </p>
           <p className="fineprint">
-            <a href="/readme/">About Brick Commons</a>
-          </p>
-          <p className="fineprint">
             Your build is saved on the server against this browser. Clearing this site's cookies starts afresh unless
             you've generated a recovery code from the room lobby.
           </p>

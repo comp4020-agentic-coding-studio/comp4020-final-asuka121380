@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { decorativeEmblemMark } from "../ui/iso.ts";
+import { pageHeaderHtml, type PageSection } from "../ui/pageHeader.ts";
 
 // The frame every dedicated page shares (ADR 0014): the brand, a way back to
 // the table, and the page's own sections. The pages are the workshop's other
@@ -7,21 +7,13 @@ import { decorativeEmblemMark } from "../ui/iso.ts";
 // page), so they keep the table's warm red, white and yellow identity,
 // without its 3D scene.
 //
-// `decorativeEmblemMark` (ui/iso.ts) is the one non-gameplay emblem, also
-// used by the table's own brand link, the loading screen and the README
-// header — never `brandMark`, which is the game editor's own corner mark.
+// The header itself (`pageHeaderHtml`, ui/pageHeader.ts) is one definition
+// shared with the server-rendered README, so "use the shared navigation
+// consistently, including About" is actually one piece of markup, not two
+// that can drift — About keeps working with no JavaScript, since the shared
+// builder is plain HTML, never a client-rendered component.
 
-const MARK = decorativeEmblemMark();
-
-export type Section = "lobby" | "account" | "collection" | "showcase" | "about";
-
-const NAV: { id: Section; href: string; label: string }[] = [
-  { id: "lobby", href: "/build/", label: "Rooms" },
-  { id: "collection", href: "/build/?view=collection", label: "My collection" },
-  { id: "showcase", href: "/build/?view=showcase", label: "Showcase" },
-  { id: "account", href: "/build/?view=account", label: "Account" },
-  { id: "about", href: "/readme/", label: "About" },
-];
+export type Section = PageSection;
 
 /**
  * The shared frame (ADR 0014, "Artistic identity pass"): a full-bleed red
@@ -35,25 +27,7 @@ const NAV: { id: Section; href: string; label: string }[] = [
 export function PageShell({ section, accountLabel, children, wide = false }: { section?: Section; accountLabel?: string; children: ReactNode; wide?: boolean }) {
   return (
     <div className={`kit page${wide ? " page-wide" : ""}`}>
-      <header className="page-beam">
-        <div className="page-beam-studs" aria-hidden="true" />
-        <div className="page-beam-row">
-          <a className="brand home-link" href="/" aria-label="Brick Commons (working title): back to the table">
-            <span className="mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: MARK }} />
-            <span className="brand-name">Brick Commons</span>
-          </a>
-          <nav className="page-nav" aria-label="Sections">
-            {NAV.map((n) => (
-              <a key={n.id} href={n.href} aria-current={n.id === section ? "page" : undefined}>
-                {n.id === "account" && accountLabel ? accountLabel : n.label}
-              </a>
-            ))}
-          </nav>
-          <a className="btn btn-small btn-ghost-light to-table" href="/">
-            <span aria-hidden="true">←</span> Back to the table
-          </a>
-        </div>
-      </header>
+      <div dangerouslySetInnerHTML={{ __html: pageHeaderHtml({ section, accountLabel }) }} />
       {children}
     </div>
   );

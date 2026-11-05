@@ -304,16 +304,54 @@ export function JoinByCode({ onJoined, bare = false }: { onJoined: (roomId: stri
 
 type ListState<T> = { kind: "loading" } | { kind: "ready"; items: T } | { kind: "failed" };
 
+/** One card's worth of a public room, shared by both the grid and the compact list rendering below. */
+function RoomCard({ r, joining, onJoin }: { r: LobbyRoom; joining: string | null; onJoin: (id: string) => void }) {
+  const full = r.occupancy >= r.capacity;
+  const name = roomName(r.label, r.id);
+  return (
+    <li className="room-card-tile">
+      <div className="room-card-tile-main">
+        <span className="room-card-tile-name" title={name}>
+          {name}
+        </span>
+        <span className="room-card-tile-tags">
+          <span className="tag room-tag room-tag-muted">{sceneTitle(r.sceneId)}</span>
+          {/* publication policy disclosed before joining, not only after (the brief) */}
+          <span className="tag room-tag room-tag-muted">{r.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
+        </span>
+        <Seats occupancy={r.occupancy} capacity={r.capacity} />
+      </div>
+      <button className="btn btn-small btn-red" onClick={() => onJoin(r.id)} aria-disabled={!!joining || full} aria-label={full ? `${name} is full` : `Join ${name}`}>
+        {full ? "Full" : joining === r.id ? "Joining…" : "Join"}
+      </button>
+    </li>
+  );
+}
+
+/** How many public rooms show before "Load more" (client-side: `/api/rooms` already returns every public room in one response, so this only paces how many render at once, not what the server sends). */
+const ROOMS_PAGE = 12;
+const ROOMS_PAGE_COMPACT = 6;
+
 /**
  * Public rooms, with real occupancy polled while shown: the lobby has no
- * stream of its own (ADR 0008 scopes realtime to a joined room). Each row
+ * stream of its own (ADR 0008 scopes realtime to a joined room). Each room
  * discloses what admission depends on (scene, places, publication) before
  * its Join, which is the explicit confirmation.
+ *
+ * Refinement (author's brief, 5 Nov 2026): with many public rooms, a single
+ * growing `<ul class="room-list">` made the page a tall, narrow column with
+ * nothing beside it after the first few entries. `grid` renders the same
+ * data as a responsive card grid that uses the page's full width instead,
+ * with "Load more" pagination (room count and all results stay reachable;
+ * nothing is hidden or limited away). `bare` (the tabletop noticeboard)
+ * keeps the original compact row-per-room treatment, which suits a
+ * scrolling panel rather than a wide page.
  */
-export function PublicRooms({ onJoined, heading = "Public lobby", bare = false }: { onJoined: (roomId: string) => void; heading?: string; bare?: boolean }) {
+export function PublicRooms({ onJoined, heading = "Public lobby", bare = false, grid = false }: { onJoined: (roomId: string) => void; heading?: string; bare?: boolean; grid?: boolean }) {
   const [rooms, setRooms] = useState<ListState<LobbyRoom[]>>({ kind: "loading" });
   const [status, setStatus] = useState<string | null>(null);
   const [joining, setJoining] = useState<string | null>(null);
+  const [shown, setShown] = useState(grid ? ROOMS_PAGE : ROOMS_PAGE_COMPACT);
 
   useEffect(() => {
     let live = true;
@@ -344,40 +382,71 @@ export function PublicRooms({ onJoined, heading = "Public lobby", bare = false }
     setStatus(JOIN_MESSAGE[result.code]);
   };
 
+  const all = rooms.kind === "ready" ? rooms.items : [];
+  const visible = all.slice(0, shown);
+  const remaining = all.length - visible.length;
+  const pageSize = grid ? ROOMS_PAGE : ROOMS_PAGE_COMPACT;
+
   const body = (
     <>
-      {!bare && <h2>{heading}</h2>}
+      {!bare && (
+        <h2>
+          {heading}
+          {rooms.kind === "ready" && all.length > 0 && <span className="tag room-tag room-tag-muted">{all.length}</span>}
+        </h2>
+      )}
       {status && <p className="lobby-error" role="status">{status}</p>}
       {rooms.kind === "loading" ? (
         <p className="kit-state" role="status">Loading the rooms…</p>
       ) : rooms.kind === "failed" ? (
         <p className="lobby-error" role="alert">Couldn't load the public rooms. They'll appear here when the connection is back.</p>
-      ) : rooms.items.length === 0 ? (
-        <EmptyState compact heading="No public rooms right now" body={`Start one from the scene tray, or by "Start a room".`} />
+      ) : all.length === 0 ? (
+        <EmptyState compact={!grid} heading="No public rooms right now" body={`Start one from the scene tray, or by "Start a room".`} />
+      ) : grid ? (
+        <>
+          <ul className="room-grid">
+            {visible.map((r) => (
+              <RoomCard key={r.id} r={r} joining={joining} onJoin={(id) => void join(id)} />
+            ))}
+          </ul>
+          {remaining > 0 && (
+            <div className="room-grid-more">
+              <button className="btn" onClick={() => setShown((n) => n + pageSize)}>
+                Load more ({remaining} more room{remaining === 1 ? "" : "s"})
+              </button>
+            </div>
+          )}
+        </>
       ) : (
-        <ul className="room-list">
-          {rooms.items.map((r) => {
-            const full = r.occupancy >= r.capacity;
-            return (
-              <li key={r.id} className="room-row">
-                <span className="room-name">
-                  {roomName(r.label, r.id)}
-                  <span className="tag room-tag room-tag-muted">{sceneTitle(r.sceneId)}</span>
-                  {/* publication policy disclosed before joining, not only after (the brief) */}
-                  <span className="tag room-tag room-tag-muted">{r.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
-                </span>
-                <Seats occupancy={r.occupancy} capacity={r.capacity} />
-                <button className="btn btn-small btn-red" onClick={() => void join(r.id)} aria-disabled={!!joining || full} aria-label={full ? `${roomName(r.label, r.id)} is full` : `Join ${roomName(r.label, r.id)}`}>
-                  {full ? "Full" : joining === r.id ? "Joining…" : "Join"}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <ul className="room-list">
+            {visible.map((r) => {
+              const full = r.occupancy >= r.capacity;
+              return (
+                <li key={r.id} className="room-row">
+                  <span className="room-name">
+                    {roomName(r.label, r.id)}
+                    <span className="tag room-tag room-tag-muted">{sceneTitle(r.sceneId)}</span>
+                    <span className="tag room-tag room-tag-muted">{r.allowPublish ? "Publishing allowed" : "Not publishable"}</span>
+                  </span>
+                  <Seats occupancy={r.occupancy} capacity={r.capacity} />
+                  <button className="btn btn-small btn-red" onClick={() => void join(r.id)} aria-disabled={!!joining || full} aria-label={full ? `${roomName(r.label, r.id)} is full` : `Join ${roomName(r.label, r.id)}`}>
+                    {full ? "Full" : joining === r.id ? "Joining…" : "Join"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {remaining > 0 && (
+            <button className="btn btn-small" onClick={() => setShown((n) => n + pageSize)}>
+              Show {Math.min(remaining, pageSize)} more
+            </button>
+          )}
+        </>
       )}
     </>
   );
-  return bare ? <div>{body}</div> : <div className="card lobby-card">{body}</div>;
+  return bare ? <div>{body}</div> : grid ? <div className="lobby-rooms-panel">{body}</div> : <div className="card lobby-card">{body}</div>;
 }
 
 /** The rooms this visitor already belongs to; opening one goes straight in (a returning member's admission is re-checked by the editor). */
