@@ -1092,10 +1092,11 @@ were not edited).
   three narrative chapters, at 1920×1080 and 390×844; About under
   `prefers-reduced-motion: reduce`; the collection and showcase empty/
   populated states.
-- `node scripts/tabletop.ts <url> <dir>` run against the same local server
-  as a full regression check, since this pass touches the lobby and the
-  shared `Shell.tsx` empty-state component the tabletop's own pages also
-  render through (reported separately once complete).
+- `node --experimental-strip-types scripts/tabletop.ts <url> <dir>` run
+  against the same local server as a full regression check, since this
+  pass touches the lobby and the shared `Shell.tsx` empty-state component
+  the tabletop's own pages also render through — **173/173 passed**, no
+  console errors.
 - Screenshots: `doc/evidence/shots/0023`.
 - All checks were Chrome/Playwright automation against a local dev
   server; nothing was checked on a physical device or in Safari, and

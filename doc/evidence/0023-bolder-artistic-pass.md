@@ -118,14 +118,21 @@ imports and confirmed to use only the lower-level `useSoloRoom`/
 `BuildAlone`/`CreateRoom` components, so it is unaffected by the lobby
 redesign.
 
-## 6. Limitations
+## 6. Tabletop regression
+
+`node --experimental-strip-types scripts/tabletop.ts http://localhost:9301 <dir>`
+— **173/173 passed**, run against the same local server, covering entrance
+activation reliability, the Friends/invitation flow, mobile touch-target
+sizing and sheet layout, and object/panel-overlap checks at four viewport
+widths (390×844, 768×1024, 1280×800, 1920×1080), with no console errors in
+any of it. Confirms this pass's lobby and `Shell.tsx` changes did not
+regress the homepage tabletop, which renders through the same shared
+empty-state component.
+
+## 7. Limitations
 
 - All checks were Chrome/Playwright automation against a local dev
   server; nothing was checked on a physical device or in Safari.
 - `clipScene()` (a brick-clip shape for invitation cards) was built into
   `brickScenes.ts` but not wired into the Friends/Invites panel in this
   pass; left for a follow-up.
-- `node scripts/tabletop.ts` full regression was run against the same
-  local server; its result is recorded in the DEVELOPMENT_LOG entry for
-  this pass's commit once the run completed, since it was still in
-  progress when this document was first written.

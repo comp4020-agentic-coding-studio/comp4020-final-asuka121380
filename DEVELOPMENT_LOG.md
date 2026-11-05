@@ -3532,3 +3532,104 @@ section is also recorded in ADR 0014.
   exist only in disposable local `DATA_DIR`s used for this check, not as
   seeded or shipped data.
 - Nothing pushed or deployed.
+
+## Bolder artistic pass: themed lobby start, scene-led About opening and narrative
+
+**Time:** 5 November 2026, evening (AEDT).
+**Commit:** [`731c920`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/731c920516d97fa13ace1259bb138f12ee343b85) — Bolder artistic pass: themed lobby start, scene-led About opening and narrative.
+**Decided by:** the author, in a detailed brief judging the two prior
+passes (`7b184da`, `ed0b206`) as still "a conventional interface with
+small brick decorations", asking for the theme to shape composition,
+materials, illustrations and movement, with four priorities: the lobby's
+start imbalance, About's opening, a visual narrative through About, and
+smaller thematic treatments elsewhere "where appropriate".
+
+**What changed:**
+- `src/client/ui/brickScenes.ts` (new): a shared family of original
+  isometric brick-scene illustrations, built entirely from the existing
+  `isoSvg`/`IsoBrick` primitive (`ui/iso.ts`) that already draws the brand
+  mark and saved-creation thumbnails — one brick-rendering system, not a
+  second icon language. Exports `soloPlotScene`/`sharedPlotScene` (the
+  lobby tiles), `unfinishedCreationScene` (About's hero),
+  `contributionsApproachScene`/`pieceSettlesScene` (a before/after pair
+  for the settling-piece chapter), `neighbourhoodScene`,
+  `displayedCreationScene`, `headingBeamScene` and `emptyPlotScene`.
+  Translucent proposed pieces use the same `ghost: true` rendering the
+  real Plan-mode editor already uses, rather than a new convention. Each
+  scene was prototyped with a throwaway Node + Playwright render/
+  screenshot loop before being written into the file; two early
+  compositions (neighbour-house placement, contributor-stud placement)
+  were visibly wrong in their first screenshot and were adjusted.
+- `src/client/lobby/parts.tsx`: the separate `BuildAlone` and `CreateRoom`
+  components removed; replaced by one `StartChoices` component — two
+  equal, compact tiles that each unfold only the controls their own path
+  needs (a single "Build alone" button, or the full room-settings form),
+  instead of a short card permanently beside a tall one. Choosing the
+  shared tile moves keyboard focus into the room-name field once the form
+  has unfolded. Opening either form does not itself create or open a
+  room. `useSoloRoom`, `useCreateRoom`, `RoomSettings`, `NEW_ROOM`,
+  `RoomDraft` are unchanged and still used by the tabletop's own
+  `ScenesPanel` (`home/tabletop/panels.tsx`), confirmed by reading its
+  imports before changing anything.
+- `src/client/lobby/LobbyApp.tsx`: wires in `StartChoices`; adds a small
+  `headingBeamScene()` beside the "Find a room" heading. `Invites` and
+  `MyRooms` unchanged; the room-discovery grid and "Load more" pagination
+  (from the prior pass) untouched.
+- `src/client/lobby/lobby.css`, `src/client/ui/kit.css`: `.lobby-start`
+  simplified from a multi-card grid to a stack now that `StartChoices`
+  owns its own layout; new `.start-plots`/`.start-plot`/`.start-unfold`
+  rules (card styling, a chosen-state colour per path, an entrance
+  animation that collapses under `prefers-reduced-motion: reduce`); a
+  small `.lobby-section-beam` rule for the new heading accent.
+- `src/client/lobby/Shell.tsx`: the shared `EmptyShelf()` (used by the
+  collection, showcase, public-rooms and friends/invitations empty
+  states) now renders `emptyPlotScene()` instead of the earlier flat
+  line-and-three-dots placeholder.
+- `src/server/readme.ts`: the hero's art is now `unfinishedCreationScene()`
+  sized as a real sibling column beside the title/lede (text first in
+  markup and reading order), replacing the small loose-bricks flourish
+  that sat below the prose with a lot of unused height. The three
+  subsequent chapters now use `contributionsApproachScene()`/
+  `pieceSettlesScene()` (a real cross-fade between two renders of the same
+  geometry), `neighbourhoodScene()` and `displayedCreationScene()` in
+  place of the earlier hand-drawn flat SVGs, mapped onto the README's own
+  progression. A layout bug found during review — the non-`alt`
+  `.chapter-support` variant put its new, larger art in the wide prose
+  column instead of the narrow side column, because an existing markup/
+  grid-track mismatch had been invisible with the old small flat icons —
+  was fixed with an explicit `order` rule. The closing scene's exact
+  wording ("Made with love by Asuka121380") and the README's own text and
+  heading order are unchanged.
+
+**Tests run** (production build, local server on a confirmed-empty port
+9301, fresh temporary `DATA_DIR`s):
+- `pnpm typecheck`: passed. `pnpm build`: succeeded.
+- `APP_URL=http://localhost:9301 pnpm test`: 228/228 passed, including
+  `spec/invariants.test.ts` 2/2.
+- `node --experimental-strip-types scripts/tabletop.ts http://localhost:9301 <dir>`:
+  **173/173 passed**, no console errors — confirms this pass's lobby and
+  shared `Shell.tsx` changes did not regress the homepage tabletop.
+- Playwright: the lobby's default, solo-expanded and shared-expanded
+  states at 1920×1080 and 390×844; an end-to-end solo "Build alone" and
+  an end-to-end shared "Create and open", both confirmed to actually
+  open/create a room (observed navigation to a new `/build/room/<uuid>`);
+  keyboard-only activation (Tab, Enter, confirmed focus in the room-name
+  field); About's hero and all three narrative chapters at two widths;
+  About under `prefers-reduced-motion: reduce` (confirmed art rendered at
+  its resting state, not mid-animation); the collection's empty state and
+  the showcase's populated state.
+
+**Observed.** Screenshots and full detail in evidence 0023; this pass's
+section is also recorded in ADR 0014.
+
+**Known limitations.**
+- Checked only in Chrome/Playwright automation; not checked on a physical
+  device or in Safari/WebKit.
+- `clipScene()` (a brick-clip shape intended for invitation cards) was
+  built into the new library but not wired into the Friends/Invites panel
+  in this pass; left for a follow-up, since the brief named this
+  treatment as an example, not a requirement, and scoped priority 4 as
+  "where appropriate".
+- No gameplay scenery, model, lighting, control, construction rule or
+  camera file was touched, per the brief's explicit scope boundary.
+- Nothing pushed or deployed.
