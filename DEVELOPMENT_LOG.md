@@ -3633,3 +3633,74 @@ section is also recorded in ADR 0014.
 - No gameplay scenery, model, lighting, control, construction rule or
   camera file was touched, per the brief's explicit scope boundary.
 - Nothing pushed or deployed.
+
+## 2026-11-06 00:05 AEDT — Medieval Castle: a second playable scene from LEGO 31120's primary model (ADR 0015)
+
+**Commits:**
+[`29799d2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/29799d2)
+(domain, server, tests) and
+[`fff3da1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/fff3da1)
+(client, environment, scripts, docs).
+**Decided by:** the author's brief of 5 November 2026: research first
+(the official 31120 instructions, primary castle only, `ceil(required ×
+1.30)`), then a bright medieval valley around a 4-player scene, with an
+unobstructed front, no moat, no completed castle in new rooms, and Beach
+Houses and existing data untouched. Choices the agent made are marked
+"agent" in ADR 0015.
+
+**Research.** `doc/research/0002-medieval-castle-reference.md`. The
+instructions page lists two booklets; `6372694` builds the castle. Bags
+1, 2, 3 and 6 (pp. 6–189) were counted page by page; bags 4, 5 and 7
+(separate buildings), the joining page and the dragon were excluded.
+544 pieces in 83 part images map to 20 game parts, each with its page,
+conversion and uncertainty. The PDF and any page images stayed outside
+the repository.
+
+**Implemented.**
+- `src/domain/castle.ts`: `castle-01`, version 1, 32×26×48, 4 players; a
+  20-type kit allocated with integer-safe `allocate()`; an adapted
+  reference (393 parts: gate arch, two towers, curtain walls with a
+  wall-walk and battlements, courtyard, hall) used as target and fixture.
+- `src/domain/catalog.ts`, `rules.ts`: 9 new parts; an optional `sockets`
+  list so arches rest on their legs and inverted slopes on their back row
+  (agent). Collision is unchanged; parts without sockets behave as before.
+- Server: each room's own scene drives capacity, validation, upgrade,
+  lobby, preview and snapshots; `POST /api/rooms` takes `sceneId`
+  (unknown: 400, logged `unknown_scene`); continuing keeps the snapshot's
+  scene; one solo plot per visitor and scene (migration 5 widens one
+  unique index, no row changed); `room.create`/`snapshot.continue` log
+  `scene`.
+- Client: the editor adopts the scene of what it opens; the lobby and the
+  homepage's scene panel offer both scenes with real facts; the castle's
+  valley environment (`src/client/scenes/castle/`); a cover rendered from
+  the scene; mobile scene titles wrap rather than overlap.
+
+**Found on the way.**
+- `main.tsx` had stopped starting the editor for `?local` and the bare
+  room path since `3a47ed9`; fixed.
+- `multiplayer.ts`, `interaction.ts` and `log-rehearsal.ts` had been
+  stale since `731c920` (the room form now unfolds from a tile, and its
+  radio was renamed); updated. Other scripts with the same issue were
+  left alone.
+- "Beach Houses" already ran under the save chip at 360–390px.
+
+**Tests run** (production build, local server on port 9310, fresh
+temporary `DATA_DIR` per batch):
+- `pnpm typecheck` clean; `pnpm build` succeeds;
+  `APP_URL=http://localhost:9310 pnpm check` 261/261;
+  `pnpm check:evidence` passes.
+- Browser (Chrome via Playwright): `castle.ts` 34/34, `tabletop.ts`
+  174/174, `multiplayer.ts` 17/17, `interaction.ts` 85/85,
+  `log-rehearsal.ts` 13/13, and the new log lines read back.
+
+**Observed.** Evidence 0024 and `doc/evidence/shots/0024/`: the empty
+site and the reference from the default, approach, side and top views,
+desktop and mobile; the front stays open in every one.
+
+**Known limitations.**
+- Chrome/Playwright only; no Safari, Firefox or physical phone. Four
+  players were four browser contexts in one process.
+- Frame rate on weak phones not measured.
+- README.md and PROCESS.md not edited (author's prose); claims there that
+  now need the author's update are listed in the hand-off.
+- Nothing pushed or deployed.
