@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { pageHeaderHtml, type PageSection } from "../ui/pageHeader.ts";
+import { emptyPlotScene } from "../ui/brickScenes.ts";
 
 // The frame every dedicated page shares (ADR 0014): the brand, a way back to
 // the table, and the page's own sections. The pages are the workshop's other
@@ -55,22 +56,16 @@ export function PageHead({ title, children }: { title: string; children?: ReactN
 }
 
 /**
- * A small brick-built display base with nothing on it: the one empty-state
- * illustration family (ADR 0014, "Visual polish pass"), reused with
- * different heading/body/actions for the collection, the showcase, the
- * public-rooms list, friends and invitations. Never implies there IS
- * something there — no placeholder cards, no fabricated activity.
+ * An empty baseplate, ready but unbuilt: the one empty-state illustration
+ * family (ADR 0014, "Bolder artistic pass", replacing the earlier flat
+ * line-and-dot placeholder with the same isometric brick scene the rest of
+ * the site now uses), reused with different heading/body/actions for the
+ * collection, the showcase, the public-rooms list, friends and
+ * invitations. Never implies there IS something there — no placeholder
+ * cards, no fabricated activity.
  */
 function EmptyShelf() {
-  return (
-    <svg className="empty-shelf-art" viewBox="0 0 120 70" aria-hidden="true">
-      <rect x="10" y="52" width="100" height="10" rx="2" fill="var(--blue-soft, #e6f0fa)" stroke="var(--blue)" strokeWidth="2" />
-      <rect x="24" y="38" width="72" height="4" rx="2" fill="var(--line)" />
-      <circle cx="34" cy="40" r="2.6" fill="var(--line-strong)" />
-      <circle cx="60" cy="40" r="2.6" fill="var(--line-strong)" />
-      <circle cx="86" cy="40" r="2.6" fill="var(--line-strong)" />
-    </svg>
-  );
+  return <span className="empty-shelf-art" dangerouslySetInnerHTML={{ __html: emptyPlotScene() }} />;
 }
 
 /**

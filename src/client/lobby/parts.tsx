@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { STREET_SCENE } from "../../domain/scene.ts";
 import { sceneInfo } from "../scenes/registry.ts";
 import { ensureIdentity } from "../state/identity.ts";
 import { useDisplayNames, who } from "../state/names.ts";
+import { soloPlotScene, sharedPlotScene } from "../ui/brickScenes.ts";
 import { EmptyState } from "./Shell.tsx";
 import {
   createFriendLink,
@@ -85,17 +87,127 @@ export function useSoloRoom(onOpen: (roomId: string) => void) {
   return { open, busy, error };
 }
 
-/** Solo building stays immediately usable (the brief): one click reaches your own private room, same as C8's single build. */
-export function BuildAlone({ onOpen }: { onOpen: (roomId: string) => void }) {
-  const { open, busy, error } = useSoloRoom(onOpen);
+// ---- two ways to begin, as compact baseplates, with the room form unfolding ------
+
+type StartPath = "solo" | "shared" | null;
+
+/**
+ * Refinement (author's brief, 5 Nov 2026, "bolder" pass): a short "Build
+ * alone" card beside a much taller room-creation form left a large empty
+ * area beside the short card. Two compact, visually distinctive baseplate
+ * choices replace both: solo building opens immediately, as it always
+ * has (one click, no form); choosing a shared room unfolds the same
+ * settings `CreateRoom` always used, in a stable area below, rather than
+ * showing a long form by default beside a tiny action. Choosing "shared"
+ * never creates anything by itself — only the room's own "Create and
+ * open" button does, exactly as before. Switching back to the choices
+ * keeps whatever was typed, since the form's state lives in this
+ * component rather than being unmounted. Opening the form moves focus to
+ * its first field, and reduced motion only removes the expand animation,
+ * never the content itself.
+ */
+export function StartChoices({ onOpen, onCreated }: { onOpen: (roomId: string) => void; onCreated: (roomId: string) => void }) {
+  const [path, setPath] = useState<StartPath>(null);
+  const solo = useSoloRoom(onOpen);
+  const [draft, setDraft] = useState<RoomDraft>(NEW_ROOM);
+  const create = useCreateRoom(onCreated);
+  const formId = useId();
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+
+  const chooseShared = () => {
+    setPath("shared");
+    // moves focus into the newly-shown form, so a keyboard or screen-reader
+    // user lands somewhere useful rather than staying on the tile they
+    // just activated while the page silently grows beneath them
+    requestAnimationFrame(() => firstFieldRef.current?.focus());
+  };
+
   return (
-    <div className="card lobby-card lobby-card-solo">
-      <h2>Build on your own</h2>
-      <p className="lobby-hint">Your own private plot, saved as you go. No one else can join it.</p>
-      <button className="btn btn-yellow btn-big" onClick={() => void open()} aria-disabled={busy}>
-        {busy ? "Opening…" : "Build alone"}
-      </button>
-      {error && <p className="lobby-error" role="alert">{error}</p>}
+    <div className="start-choices">
+      <div className="start-plots" role="group" aria-label="How to begin">
+        <button
+          type="button"
+          className={`start-plot start-plot-solo${path === "solo" ? " is-chosen" : ""}`}
+          onClick={() => setPath("solo")}
+          aria-expanded={path === "solo"}
+          aria-disabled={solo.busy}
+        >
+          <span className="start-plot-art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: soloPlotScene() }} />
+          <span className="start-plot-text">
+            <strong>Build on your own</strong>
+            <span>Your own private plot. No one else can join it.</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`start-plot start-plot-shared${path === "shared" ? " is-chosen" : ""}`}
+          onClick={chooseShared}
+          aria-expanded={path === "shared"}
+          aria-controls={formId}
+        >
+          <span className="start-plot-art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: sharedPlotScene() }} />
+          <span className="start-plot-text">
+            <strong>Start a shared room</strong>
+            <span>Up to {STREET_SCENE.maxPlayers} people build together, sharing one kit of parts.</span>
+          </span>
+        </button>
+      </div>
+      {path === "solo" && (
+        <div className="start-unfold">
+          <button className="btn btn-yellow btn-big" onClick={() => void solo.open()} aria-disabled={solo.busy}>
+            {solo.busy ? "Opening…" : "Build alone"}
+          </button>
+          {solo.error && <p className="lobby-error" role="alert">{solo.error}</p>}
+        </div>
+      )}
+      {path === "shared" && (
+        <form
+          id={formId}
+          className="start-unfold start-room-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void create.submit(draft);
+          }}
+        >
+          <label className="field">
+            <span>
+              Room name <small>(optional)</small>
+            </span>
+            <input ref={firstFieldRef} value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="e.g. Saturday build" maxLength={80} />
+          </label>
+          <fieldset className="field">
+            <legend>Who can join</legend>
+            <label className="radio-row">
+              <input type="radio" name="start-visibility" checked={draft.visibility === "public"} onChange={() => setDraft({ ...draft, visibility: "public", allowPublish: true })} />
+              <span>
+                <strong>Public</strong> — listed on the noticeboard and in the lobby; anyone can join while there's room.
+              </span>
+            </label>
+            <label className="radio-row">
+              <input
+                type="radio"
+                name="start-visibility"
+                checked={draft.visibility === "invite_only"}
+                onChange={() => setDraft({ ...draft, visibility: "invite_only", allowPublish: false })}
+              />
+              <span>
+                <strong>Invite-only</strong> — unlisted; only people you invite (who must already be a friend) can join.
+              </span>
+            </label>
+          </fieldset>
+          <label className="check-row">
+            <input type="checkbox" checked={draft.allowPublish} onChange={(e) => setDraft({ ...draft, allowPublish: e.target.checked })} />
+            <span>
+              Let any member publish a saved copy of this room to the public showcase. Fixed once the room is created
+              {draft.visibility === "invite_only" && draft.allowPublish && " — unusual for an invite-only room, but your choice"}.
+            </span>
+          </label>
+          {create.error && <p className="lobby-error" role="alert">{create.error}</p>}
+          <button type="submit" className="btn btn-red" aria-disabled={create.busy}>
+            {create.busy ? "Creating…" : "Create and open"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -173,21 +285,6 @@ export function useCreateRoom(onCreated: (roomId: string) => void) {
     }
   };
   return { submit, busy, error };
-}
-
-export function CreateRoom({ onCreated }: { onCreated: (roomId: string) => void }) {
-  const [draft, setDraft] = useState<RoomDraft>(NEW_ROOM);
-  const { submit, busy, error } = useCreateRoom(onCreated);
-  return (
-    <div className="card lobby-card">
-      <h2>Start a room</h2>
-      <RoomSettings draft={draft} onChange={setDraft} />
-      {error && <p className="lobby-error" role="alert">{error}</p>}
-      <button className="btn btn-red" onClick={() => void submit(draft)} aria-disabled={busy}>
-        {busy ? "Creating…" : "Create and open"}
-      </button>
-    </div>
-  );
 }
 
 // ---- joining a room ------------------------------------------------------------

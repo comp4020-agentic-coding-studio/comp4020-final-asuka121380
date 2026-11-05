@@ -3,7 +3,8 @@ import { sceneInfo } from "../scenes/registry.ts";
 import { STREET_SCENE as scene } from "../../domain/scene.ts";
 import { AccountPage } from "./Account.tsx";
 import { CollectionPage, ShowcasePage, SnapshotViewerPage } from "./Collection.tsx";
-import { BuildAlone, CreateRoom, FriendLink, Friends, IdentityPanel, Invites, JoinByCode, MyRooms, PublicRooms } from "./parts.tsx";
+import { FriendLink, Friends, IdentityPanel, Invites, JoinByCode, MyRooms, PublicRooms, StartChoices } from "./parts.tsx";
+import { headingBeamScene } from "../ui/brickScenes.ts";
 import { PageHead, PageShell } from "./Shell.tsx";
 import { resetIdentity } from "../state/identity.ts";
 import { onIdentityChangedElsewhere } from "../state/session-events.ts";
@@ -112,13 +113,15 @@ export function LobbyApp() {
           <p className="lobby-hint lobby-status">{accountName ? `Signed in as ${accountName}` : "Guest — no account needed to build"}</p>
         </PageHead>
         <section className="lobby-start">
-          <BuildAlone onOpen={goTo} />
+          <StartChoices onOpen={goTo} onCreated={goTo} />
           <Invites onJoined={goTo} selfId={selfId} />
           <MyRooms onOpen={goTo} />
-          <CreateRoom onCreated={goTo} />
         </section>
         <section className="lobby-discover">
-          <h2 className="lobby-section-head">Find a room</h2>
+          <h2 className="lobby-section-head">
+            <span className="lobby-section-beam" dangerouslySetInnerHTML={{ __html: headingBeamScene() }} />
+            Find a room
+          </h2>
           <PublicRooms onJoined={goTo} grid />
           <div className="lobby-discover-side">
             <JoinByCode onJoined={goTo} />

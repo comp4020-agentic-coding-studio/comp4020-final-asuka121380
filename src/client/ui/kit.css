@@ -101,6 +101,110 @@
   box-shadow: 0 5px 0 var(--yellow-edge);
 }
 
+/* ---- two ways to begin: compact baseplate tiles, a form that unfolds ------- */
+
+/* Bolder pass (author's brief, 5 Nov 2026): replaces a short "Build alone"
+   card sitting beside a much taller room-settings form (a large empty area
+   on the left) with two equal, compact tiles — each a small isometric
+   baseplate scene (ui/brickScenes.ts), not a rounded rectangle with an
+   icon — so the choice itself carries the brick-building theme. Choosing
+   "shared" unfolds the same settings into a stable area below, instead of
+   a long form showing by default; nothing is created until its own
+   "Create and open" is pressed. */
+.kit .start-plots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+.kit .start-plot {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1.1rem;
+  border: 2px solid var(--kit-line);
+  border-radius: var(--radius-lg);
+  background: var(--kit-card);
+  box-shadow: 0 4px 0 var(--kit-line-strong);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+.kit .start-plot:hover {
+  transform: translateY(-2px);
+}
+.kit .start-plot:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 var(--kit-line-strong);
+}
+.kit .start-plot.is-chosen {
+  border-color: var(--red);
+  box-shadow: 0 4px 0 var(--red-edge);
+  background: var(--red-soft);
+}
+.kit .start-plot-solo.is-chosen {
+  border-color: var(--yellow-edge);
+  box-shadow: 0 4px 0 var(--yellow-edge);
+  background: var(--kit-yellow-soft);
+}
+.kit .start-plot-art {
+  flex: none;
+  width: 4.2rem;
+  height: 4.2rem;
+  display: grid;
+  place-items: center;
+}
+.kit .start-plot-art svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 2px rgb(80 56 30 / 0.22));
+}
+.kit .start-plot-text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.kit .start-plot-text strong {
+  font: 800 1.02rem var(--font-display);
+  color: var(--kit-ink);
+}
+.kit .start-plot-text span {
+  font-size: 0.86rem;
+  color: var(--kit-ink-soft);
+  line-height: 1.35;
+}
+/* the chosen path's detail area: a stable card below the tiles, not a
+   long form shown by default */
+.kit .start-unfold {
+  margin-top: 1rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 2px solid var(--kit-line);
+  border-radius: var(--radius-lg);
+  background: var(--kit-card);
+  box-shadow: 0 3px 0 var(--kit-line);
+  animation: startUnfold 180ms ease-out both;
+}
+@keyframes startUnfold {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kit .start-plot {
+    transition: none;
+  }
+  .kit .start-plot:hover {
+    transform: none;
+  }
+  .kit .start-unfold {
+    animation: none;
+  }
+}
+
 /* ---- tags: small printed labels ------------------------------------------- */
 
 .kit .tag {
@@ -283,9 +387,16 @@
   text-align: center;
 }
 .kit .empty-shelf-art {
+  display: block;
   width: 7.5rem;
   height: auto;
   margin-bottom: 0.3rem;
+}
+.kit .empty-shelf-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 4px 8px rgb(36 26 23 / 0.14));
 }
 .kit .empty-state h2 {
   margin: 0;

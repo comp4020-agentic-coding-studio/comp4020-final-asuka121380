@@ -958,3 +958,156 @@ illustration. Evidence: doc/evidence/0022.
 - Visual quality was checked in Chrome only, with swiftshader software
   rendering in automation (doc/evidence/0013). It was not checked on a
   physical phone or in Safari.
+
+## Bolder artistic pass (author's brief, 5 Nov 2026)
+
+The author judged the two prior passes ("Artistic identity pass",
+`7b184da`, and its refinement, `ed0b206`) as still "a conventional
+interface with small brick decorations", not a site whose composition,
+materials, illustrations and movement are shaped by the brick-building
+theme, and explicitly asked for a bolder pass with three concrete,
+bounded problems to fix, in priority order: the lobby's imbalance between
+a short "Build alone" card and a tall room-creation form; About's opening,
+which didn't establish the project's ambition; and a visual narrative
+through About that reads as unrelated ornaments rather than a developing
+story.
+
+### One shared brick-scene library (agent)
+
+`src/client/ui/brickScenes.ts` is a new, small family of original
+isometric brick-scene illustrations, built entirely from the existing
+`isoSvg`/`IsoBrick` primitive (`ui/iso.ts`) that already draws the brand
+mark and saved-creation thumbnails — one brick-rendering system for the
+whole site, not a second, flatter icon language invented for decoration.
+Proposed/not-yet-real pieces use the exact same `ghost: true` translucent
+rendering the real Plan-mode editor already uses for a planned part, so a
+"proposed brick" in a decorative scene looks exactly like a proposed brick
+in actual gameplay — reusing an existing visual convention rather than
+inventing a new one. The library exports: `soloPlotScene`/`sharedPlotScene`
+(the lobby's two starting tiles), `unfinishedCreationScene` (About's hero),
+`contributionsApproachScene`/`pieceSettlesScene` (the same geometry, one
+beat apart, used for a settling-piece cross-fade), `neighbourhoodScene`
+and `displayedCreationScene` (About's remaining two chapters),
+`headingBeamScene` (a small structural accent beside a section heading)
+and `emptyPlotScene` (the empty-state family, replacing the earlier flat
+line-and-dot placeholder). Each composition was first prototyped with a
+throwaway Node + Playwright script (render to a temp HTML file,
+screenshot, inspect) before being written into the committed file; two
+early compositions (the neighbourhood scene's house placement, the
+displayed-creation scene's contributor studs) were visibly wrong in their
+first screenshot and were adjusted before use.
+
+### The lobby: two compact ways to begin, not a short card beside a tall one (agent)
+
+`parts.tsx`'s separate `BuildAlone` and `CreateRoom` components are
+replaced by one `StartChoices` component: two equal, compact tiles
+("Build on your own" / "Start a shared room"), each showing one of the new
+baseplate scenes. Choosing a tile reveals exactly the controls that choice
+needs — a single "Build alone" button for solo, or the full room-settings
+form (room name, visibility, publish setting, "Create and open") for
+shared — in a `.start-unfold` panel below the tiles, instead of showing an
+always-present tall form beside a short card. Choosing the shared tile
+moves keyboard focus to the room-name field once the form has unfolded
+(`requestAnimationFrame` after the state update, so focus never races the
+animation). Opening either form does not itself create or open a room;
+confirmed end-to-end with Playwright that "Build alone" and "Create and
+open" still open/create rooms exactly as before, that Tab reaches the
+tiles and Enter activates them with focus landing correctly, and that the
+layout stacks correctly at 390px width. `MyRooms` and `Invites` are
+unchanged and still sit in the same `.lobby-start` section; the room
+discovery grid and its "Load more" pagination (from the prior refinement
+pass) are untouched. The tabletop's own `ScenesPanel`
+(`home/tabletop/panels.tsx`) was confirmed, by reading its imports, to use
+only the lower-level `useSoloRoom`/`useCreateRoom`/`RoomSettings` exports
+from `parts.tsx`, never the removed `BuildAlone`/`CreateRoom` components,
+so this redesign is scoped to the dedicated `/build/` lobby page only.
+
+### About: a substantial opening scene, and a real narrative (agent)
+
+`src/server/readme.ts`'s hero no longer pairs the title/lede with a tiny
+pale brick decoration below a lot of unused height. `unfinishedCreationScene()`
+— three differently-coloured built sections around one deliberate gap,
+with a translucent proposed piece approaching it — sits beside the title
+and lede in a two-column hero frame (text first in markup and in reading
+order, the scene a sibling column, stacking on narrow screens), replacing
+the small loose-bricks flourish. The three subsequent chapters now use
+scenes from the same library mapped onto the README's own progression
+(contributions approaching → a piece settling into the gap → the creation
+among neighbours → a saved version on a display plinth with two equal
+contributor markers), instead of the earlier hand-drawn flat SVGs. The
+"joining" chapter's settling moment is now a real before/after cross-fade
+between two isoSvg renders of the same geometry (`contributionsApproachScene()`
+on the bottom, `pieceSettlesScene()` fading in over it), rather than one
+brick sliding along a straight line.
+
+**Bug found and fixed in the same pass:** the non-`alt` `.chapter-support`
+variant (the "keepsake" chapter) put its art before `.chapter-copy` in the
+markup for accessibility order, but that variant's grid track list put the
+wide column first — without an explicit `order`, the large new scene
+landed in the wide prose column and the actual prose was squeezed into the
+narrow side column, the opposite of the intended "supporting illustration,
+sized to the text". Fixed with `.chapter-support:not(.alt) >
+:first-child:not(.chapter-copy) { order: 2; }`. This was invisible with
+the old small flat icons and only became visible once the art was a real
+detailed scene — found by an actual browser screenshot, not by reading the
+CSS.
+
+The closing scene's exact visible wording ("Made with love by
+Asuka121380") and its "Back to the table" action are unchanged. All motion
+(the hero's scene popping in, the settling cross-fade, the two chapter
+pop-ins) plays once on load and collapses entirely under
+`prefers-reduced-motion: reduce`; the page keeps server-rendering with no
+JavaScript required to read it, and the shipped `spec/invariants.test.ts`
+heading-order contract is untouched (the markdown and its heading order
+were not edited).
+
+### Smaller thematic treatments (agent, lower priority per the brief)
+
+- `Shell.tsx`'s shared `EmptyShelf()` (used by the collection, showcase,
+  public-rooms and friends/invitations empty states) now renders
+  `emptyPlotScene()` — a baseplate with one translucent ghost stud —
+  instead of the earlier flat line-and-three-dots placeholder.
+- The lobby's "Find a room" heading now sits beside a small
+  `headingBeamScene()` brick, a first, deliberately limited instance of
+  "section headings connected to a structural beam"; no other heading was
+  changed, since the brief asked for these treatments only "where
+  appropriate", not on every heading.
+- The showcase and collection cards' own thumbnails already used the
+  shared `isoSvg`/`creationSvg` renderer before this pass and needed no
+  change.
+
+### Checks run (agent)
+
+- `pnpm typecheck` — clean.
+- `pnpm build` — succeeds.
+- `APP_URL=http://localhost:9301 pnpm test` — **228/228 passed**, including
+  `spec/invariants.test.ts` 2/2 (README's rendering and heading order are
+  unaffected).
+- Playwright, against a local server (`DATA_DIR`-isolated, port 9301):
+  the lobby's default state, the solo tile's and shared tile's expanded
+  states, both at 1920×1080 and 390×844; an end-to-end solo "Build alone"
+  and an end-to-end shared "Create and open", both confirmed to actually
+  open/create a room; keyboard-only operation (Tab to the shared tile,
+  Enter, confirm focus lands in the room-name field); About's hero and all
+  three narrative chapters, at 1920×1080 and 390×844; About under
+  `prefers-reduced-motion: reduce`; the collection and showcase empty/
+  populated states.
+- `node scripts/tabletop.ts <url> <dir>` run against the same local server
+  as a full regression check, since this pass touches the lobby and the
+  shared `Shell.tsx` empty-state component the tabletop's own pages also
+  render through (reported separately once complete).
+- Screenshots: `doc/evidence/shots/0023`.
+- All checks were Chrome/Playwright automation against a local dev
+  server; nothing was checked on a physical device or in Safari, and
+  nothing was pushed or deployed.
+
+### Known limitations (agent)
+
+- The brief's priority 4 ("thematic treatments… where appropriate") was
+  applied narrowly (the empty-state family and one heading beam) rather
+  than across every panel the brief mentions as examples (invitation
+  "clips", collection/account framing); `clipScene()` exists in the new
+  library but is not yet wired into the invitations list. Left for a
+  follow-up pass rather than applied mechanically everywhere.
+- No change was made to the tabletop's own 3D objects, gameplay scenery,
+  camera or construction rules, per the brief's explicit scope boundary.

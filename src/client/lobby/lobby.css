@@ -211,8 +211,6 @@ body {
    a handful of forms, the full page width for a room grid. */
 .lobby-start {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  align-items: start;
   gap: 1.1rem;
   max-width: 68rem;
   margin: 0 auto 2.2rem;
@@ -230,10 +228,25 @@ body {
   gap: 1.1rem;
 }
 .lobby-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   grid-column: 1 / -1;
   margin: 0 0 0.6rem;
   font: 800 1.3rem var(--font-display);
   color: var(--ink);
+}
+/* a structural beam standing beside a section heading, not a generic rule
+   (brief: "section headings connected to structural beams or assembled
+   pieces") */
+.lobby-section-beam {
+  display: inline-flex;
+  width: 2.4rem;
+  flex: none;
+}
+.lobby-section-beam svg {
+  width: 100%;
+  height: auto;
 }
 
 /* ---- a saved version: the view beside its label ---------------------------- */

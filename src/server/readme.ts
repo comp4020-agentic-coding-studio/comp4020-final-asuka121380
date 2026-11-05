@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { marked } from "marked";
 import { pageHeaderHtml } from "../client/ui/pageHeader.ts";
+import {
+  contributionsApproachScene,
+  displayedCreationScene,
+  neighbourhoodScene,
+  pieceSettlesScene,
+  unfinishedCreationScene,
+} from "../client/ui/brickScenes.ts";
 
 // /readme/ is README.md rendered on the server, so the whole argument is in
 // the HTML a visitor (or the shipped check) receives, with no script needed.
@@ -24,6 +31,9 @@ import { pageHeaderHtml } from "../client/ui/pageHeader.ts";
 // collapses entirely under `prefers-reduced-motion: reduce`.
 
 const escape = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+/** Gives an `isoSvg()` string a class so the page's CSS can size and animate it, without touching the SVG markup it already produced. */
+const withClass = (svg: string, cls: string): string => svg.replace("<svg ", `<svg class="${cls}" `);
 
 const ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect y='5' width='16' height='11' rx='2' fill='%23d2242c'/%3E%3Crect x='2' y='2' width='4' height='4' rx='1' fill='%23d2242c'/%3E%3Crect x='10' y='2' width='4' height='4' rx='1' fill='%23d2242c'/%3E%3C/svg%3E";
@@ -63,92 +73,39 @@ function splitSections(md: string): Section[] {
 
 const render = (md: string): string => marked.parse(md, { async: false, gfm: true }) as string;
 
-// ---- original, decorative illustrations (inline SVG, aria-hidden) ---------
+// ---- original, decorative illustrations ------------------------------------
+// The hero and the three narrative chapter scenes below are built from the
+// same isometric brick primitive the saved-creation thumbnails and the
+// lobby's new "ways to begin" tiles use (`ui/brickScenes.ts`, itself built
+// on `ui/iso.ts`) — one brick-drawing system for the whole site, not a
+// second, flatter icon language invented for this page (author's brief,
+// "Bolder artistic pass", 5 Nov 2026). The hero keeps a real `aria-label`
+// (it is the substantive opening image, not decoration); the chapter scenes
+// are marked `aria-hidden` since each sits beside prose that already says
+// what it shows.
 
-/** A handful of loose, unmatched bricks: the opening scene, before anything has been decided or finished. */
-const heroArt = (): string => `
-<svg class="hero-art" viewBox="0 0 220 110" aria-hidden="true">
-  <g class="hero-brick hero-brick-1">
-    <rect x="8" y="58" width="56" height="30" rx="4" fill="var(--red)"/>
-    <circle cx="24" cy="52" r="7" fill="var(--red)"/>
-    <circle cx="48" cy="52" r="7" fill="var(--red)"/>
-  </g>
-  <g class="hero-brick hero-brick-2">
-    <rect x="86" y="30" width="46" height="26" rx="4" fill="var(--yellow)"/>
-    <circle cx="99" cy="25" r="6" fill="var(--yellow)"/>
-    <circle cx="119" cy="25" r="6" fill="var(--yellow)"/>
-  </g>
-  <g class="hero-brick hero-brick-3">
-    <rect x="150" y="62" width="62" height="32" rx="4" fill="var(--ink)"/>
-    <circle cx="167" cy="56" r="7" fill="var(--ink)"/>
-    <circle cx="195" cy="56" r="7" fill="var(--ink)"/>
-  </g>
-</svg>`;
+/** The opening scene (brief: "a memorable scene… an unfinished creation with room for another person's idea"): three built contributions around one deliberate gap, with a translucent proposed piece — the same "plan" look the editor itself uses — approaching it. */
+const heroArt = (): string => withClass(unfinishedCreationScene(), "hero-art");
 
 /**
- * One structure, built from two builders' colours, with a third person's
- * proposed brick (yellow, a window) still descending into the one gap left
- * for it: not two separate stacks meeting, but a single shared wall with a
- * visible place for someone else's idea to land — the chapter's own claim
- * ("a roof colour, a garden, or an unusual window can emerge from another
- * person's suggestion"). The falling brick settles into the gap once on
- * load, then stays put; no loop.
+ * The joining chapter's "a suggestion finds its place": two isoSvg renders
+ * of the *same* geometry, one with the third piece still a translucent
+ * proposal (`contributionsApproachScene`), one with it real and seated
+ * (`pieceSettlesScene`) — both share one viewBox (same bricks, same
+ * bounding box), so they can be stacked and cross-faded in place, playing
+ * once as the proposal becomes part of the build, never as a loop.
  */
 const joiningArt = (): string => `
-<svg class="joining-art" viewBox="0 0 220 160" aria-hidden="true">
-  <g class="joining-wall">
-    <rect x="20" y="118" width="180" height="30" rx="4" fill="var(--red-edge)"/>
-    <circle cx="38" cy="118" r="6.5" fill="var(--red-edge)"/>
-    <circle cx="65" cy="118" r="6.5" fill="var(--red-edge)"/>
-    <circle cx="156" cy="118" r="6.5" fill="var(--red-edge)"/>
-    <circle cx="183" cy="118" r="6.5" fill="var(--red-edge)"/>
-    <rect x="20" y="88" width="80" height="30" rx="4" fill="var(--red)"/>
-    <circle cx="38" cy="88" r="6.5" fill="var(--red)"/>
-    <circle cx="65" cy="88" r="6.5" fill="var(--red)"/>
-    <rect x="140" y="88" width="60" height="30" rx="4" fill="var(--blue)"/>
-    <circle cx="156" cy="88" r="6.5" fill="var(--blue)"/>
-    <circle cx="183" cy="88" r="6.5" fill="var(--blue)"/>
-    <!-- the one gap left in the shared wall, waiting for a suggestion -->
-    <rect x="100" y="88" width="40" height="30" rx="4" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-dasharray="4 4"/>
-  </g>
-  <g class="joining-drop">
-    <rect x="100" y="88" width="40" height="30" rx="4" fill="var(--yellow)"/>
-    <circle cx="112" cy="88" r="6.5" fill="var(--yellow)"/>
-    <circle cx="128" cy="88" r="6.5" fill="var(--yellow)"/>
-  </g>
-</svg>`;
+<span class="joining-art">
+  ${withClass(contributionsApproachScene(), "joining-before")}
+  ${withClass(pieceSettlesScene(), "joining-after")}
+</span>`;
 
-/** A small building beside a couple of plainer neighbours, on a shared strip of ground: build somewhere, not in a void. */
-const neighbourhoodArt = (): string => `
-<svg class="place-art" viewBox="0 0 260 140" aria-hidden="true">
-  <rect x="0" y="112" width="260" height="10" fill="var(--line)"/>
-  <g>
-    <rect x="12" y="78" width="46" height="34" fill="var(--yellow-soft)"/>
-    <polygon points="12,78 35,58 58,78" fill="var(--ink-soft)"/>
-  </g>
-  <g>
-    <rect x="186" y="84" width="54" height="28" fill="var(--yellow-soft)"/>
-    <polygon points="186,84 213,64 240,84" fill="var(--ink-soft)"/>
-  </g>
-  <g class="place-house">
-    <rect x="86" y="58" width="80" height="54" rx="2" fill="var(--white)" stroke="var(--line-strong)" stroke-width="2"/>
-    <polygon points="80,58 126,24 172,58" fill="var(--red)"/>
-    <rect x="114" y="82" width="22" height="30" fill="var(--blue)"/>
-    <rect x="96" y="70" width="14" height="14" fill="var(--yellow)"/>
-    <rect x="142" y="70" width="14" height="14" fill="var(--yellow)"/>
-  </g>
-</svg>`;
+/** The creation among a couple of plainer neighbours, same ground, same strip: build somewhere, not in a void. */
+const neighbourhoodArt = (): string => withClass(neighbourhoodScene(), "place-art");
 
-/** A saved creation on a small display plinth, two plain marks beside it standing for whoever built it together: shared memory, without inventing anyone's name or story. */
-const keepsakeArt = (): string => `
-<svg class="keepsake-art" viewBox="0 0 220 140" aria-hidden="true">
-  <rect x="30" y="104" width="160" height="14" rx="3" fill="var(--yellow-soft)" stroke="var(--yellow-edge)" stroke-width="2"/>
-  <rect x="70" y="56" width="50" height="48" rx="3" fill="var(--white)" stroke="var(--line-strong)" stroke-width="2"/>
-  <polygon points="64,56 95,32 126,56" fill="var(--red)"/>
-  <rect x="88" y="78" width="14" height="26" fill="var(--blue)"/>
-  <circle cx="48" cy="112" r="7" fill="var(--red)"/>
-  <circle cx="172" cy="112" r="7" fill="var(--blue)"/>
-</svg>`;
+/** The creation on a display plinth, with two equal-sized contributor nameplate studs: shared memory, without inventing anyone's name or story. */
+const keepsakeArt = (): string => withClass(displayedCreationScene(), "keepsake-art");
 
 /** A small checklist mark beside a plain brick: the two kinds of claim the last chapter makes — what's tested, and what still needs a person's judgement. */
 const checklistArt = (): string => `
@@ -176,8 +133,8 @@ export function renderReadme(path: string): string {
     <section class="hero" data-anim>
       <div class="hero-copy">
         ${render(sections[0].md)}
-        ${heroArt()}
       </div>
+      ${heroArt()}
     </section>` : "";
 
   // README.md's four H2 sections, in order: "A shared building, a shared
@@ -369,25 +326,37 @@ export function renderReadme(path: string): string {
   th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
   th { background: var(--wash); }
 
-  /* the opening: a wide, full-width title and lede, with the loose-bricks
-     art as a smaller accompanying flourish below it rather than squeezed
-     into a narrow side column — the reading text gets the width */
+  /* the opening (brief: "a substantial original visual scene… enough scale,
+     detail and contrast to carry the opening — do not replace one tiny
+     icon with several tiny icons"): the scene now sits directly beside the
+     title and lede, at a real hero size, in a two-column frame on wide
+     screens that still reads top-to-bottom first (the text column comes
+     first in the markup) and stacks on narrow ones — asymmetric, but with
+     one clear reading order, never requiring the scene to be understood
+     before the words are. */
   .hero {
-    padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(1.8rem, 4vw, 2.8rem);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 26rem);
+    align-items: center;
+    gap: clamp(1.6rem, 4vw, 3.5rem);
+    padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(2.2rem, 5vw, 3.4rem);
   }
-  .hero-copy { max-width: 46rem; }
+  .hero-copy { max-width: 42rem; }
   .hero-copy h1 {
     margin: 0 0 1rem;
-    font-size: clamp(2.6rem, 7vw, 4.6rem);
+    font-size: clamp(2.6rem, 6vw, 4.2rem);
     font-weight: 800;
   }
   .hero-copy p { font-size: 1.15rem; line-height: 1.6; color: var(--ink-soft); }
-  .hero-art { width: min(20rem, 60%); height: auto; margin-top: 1.6rem; }
-  .hero-brick { opacity: 0; transform: translateY(14px) scale(0.9); }
-  .hero.anim-in .hero-brick-1 { animation: popIn 560ms 80ms ease-out both; }
-  .hero.anim-in .hero-brick-2 { animation: popIn 560ms 220ms ease-out both; }
-  .hero.anim-in .hero-brick-3 { animation: popIn 560ms 360ms ease-out both; }
-  .hero:not(.anim-in) .hero-brick { opacity: 1; transform: none; }
+  .hero-art {
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(0 10px 18px rgb(36 26 23 / 0.16));
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  .hero.anim-in .hero-art { animation: popIn 640ms 120ms cubic-bezier(.2,.7,.3,1) both; }
+  .hero:not(.anim-in) .hero-art { opacity: 1; transform: none; }
 
   /* a wide chapter: full-width, comfortably-measured prose (the longest,
      most substantive chapter gets the most reading room), with its
@@ -406,8 +375,9 @@ export function renderReadme(path: string): string {
   }
   .chapter-wide .joining-art {
     float: right;
-    width: min(14rem, 36%);
-    height: auto;
+    position: relative;
+    display: block;
+    width: min(16rem, 40%);
     margin: 0.2rem 0 1rem 1.6rem;
   }
   .chapter-wide .chapter-copy::after { content: ""; display: block; clear: both; }
@@ -426,6 +396,15 @@ export function renderReadme(path: string): string {
   }
   .chapter-support.alt { grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); }
   .chapter-support.alt .chapter-copy { order: 2; }
+  /* non-alt: the art is emitted before .chapter-copy in markup (so it
+     reads art-then-prose in a screen reader or no-CSS fallback), but the
+     wide column is first in this variant's track list -- without an
+     explicit order, the art would land in the wide column and the prose
+     in the narrow one, the opposite of "a supporting illustration column,
+     sized to the text, never overwhelming it" (found in a real browser
+     check, 5 Nov 2026, once the art became a real detailed scene rather
+     than a small flat icon and the bug became visible). */
+  .chapter-support:not(.alt) > :first-child:not(.chapter-copy) { order: 2; }
   .chapter-support .chapter-copy {
     max-width: 38rem;
   }
@@ -434,7 +413,7 @@ export function renderReadme(path: string): string {
     font-size: clamp(1.5rem, 3.2vw, 2.1rem);
     color: var(--red-deep);
   }
-  .chapter-support :is(.place-art, .keepsake-art) { width: 100%; height: auto; justify-self: center; margin-top: 0.3rem; }
+  .chapter-support :is(.place-art, .keepsake-art) { width: 100%; height: auto; justify-self: center; margin-top: 0.3rem; filter: drop-shadow(0 6px 12px rgb(36 26 23 / 0.14)); }
 
   .chapter p, .chapter ul, .chapter-wide p, .chapter-wide ul, .chapter-support p, .chapter-support ul { color: var(--ink); }
 
@@ -467,27 +446,28 @@ export function renderReadme(path: string): string {
   }
   .chapter-plain .chapter-copy { max-width: 48rem; }
 
-  /* one shared wall, with a proposed brick dropping into the one gap left
-     for it, and settling there — a relationship (a suggestion finding its
-     place), not a loop of floating shapes */
-  .joining-art { overflow: visible; }
-  .joining-drop { transform: translateY(-26px); opacity: 0; }
-  .chapter-join.anim-in .joining-drop { animation: dropIn 520ms 180ms cubic-bezier(.3,0,.2,1) both; }
-  .chapter-join:not(.anim-in) .joining-drop { transform: none; opacity: 1; }
+  /* the proposed piece finding its place (brief, section 7: "a proposed
+     piece settling into a gap"): two renders of the same scene, stacked in
+     the same box — the "before" (piece still a translucent plan) visible
+     first, the "after" (piece now real) fading in over it and staying, a
+     single settling moment, never a loop. */
+  .joining-art { position: relative; display: block; }
+  .joining-before, .joining-after { display: block; width: 100%; height: auto; }
+  .joining-after { position: absolute; inset: 0; opacity: 0; }
+  .chapter-join.anim-in .joining-after { animation: settleIn 520ms 420ms cubic-bezier(.3,0,.2,1) both; }
+  .chapter-join:not(.anim-in) .joining-after { opacity: 1; }
 
-  .place-house { opacity: 0; transform: translateY(10px); }
-  .chapter-place.anim-in .place-house { animation: popIn 560ms 140ms ease-out both; }
-  .chapter-place:not(.anim-in) .place-house { opacity: 1; transform: none; }
-
-  .keepsake-art { opacity: 0; transform: translateY(10px) scale(0.96); }
+  .place-art, .keepsake-art { opacity: 0; transform: translateY(10px); }
+  .chapter-place.anim-in .place-art { animation: popIn 560ms 140ms ease-out both; }
+  .chapter-place:not(.anim-in) .place-art { opacity: 1; transform: none; }
   .chapter-keep.anim-in .keepsake-art { animation: popIn 560ms 100ms ease-out both; }
   .chapter-keep:not(.anim-in) .keepsake-art { opacity: 1; transform: none; }
 
   @keyframes popIn { from { opacity: 0; transform: translateY(14px) scale(0.92); } to { opacity: 1; transform: none; } }
-  @keyframes dropIn { from { opacity: 0; transform: translateY(-26px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes settleIn { from { opacity: 0; } to { opacity: 1; } }
 
   @media (prefers-reduced-motion: reduce) {
-    .hero-brick, .joining-drop, .place-house, .keepsake-art {
+    .hero-art, .joining-after, .place-art, .keepsake-art {
       animation: none !important;
       opacity: 1 !important;
       transform: none !important;
@@ -532,10 +512,12 @@ export function renderReadme(path: string): string {
   .foot { margin: 0 auto 2.5rem; width: min(44rem, calc(100% - 2rem)); color: var(--ink-soft); font-size: 0.8rem; text-align: center; }
 
   @media (max-width: 760px) {
-    .chapter-wide .joining-art { float: none; width: min(16rem, 70%); margin: 0 auto 1rem; }
+    .hero { grid-template-columns: 1fr; }
+    .hero-art { width: min(20rem, 80%); margin: 0 auto; }
+    .chapter-wide .joining-art { float: none; width: min(18rem, 75%); margin: 0 auto 1rem; }
     .chapter-support { grid-template-columns: 1fr; }
     .chapter-support.alt .chapter-copy { order: 0; }
-    .chapter-support :is(.place-art, .keepsake-art) { max-width: 16rem; margin: 0 auto; }
+    .chapter-support :is(.place-art, .keepsake-art) { max-width: 18rem; margin: 0 auto; }
   }
   @media (max-width: 560px) {
     :root { font-size: 16px; }
