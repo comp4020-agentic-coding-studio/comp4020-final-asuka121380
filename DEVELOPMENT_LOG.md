@@ -3443,3 +3443,92 @@ section is also recorded in ADR 0014.
   evidence 0021 rather than omitted, together with their confirmed,
   unrelated cause and the clean rerun that followed.
 - Nothing pushed or deployed.
+
+## 2026-11-05 19:03 AEDT — Artistic identity refinement: full-width framing, lobby room grid, shared header, readable About (ADR 0014)
+
+Decided by the author: a real browser review of the prior pass's build at
+`http://localhost:9301` found several concrete layout and contrast
+defects — not new scope — in the "Artistic identity pass" above. Fixes
+only; no new feature, no change to account/room/friend/publication rules.
+[`ed0b206`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ed0b206).
+
+**Implemented.**
+- `src/client/lobby/LobbyApp.tsx`: the inner room-lobby wrapper renamed
+  from `.lobby` to `.lobby-page`, fixing a class-name collision with
+  `<body class="lobby">` (set for `site-colors.css`'s palette scoping)
+  that had confined every dedicated page's whole document to a centred
+  68rem column, found by inspecting `getComputedStyle(document.body)`
+  live rather than by re-reading the CSS. The single `.lobby-columns`
+  grid split into `.lobby-start` (build-alone/invitations/your-rooms/
+  create-a-room, a bounded centred column) and `.lobby-discover` (public
+  rooms at full page width, beside join-by-code/friends/identity).
+- `src/client/lobby/parts.tsx`: `PublicRooms` gained a `grid` prop — a
+  responsive card grid (`room-grid`/`room-card-tile`, `ui/kit.css`) with
+  client-side "Load more" pagination and a visible room count, replacing
+  the single growing `<ul class="room-list">` on the dedicated lobby only;
+  the tabletop noticeboard's `bare` rendering is unchanged. Long room
+  names are clipped with an ellipsis rather than breaking the card
+  (`text-overflow: ellipsis`), verified against a disposable test room
+  with a deliberately very long name.
+- `src/client/lobby/lobby.css`: `html`/`body`/`.page` no longer carry any
+  `max-width`; `.kit .page-beam .home-link` raised past `kit.css`'s `.kit
+  a:not(.btn)` (specificity (0,2,1)), fixing a second instance of the
+  nav-contrast bug already partly fixed in the prior pass — confirmed by a
+  live `getComputedStyle` check returning white, not assumed from the
+  rule.
+- `src/client/ui/pageHeader.ts` (new): `pageHeaderHtml()`, one pure
+  string-builder definition of the shared dedicated-page header (brand,
+  nav, back-to-table), used by both `Shell.tsx` (via
+  `dangerouslySetInnerHTML`) and `src/server/readme.ts`. About now shows
+  the same five-item nav as every other dedicated page, with no
+  JavaScript needed to produce or show it.
+- `src/server/readme.ts`: the hero's illustration moved below its prose;
+  three chapter layouts (`chapter-wide`, `chapter-support`,
+  `chapter-compact`, plus a `chapter-plain` fallback for an unrecognised
+  extra section) replace one mechanically alternating two-column
+  template, giving the longest chapter a full comfortable measure instead
+  of a narrow column beside an oversized illustration. `joiningArt()`
+  redrawn from two separate stacks meeting to one shared wall with a
+  single proposed brick still descending into its one gap. Added
+  `scroll-margin-top` (with a taller mobile-specific value) after
+  scrolling to a chapter landed its heading partly behind the sticky red
+  beam.
+- `src/client/App.tsx`: removed the Help panel's remaining
+  `<a href="/readme/">About Brick Commons</a>` fine-print link, per the
+  author's explicit instruction that every About entrance leave gameplay
+  (the prior pass had removed only the persistent toolbar chip). Confirmed
+  by a live DOM count of `a[href="/readme/"]` inside the editor (0).
+- `scripts/tabletop.ts`: updated one stale selector
+  (`README: has a Back to the table link`, previously `a.back`) to
+  `.page-beam .to-table`, matching the header's new shared markup; the
+  real behaviour checked (a working way back from About's header) is
+  unchanged.
+
+**Tests run** (production build, local server on a confirmed-empty port
+9301, fresh temporary `DATA_DIR`):
+- `pnpm typecheck`: passed. `pnpm build`: succeeded.
+- `APP_URL=http://localhost:9301 pnpm test`: 228/228 passed, including
+  `spec/invariants.test.ts` 2/2.
+- `pnpm check:evidence`: passed.
+- `node scripts/tabletop.ts http://localhost:9301 <dir>`: 170/171 (one
+  stale selector, fixed), then **173/173** clean.
+- Visual review in Chrome (swiftshader software WebGL) at 1920×1080,
+  1024×900, 768×1024 and 390×844: full-width header/background at every
+  width; a 43-room public lobby as a responsive grid with "Load more" and
+  a visible count; empty and small room lists; a deliberately full (2/2)
+  room; a deliberately long room name clipped, not broken; the tabletop
+  noticeboard's own compact list, confirmed unchanged; white brand text
+  everywhere; About's shared nav and recomposed chapters with no
+  sticky-header clipping; About under reduced motion; zero About links in
+  the editor.
+
+**Observed.** Screenshots and full detail in evidence 0022; this pass's
+section is also recorded in ADR 0014.
+
+**Known limitations.**
+- Checked only in Chrome, with swiftshader software WebGL; not checked on
+  a physical device or in Safari/WebKit.
+- The 43-room test dataset, the full-room case and the long room name
+  exist only in disposable local `DATA_DIR`s used for this check, not as
+  seeded or shipped data.
+- Nothing pushed or deployed.
