@@ -65,6 +65,7 @@ export function ScenesPanel() {
                 <span className="scene-card-title">{s.title}</span>
                 <span className="kit-help">{s.setting}.</span>
                 <span className="scene-facts">
+                  <span className="tag tag-muted">{s.size}</span>
                   <span className="tag tag-muted">{buildersOf(s)}</span>
                   <span className="tag tag-muted">
                     Plot {t.bounds.w}×{t.bounds.d} studs

@@ -89,6 +89,7 @@ export function ScenePicker({ value, onChange, name }: { value: string; onChange
               <strong>{info.title}</strong>
               <span>{info.setting}.</span>
               <span className="scene-facts">
+                <span className="tag tag-muted">{info.size}</span>
                 <span className="tag tag-muted">{buildersOf(info)}</span>
                 <span className="tag tag-muted">
                   Plot {t.bounds.w}×{t.bounds.d} studs

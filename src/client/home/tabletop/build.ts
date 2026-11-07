@@ -1,4 +1,9 @@
 import * as THREE from "three";
+import { partDef } from "../../../domain/catalog.ts";
+import { colourHex } from "../../../domain/colours.ts";
+import { rotatedSize } from "../../../domain/grid.ts";
+import type { Placement } from "../../../domain/rules.ts";
+import type { FixedPiece } from "../../../domain/scene.ts";
 import { PLATE } from "../../scene/geometry.ts";
 import { Batch, house } from "../../scene/scenery.ts";
 
@@ -481,23 +486,42 @@ export function sign(): Batch {
 // ---- the scene tray ------------------------------------------------------------
 
 export const SCENE_TRAY = { w: 12, d: 7.5 };
-/** The one occupied slot, at the tray's left; the rest stays clear for later scenes. */
-export const BEACH_SLOT = { x: -2.9, z: -0.2, w: 5, d: 6 };
-/** The scene's name, on a low stand in front of its slot. */
-export const SCENE_LABEL = { x: BEACH_SLOT.x, z: SCENE_TRAY.d / 2 + 1.1, w: 6, h: 1.3, y: 0.5 };
+/**
+ * One slot per playable scene, left to right from the smallest to the
+ * largest (ADR 0016): Beach Houses (2 builders), the castle (4), Woodland
+ * Commons (6). Each miniature is drawn from its scene's own data.
+ */
+export const SCENE_SLOTS = [
+  { x: -3.9, z: -0.6, w: 3.4, d: 3.4 },
+  { x: -0.3, z: -0.6, w: 4.0, d: 3.4 },
+  { x: 3.6, z: -0.6, w: 3.6, d: 3.4 },
+] as const;
+/** The tray's name, on a low stand in front of it. */
+export const SCENE_LABEL = { x: -0.3, z: SCENE_TRAY.d / 2 + 1.1, w: 6, h: 1.3, y: 0.5 };
+/** The tallest miniature's top, for the tray's hit box. */
+export const SCENE_TRAY_TOP = 4.6;
 
-/** A wooden tray with room for several scene miniatures; only the Beach Houses miniature sits in it so far. */
+/** A wooden tray holding one miniature per playable scene, each on its own grey slot. */
 export function sceneTray(): Batch {
   const b = new Batch();
   const { w, d } = SCENE_TRAY;
   tray(b, PALETTE.woodTray, PALETTE.woodTrayRim, 0, 0, w, d, 1.0);
-  b.box(PALETTE.grey, BEACH_SLOT.w, 0.3, BEACH_SLOT.d, BEACH_SLOT.x, 0.3, BEACH_SLOT.z);
+  for (const slot of SCENE_SLOTS) b.box(PALETTE.grey, slot.w, 0.3, slot.d, slot.x, 0.3, slot.z);
   // the name stand: a cream plate between two blue bricks on a blue plate
   const L = SCENE_LABEL;
   brick(b, PALETTE.blue, L.x - L.w / 2 - 1, 0, L.z - 0.6, L.w + 2, 1.2, 1, false);
   for (const s of [-1, 1]) brick(b, PALETTE.blue, L.x + s * (L.w / 2 + 0.5) - 0.5, PLATE, L.z - 0.5, 1, 1, 4, true);
   b.box(PALETTE.cream, L.w, L.h, 0.3, L.x, L.y, L.z);
   return b;
+}
+
+/** Scales a raw miniature, centred on (cx, cz) in its own units, into a slot. */
+function intoSlot(raw: Batch, slot: (typeof SCENE_SLOTS)[number], s: number, cx: number, cz: number): Batch {
+  const m = new THREE.Matrix4().makeScale(s, s, s);
+  m.setPosition(slot.x - cx * s, 0.6, slot.z - cz * s);
+  const out = new Batch();
+  for (const { colour, geometry } of raw.build()) out.add(colour, geometry, m);
+  return out;
 }
 
 /** Beach Houses in miniature: three of the scene's neighbours made with the game's own house builder, facing sand and sea. */
@@ -508,12 +532,78 @@ export function beachMiniature(): Batch {
   raw.merge(house({ x: 16, z: 0, w: 6, d: 6, storeys: 1, wall: "#ffd23f", base: "#e4b520", trim: PALETTE.white, roof: "#ff7a5c", door: "#2a6fd1", openings: [{ face: "front", at: 2, kind: "door" }] }));
   raw.box("#f1dcae", 24, 0.6, 7, 11, -0.6, 9.5);
   raw.box("#5fb8d3", 24, 0.5, 3, 11, -0.6, 14.5);
-  const s = 0.195;
-  const m = new THREE.Matrix4().makeScale(s, s, s);
-  m.setPosition(BEACH_SLOT.x - 11 * s, 0.6 + 0.6 * s, BEACH_SLOT.z - 8 * s);
-  const out = new Batch();
-  for (const { colour, geometry } of raw.build()) out.add(colour, geometry, m);
-  return out;
+  return intoSlot(raw, SCENE_SLOTS[0], 0.13, 11, 6.5);
+}
+
+/**
+ * A scene's reference construction as a lightweight picture: each part a
+ * plain box of its footprint and height in its own colour, slopes as wedges,
+ * stairs as steps. No studs and no part geometry, so the table stays light.
+ */
+function referenceRaw(parts: readonly Placement[], ground: { w: number; d: number; colour: string }): Batch {
+  const b = new Batch();
+  b.box(ground.colour, ground.w, 0.4, ground.d, ground.w / 2, -0.4, ground.d / 2);
+  for (const p of parts) {
+    const def = partDef(p.partId);
+    if (!def) continue;
+    const sz = rotatedSize(def, p.rot);
+    const h = def.h * PLATE;
+    const colour = colourHex(p.colour);
+    const cx = p.x + sz.w / 2;
+    const cz = p.z + sz.d / 2;
+    if (def.geometry === "slope45" || def.geometry === "stairs") {
+      // a wedge or a flight: rising towards the part's back row, turned with it
+      const steps = def.geometry === "stairs" ? def.d : 2;
+      const m = new THREE.Matrix4().makeRotationY((p.rot * Math.PI) / 2).setPosition(cx, p.y * PLATE, cz);
+      for (let i = 0; i < steps; i++) {
+        const t = (i + 1) / steps;
+        const g = new THREE.BoxGeometry(def.w, h * t, def.d / steps);
+        g.translate(0, (h * t) / 2, def.d / 2 - (i + 0.5) * (def.d / steps));
+        b.add(colour, g, m);
+      }
+      continue;
+    }
+    if (def.geometry === "slope45-double") {
+      b.box(colour, sz.w, h * 0.5, sz.d, cx, p.y * PLATE, cz);
+      b.box(colour, sz.w * 0.5, h * 0.5, sz.d, cx, p.y * PLATE + h * 0.5, cz);
+      continue;
+    }
+    b.box(colour, sz.w, h, sz.d, cx, p.y * PLATE, cz);
+  }
+  return b;
+}
+
+/** The Medieval Castle in miniature: its reference castle on its paved courtyard. */
+export function castleMiniature(parts: readonly Placement[], plot: { w: number; d: number }): Batch {
+  const raw = referenceRaw(parts, { ...plot, colour: "#c3c0b8" });
+  return intoSlot(raw, SCENE_SLOTS[1], 0.125, plot.w / 2, plot.d / 2);
+}
+
+/**
+ * Woodland Commons in miniature: the scene's fixed tree (the same boxes the
+ * rules use), its reference cabins and stairs, and a few clumps of the
+ * canopy over the crown.
+ */
+export function treehouseMiniature(parts: readonly Placement[], fixed: readonly FixedPiece[], plot: { w: number; d: number; h: number }): Batch {
+  const raw = referenceRaw(parts, { w: plot.w, d: plot.d, colour: "#8fae5a" });
+  for (const f of fixed) {
+    const colour = f.kind === "deck" ? "#9a6a42" : f.kind === "root" ? "#48301f" : "#5b3a26";
+    raw.box(colour, f.w, f.h * PLATE, f.d, f.x + f.w / 2, f.y * PLATE, f.z + f.d / 2);
+  }
+  const stem = fixed.find((f) => f.kind === "trunk" && f.y > 0) ?? fixed[0];
+  const top = plot.h * PLATE;
+  const cx = stem.x + stem.w / 2;
+  const cz = stem.z + stem.d / 2;
+  const leaf = ["#4f8f3f", "#5d9c45", "#6aa64c", "#d9a23a", "#4f8f3f", "#e0832f", "#5d9c45"];
+  const spots = [[0, 0, 2], [-8, -1, 0], [8, -1, 0.5], [-4, -5, 1.5], [5, -4, 1], [-11, -3, -1.5], [11, -3, -1]];
+  spots.forEach(([dx, dz, dy], i) => {
+    const g = new THREE.IcosahedronGeometry(6, 0);
+    g.scale(1, 0.62, 0.85);
+    g.translate(cx + dx, top + 5 + dy, cz + dz);
+    raw.add(leaf[i], g);
+  });
+  raw.box("#5b3a26", stem.w, 5, stem.d, cx, top, cz);
+  return intoSlot(raw, SCENE_SLOTS[2], 0.112, plot.w / 2, plot.d / 2);
 }
 
 // ---- the noticeboard -----------------------------------------------------------

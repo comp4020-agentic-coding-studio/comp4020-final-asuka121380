@@ -3,10 +3,13 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import type { Batch } from "../../scene/scenery.ts";
+import { CASTLE_SCENE, TREEHOUSE_SCENE } from "../../../domain/scene.ts";
 import {
   at,
-  BEACH_SLOT,
   beachMiniature,
+  castleMiniature,
+  treehouseMiniature,
+  SCENE_TRAY_TOP,
   BOARD,
   BOARD_HEADER,
   booklet,
@@ -725,7 +728,10 @@ const SHAPES: Record<Entrance, EntranceShape> = {
     pool: { x: 0, z: 0.6, r: 5 },
   },
   scenes: {
-    hit: { c: [0, 1.6, 0.6], s: [SCENE_TRAY.w + 1, 3.6, SCENE_TRAY.d + 3.4] },
+    // the tray, its taller miniatures and the name stand in front; the box
+    // starts at the table, so a press just below the stand still lands in it
+    // while the hovered object lifts
+    hit: { c: [0, (SCENE_TRAY_TOP + 0.4) / 2, 1.2], s: [SCENE_TRAY.w + 1, SCENE_TRAY_TOP + 0.4, SCENE_TRAY.d + 4.6] },
     label: { x: SCENE_LABEL.x, y: SCENE_LABEL.y + SCENE_LABEL.h / 2, z: SCENE_LABEL.z + 0.17, w: SCENE_LABEL.w * 0.96, h: SCENE_LABEL.h * 0.9 },
     pool: { x: 0, z: 0.6, r: 8.5 },
   },
@@ -958,6 +964,8 @@ const BUILT: Record<Exclude<ObjectId, "sign">, () => Batch> = {
   scenes: once(() => {
     const b = sceneTray();
     b.merge(beachMiniature());
+    b.merge(castleMiniature(CASTLE_SCENE.reference, CASTLE_SCENE.bounds));
+    b.merge(treehouseMiniature(TREEHOUSE_SCENE.reference, TREEHOUSE_SCENE.fixed?.pieces ?? [], TREEHOUSE_SCENE.bounds));
     return b;
   }),
   board: once(noticeboard),

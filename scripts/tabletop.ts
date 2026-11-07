@@ -531,7 +531,10 @@ async function entrances(browser: Browser): Promise<void> {
   const titles = await page.locator(".scene-card .scene-card-title").allTextContents();
   check(
     "scene tray: the playable scenes, each with its real player count and Playable",
-    titles.join("|") === "Beach Houses|Medieval Castle" && tags.includes("1–2 builders") && tags.includes("1–4 builders") && tags.filter((t) => /playable/i.test(t)).length === 2,
+    // ADR 0016 added Woodland Commons as the third, largest scene.
+    titles.join("|") === "Beach Houses|Medieval Castle|Woodland Commons" &&
+      ["Small", "Medium", "Large", "1–2 builders", "1–4 builders", "1–6 builders"].every((t) => tags.includes(t)) &&
+      tags.filter((t) => /playable/i.test(t)).length === 3,
     { titles, tags },
   );
   check("scene tray: Beach Houses is chosen first", (await page.locator('.scene-card[aria-checked="true"] .scene-card-title').textContent()) === "Beach Houses");

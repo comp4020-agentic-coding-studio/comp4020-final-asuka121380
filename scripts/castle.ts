@@ -95,7 +95,8 @@ const host = await newVisitor(browser);
 await host.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
 await host.locator(".scene-option").first().waitFor();
 const options = await host.locator(".scene-option strong").allTextContents();
-check("the lobby offers Beach Houses and Medieval Castle", options.join("|") === "Beach Houses|Medieval Castle", options);
+// ADR 0016 added Woodland Commons as a third option, after these two
+check("the lobby offers Beach Houses and Medieval Castle", options.slice(0, 2).join("|") === "Beach Houses|Medieval Castle", options);
 const facts = await host.locator(".scene-option .tag").allTextContents();
 check("each scene states its real player count and plot", facts.includes("1–2 builders") && facts.includes("1–4 builders") && facts.includes("Plot 32×26 studs") && facts.includes("Plot 16×8 studs"), facts);
 check("Beach Houses is chosen by default", (await host.locator('input[name="start-scene"]:checked').getAttribute("value")) === "street-01");
