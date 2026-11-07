@@ -54,6 +54,24 @@ describe("the tree's fixed structure", () => {
     expect([top(LEFT), top(RIGHT), top(CROWN)]).toEqual([12, 24, 36]);
   });
 
+  it("is frozen with the scene id: saved builds rest on exactly these boxes", () => {
+    // Changing any of these would strand saved builds. A different tree is a
+    // new scene id, never an edit here (ADR 0016).
+    expect(TREE_PIECES.map((f) => [f.id, f.kind, f.x, f.y, f.z, f.w, f.d, f.h, f.studs])).toEqual([
+      ["trunk-lower", "trunk", 13, 0, 1, 6, 10, 35, false],
+      ["trunk-stem", "trunk", 13, 35, 1, 6, 4, 37, false],
+      ["root-left", "root", 11, 0, 5, 2, 4, 3, false],
+      ["root-right", "root", 19, 0, 4, 2, 4, 3, false],
+      ["root-front", "root", 14, 0, 11, 3, 1, 2, false],
+      ["branch-left", "branch", 2, 8, 7, 11, 2, 3, false],
+      ["branch-right", "branch", 19, 20, 7, 11, 2, 3, false],
+      ["deck-left", "deck", 1, 11, 4, 8, 8, 1, true],
+      ["deck-right", "deck", 23, 23, 5, 8, 8, 1, true],
+      ["deck-crown", "deck", 11, 35, 5, 10, 8, 1, true],
+    ]);
+    expect([tree.id, tree.version, tree.fixed?.version]).toEqual(["treehouse-01", 1, 1]);
+  });
+
   it("fits inside the plot, keeps the front rows open, and no two boxes overlap", () => {
     const cells = new Set<string>();
     for (const f of TREE_PIECES) {

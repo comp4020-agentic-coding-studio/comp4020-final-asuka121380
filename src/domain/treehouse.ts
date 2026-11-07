@@ -72,9 +72,9 @@ export const TREE_PIECES: readonly FixedPiece[] = [
   F("root-left", "root", 11, 0, 5, 2, 4, 3),
   F("root-right", "root", 19, 0, 4, 2, 4, 3),
   F("root-front", "root", 14, 0, 11, 3, 1, 2),
-  // the branches under the side platforms
-  F("branch-left", "branch", 7, 8, 7, 6, 2, 3),
-  F("branch-right", "branch", 19, 20, 7, 6, 2, 3),
+  // the branches, each running out from the trunk under its platform's width
+  F("branch-left", "branch", 2, 8, 7, 11, 2, 3),
+  F("branch-right", "branch", 19, 20, 7, 11, 2, 3),
   // the platforms: the only support surfaces
   F("deck-left", "deck", 1, 11, 4, 8, 8, 1),
   F("deck-right", "deck", 23, 23, 5, 8, 8, 1),
