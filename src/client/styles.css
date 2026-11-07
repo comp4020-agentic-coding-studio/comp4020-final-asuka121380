@@ -837,3 +837,13 @@ kbd {
   margin: 0 0 1rem;
   color: var(--ink-soft);
 }
+
+/* while a scene's environment loads (scene/LoadingScene.tsx): a status
+   line over the empty canvas, never an unlit scene (ADR 0016) */
+.scene-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}

@@ -4,6 +4,7 @@ import type { SceneInfo } from "../registry.ts";
 // keyed by, so no build needs migrating; only what's shown changed (ADR 0004).
 export const beach: SceneInfo = {
   id: "street-01",
+  size: "Small",
   title: "Beach Houses",
   setting: "A row of houses facing the sea, just before sunset",
   blurb:

@@ -1,6 +1,7 @@
 import { SCENES as TEMPLATES, type SceneTemplate } from "../../domain/scene.ts";
 import { beach } from "./beach/info.ts";
 import { castle } from "./castle/info.ts";
+import { treehouse } from "./treehouse/info.ts";
 
 // The scenes the site offers (ADR 0004). An entry is presentation only:
 // title, words, cover and suggested colours. The kit, plot and reference
@@ -12,6 +13,8 @@ export interface SceneInfo {
   /** The domain template's id: what saved builds are keyed by. */
   id: string;
   title: string;
+  /** Where it sits in the progression from Beach Houses to Woodland Commons (ADR 0016). */
+  size: "Small" | "Medium" | "Large";
   /** A short line under the title: where and when. */
   setting: string;
   blurb: string;
@@ -29,9 +32,19 @@ export interface SceneInfo {
   plot?: { colour: string; vary: number };
   /** What the editor's opening view frames round the plot's centre, in studs. */
   frame?: { across: number; above: number; below: number };
+  /**
+   * Scene-specific camera limits for a tall scene (ADR 0016), in world units:
+   * the opening view's centre height, how high the orbit centre may be
+   * panned or focused, and the farthest zoom. Defaults suit a low plot.
+   */
+  camera?: { centreY: number; panHeight: number; maxDistance: number };
+  /** Whether the editor offers "Hide leaves": a local view setting that hides only the canopy (ADR 0016). */
+  foliageToggle?: boolean;
 }
 
-export const SCENE_LIST: readonly SceneInfo[] = [beach, castle];
+// Smallest to largest: Beach Houses (2 builders), the castle (4), Woodland
+// Commons (6). The homepage tray and the lobby show them in this order.
+export const SCENE_LIST: readonly SceneInfo[] = [beach, castle, treehouse];
 
 export const sceneInfo = (id: string): SceneInfo | undefined => SCENE_LIST.find((s) => s.id === id);
 

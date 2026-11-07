@@ -11,6 +11,7 @@ import {
   rotate,
   stepLevel,
   toggleDelete,
+  toggleLeaves,
   toggleMode,
   withdrawPlan,
 } from "./state/store.ts";
@@ -97,6 +98,11 @@ function handle(e: KeyboardEvent): boolean {
       return true;
     case "Home":
       if (once) requestCamera("reset");
+      return true;
+    // Hide leaves (ADR 0016), in scenes that offer it; a view setting only
+    case "l":
+    case "L":
+      if (once) toggleLeaves();
       return true;
     default:
       return false;

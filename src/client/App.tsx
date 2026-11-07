@@ -7,6 +7,7 @@ import { Workbench } from "./scene/Workbench.tsx";
 import { pictures, type Pictures } from "./scene/thumbnails.ts";
 import { inviteToRoom, leaveRoom, myFriends, saveRoom, sendFriendRequest } from "./state/api.ts";
 import { useDisplayNames, who as whoName } from "./state/names.ts";
+import { useLeavesHidden } from "./state/leaves.ts";
 import {
   catalog,
   choosePart,
@@ -38,6 +39,7 @@ import {
   setNavTool,
   stepLevel,
   toggleDelete,
+  toggleLeaves,
   useApp,
   withdrawPlan,
 } from "./state/store.ts";
@@ -594,6 +596,12 @@ function Help({ open, onToggle }: { open: boolean; onToggle: () => void }) {
             <dd>focus on the selected part or plan</dd>
             <dt>T / Home</dt>
             <dd>top view / reset view</dd>
+            {sceneInfo(scene.id)?.foliageToggle && (
+              <>
+                <dt>L</dt>
+                <dd>hide or show the tree's leaves (only on your screen)</dd>
+              </>
+            )}
           </dl>
           <h3>Plans and marks</h3>
           <p>
@@ -806,6 +814,26 @@ function CameraTools() {
   );
 }
 
+/**
+ * "Hide leaves" (ADR 0016), in scenes that offer it: hides the canopy so the
+ * upper platforms can be seen and reached. Only this viewer's screen
+ * changes; the rules and everyone else's view stay as they are.
+ */
+function LeavesButton() {
+  const hidden = useLeavesHidden();
+  return (
+    <button
+      className={`chip-button${hidden ? " on" : ""}`}
+      aria-pressed={hidden}
+      aria-label="Hide leaves"
+      onClick={toggleLeaves}
+      title="Hide the tree's leaves on your screen only; nobody else's view changes (L)"
+    >
+      <span aria-hidden="true">🍃</span> <span className="wide-only">{hidden ? "Leaves hidden" : "Hide leaves"}</span> <kbd>L</kbd>
+    </button>
+  );
+}
+
 /** A small, always-visible reminder of how to move the camera; the nav tool's own hint while one is on. */
 function CameraHint() {
   const navTool = useApp((s) => s.navTool);
@@ -930,6 +958,7 @@ export function App() {
         <button className="chip-button" aria-label="Reset view" onClick={() => requestCamera("reset")}>
           Reset<span className="wide-only"> view</span> <kbd>Home</kbd>
         </button>
+        {info?.foliageToggle && <LeavesButton />}
       </nav>
 
       <Notice />

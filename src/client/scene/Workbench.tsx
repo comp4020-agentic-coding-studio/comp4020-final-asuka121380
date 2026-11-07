@@ -1,4 +1,5 @@
 import { Html, OrbitControls } from "@react-three/drei";
+import { SceneReady, useSceneLoading } from "./LoadingScene.tsx";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import * as THREE from "three";
@@ -43,15 +44,18 @@ import { sceneInfo } from "../scenes/registry.ts";
 
 // These follow the room's scene, which is known once its snapshot has
 // loaded; the editor remounts the workbench when it changes (App.tsx).
-const plotCentre = () => new THREE.Vector3(scene.bounds.w / 2, 4, scene.bounds.d / 2);
+// A tall scene (ADR 0016) sets its own opening centre height, how high the
+// observation centre may go, and the farthest zoom; the others keep these.
+const cameraOf = () => sceneInfo(scene.id)?.camera;
+const plotCentre = () => new THREE.Vector3(scene.bounds.w / 2, cameraOf()?.centreY ?? 4, scene.bounds.d / 2);
 // the observation centre may go a margin past the plot and up the tallest build
 const PAN_MIN = new THREE.Vector3(-4, 0, -4);
-const panMax = () => new THREE.Vector3(scene.bounds.w + 4, scene.bounds.h * 0.4 + 2, scene.bounds.d + 4);
+const panMax = () => new THREE.Vector3(scene.bounds.w + 4, cameraOf()?.panHeight ?? scene.bounds.h * 0.4 + 2, scene.bounds.d + 4);
 // low enough that a strip of horizon shows above the street
 const DEFAULT_POLAR = 1.32;
 const DEFAULT_AZIMUTH = 0.2;
 const MIN_DISTANCE = 6;
-const MAX_DISTANCE = 95;
+const maxDistance = () => cameraOf()?.maxDistance ?? 95;
 // where the orbit target sits in the screen above the dock, from the top:
 // below the middle, leaving headroom for roofs and the horizon
 const TARGET_AT = 0.6;
@@ -82,11 +86,11 @@ function fitDistance(camera: THREE.PerspectiveCamera, width: number, height: num
   const d = top
     ? Math.max(f.across / Math.tan(a.across), Math.max(5, scene.bounds.d * 0.6) / Math.tan(Math.min(a.above, a.below))) + plotCentre().y
     : Math.max(f.across / Math.tan(a.across), f.above / Math.tan(a.above), f.below / Math.tan(a.below));
-  return THREE.MathUtils.clamp(d, 24, MAX_DISTANCE);
+  return THREE.MathUtils.clamp(d, 24, maxDistance());
 }
 
 function CameraRig({ dock }: { dock: number }) {
-  const { camera, size } = useThree();
+  const { camera, size, gl } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const request = useApp((s) => s.camera);
   const navTool = useApp((s) => s.navTool);
@@ -151,6 +155,19 @@ function CameraRig({ dock }: { dock: number }) {
         size: [size.width, size.height],
       };
     };
+    // the last frame's draw calls and triangles (shadow passes included),
+    // for the performance notes in the evidence; read-only
+    (window as unknown as { __renderInfo: () => object }).__renderInfo = () => ({
+      calls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+      geometries: gl.info.memory.geometries,
+      textures: gl.info.memory.textures,
+      renderer: (() => {
+        const ctx = gl.getContext();
+        const ext = ctx.getExtension("WEBGL_debug_renderer_info");
+        return ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER);
+      })(),
+    });
     // put the camera at an azimuth and polar angle round the plot, so the
     // browser tests can check screen-relative moves from every side; it
     // moves the view only, never the build
@@ -172,7 +189,7 @@ function CameraRig({ dock }: { dock: number }) {
     (window as unknown as { __settleCamera: () => void }).__settleCamera = () => {
       for (let i = 0; i < 60; i++) controls.current?.update();
     };
-  }, [camera, dock, size.width, size.height]);
+  }, [camera, gl, dock, size.width, size.height]);
 
   // pan stays near the plot: move target and camera together back inside;
   // the camera never ends up inside a neighbour's house; and the heading is
@@ -208,7 +225,7 @@ function CameraRig({ dock }: { dock: number }) {
       minPolarAngle={0.02}
       maxPolarAngle={1.36}
       minDistance={MIN_DISTANCE}
-      maxDistance={MAX_DISTANCE}
+      maxDistance={maxDistance()}
       // pans across the ground and up/down with the view, so taller builds can be inspected
       screenSpacePanning
       mouseButtons={mouseButtons}
@@ -246,7 +263,9 @@ function aimOf(e: ThreeEvent<PointerEvent | MouseEvent>): Aim | null {
     const s = getState().snapshot;
     // a plan's top is a surface too, but only Plan mode ever aims at one (onMove/onClick)
     const placed = s?.parts.find((q) => q.id === placedIdOf(e)) ?? s?.plans.find((q) => q.id === planIdOf(e));
-    level = placed ? placed.y + partDef(placed.partId)!.h : 0;
+    // a fixed box's top (ADR 0016) is a surface like a part's: a platform's
+    // carries parts, and the rules answer for a trunk's, root's or branch's
+    level = placed ? placed.y + partDef(placed.partId)!.h : ((e.object.userData.fixedTop as number | undefined) ?? 0);
   } else {
     p.addScaledVector(normal, 0.5);
     level = Math.max(0, Math.floor(e.point.y / PLATE + 1e-6));
@@ -448,6 +467,7 @@ function Build({ isDrag, pressed }: { isDrag: (e: MouseEvent) => boolean; presse
   return (
     <group onPointerMove={onMove} onClick={onClick}>
       <Plot w={scene.bounds.w} d={scene.bounds.d} tone={sceneInfo(scene.id)?.plot} />
+      <FixedSurfaces />
       {snapshot?.parts.map((p) => (
         <PartMesh
           key={p.id}
@@ -498,14 +518,32 @@ function GhostLabel({ placement: p, ok, plan }: { placement: { partId: string; x
   );
 }
 
-/** The scene's surroundings and light, from the scene registry. */
+/**
+ * The scene's fixed structure (ADR 0016) as pointer surfaces: one invisible
+ * box per fixed piece, exactly the cells the rules block, so aiming at a
+ * platform means its top and aiming at the trunk's side means the cell in
+ * front of it, at that height. Drawn by the scene's environment; never
+ * selectable, recolourable or removable, since it is not a part.
+ */
+function FixedSurfaces() {
+  const pieces = scene.fixed?.pieces ?? [];
+  return (
+    <>
+      {pieces.map((f) => (
+        <mesh key={f.id} position={[f.x + f.w / 2, (f.y + f.h / 2) * PLATE, f.z + f.d / 2]} userData={{ fixedTop: f.y + f.h, fixed: f.id }}>
+          <boxGeometry args={[f.w, f.h * PLATE, f.d]} />
+          <meshBasicMaterial visible={false} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+/** The scene's surroundings and light, from the scene registry. It loads
+ * lazily, so it suspends: see the boundary in Workbench. */
 function Surroundings() {
   const Env = ENVIRONMENTS[scene.id];
-  return Env ? (
-    <Suspense fallback={null}>
-      <Env />
-    </Suspense>
-  ) : null;
+  return Env ? <Env /> : null;
 }
 
 export function Workbench({ dock }: { dock: number }) {
@@ -531,29 +569,39 @@ export function Workbench({ dock }: { dock: number }) {
     return Math.hypot(e.clientX - d.x, e.clientY - d.y) > limit;
   };
 
+  const loading = useSceneLoading();
   return (
-    <Canvas
-      shadows="soft"
-      dpr={[1, 2]}
-      camera={{ fov: 40, near: 0.5, far: 1000, position: [20, 26, 40] }}
-      // neutral tone mapping keeps saturated colours recognisable (ADR 0004)
-      gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.NeutralToneMapping, toneMappingExposure: 1 }}
-      onPointerDown={(e) => {
-        down.current = { x: e.clientX, y: e.clientY, type: e.pointerType };
-      }}
-      // a hovered target clears when the mouse leaves; a finger "leaves" after
-      // every tap, which would wipe the target the first tap named
-      onPointerLeave={(e) => e.pointerType === "mouse" && getState().deleting && setTarget(null)}
-      onPointerMissed={(e) => {
-        const s = getState();
-        if (!isDrag(e) && e.button === 0 && !s.navTool && !s.held && !s.deleting) select(null);
-      }}
-      // the right button orbits; the browser's own menu would interrupt it
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <CameraRig dock={dock} />
-      <Surroundings />
-      <Build isDrag={isDrag} pressed={pressed} />
-    </Canvas>
+    <>
+      <Canvas
+        shadows="soft"
+        dpr={[1, 2]}
+        camera={{ fov: 40, near: 0.5, far: 1000, position: [20, 26, 40] }}
+        // neutral tone mapping keeps saturated colours recognisable (ADR 0004)
+        gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.NeutralToneMapping, toneMappingExposure: 1 }}
+        onPointerDown={(e) => {
+          down.current = { x: e.clientX, y: e.clientY, type: e.pointerType };
+        }}
+        // a hovered target clears when the mouse leaves; a finger "leaves" after
+        // every tap, which would wipe the target the first tap named
+        onPointerLeave={(e) => e.pointerType === "mouse" && getState().deleting && setTarget(null)}
+        onPointerMissed={(e) => {
+          const s = getState();
+          if (!isDrag(e) && e.button === 0 && !s.navTool && !s.held && !s.deleting) select(null);
+        }}
+        // the right button orbits; the browser's own menu would interrupt it
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <CameraRig dock={dock} />
+        {/* one boundary for the light and what it lights: until the scene's
+            environment has loaded nothing is drawn, rather than an unlit,
+            black plot on the page background (ADR 0016) */}
+        <Suspense fallback={null}>
+          <Surroundings />
+          <Build isDrag={isDrag} pressed={pressed} />
+          <SceneReady onReady={loading.markReady} />
+        </Suspense>
+      </Canvas>
+      {loading.notice}
+    </>
   );
 }

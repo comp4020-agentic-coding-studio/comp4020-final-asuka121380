@@ -21,6 +21,7 @@ import { sceneInfo } from "../scenes/registry.ts";
 import { ensureIdentity, resetIdentity } from "./identity.ts";
 import { onIdentityChangedElsewhere } from "./session-events.ts";
 import { AccessError, NetworkError, RoomFullError, type Transport } from "./transport.ts";
+import { leavesHidden, setLeavesHidden } from "./leaves.ts";
 import { screenToGrid } from "./view.ts";
 
 // Client state. The snapshot is the server's, replaced wholesale on every
@@ -543,6 +544,14 @@ export function focusSelected(): void {
     return;
   }
   requestCamera("focus");
+}
+
+/** Shows or hides the canopy's leaves, for this viewer only (ADR 0016). Never touches the room. */
+export function toggleLeaves(): void {
+  if (!sceneInfo(scene.id)?.foliageToggle) return;
+  const hidden = !leavesHidden();
+  setLeavesHidden(hidden);
+  say(hidden ? "Leaves hidden, for you only." : "Leaves shown.");
 }
 
 /** Orbit or Pan with a left drag, or back to building (null). Moving the camera never touches the room. */

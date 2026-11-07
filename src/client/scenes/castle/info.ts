@@ -3,6 +3,7 @@ import type { SceneInfo } from "../registry.ts";
 // The second scene (ADR 0015). The kit and plot are in src/domain/castle.ts.
 export const castle: SceneInfo = {
   id: "castle-01",
+  size: "Medium",
   title: "Medieval Castle",
   setting: "A stone courtyard in a green valley, on a clear afternoon",
   blurb:
