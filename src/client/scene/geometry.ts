@@ -310,6 +310,25 @@ function planter(def: PartDefinition): PartGeometry {
   };
 }
 
+// A straight flight: four solid steps, each one brick higher and one stud
+// further back, rising towards the back row (z < 0 at rotation 0), with
+// studs only on the top step where the next flight rests.
+function stairs(def: PartDefinition): PartGeometry {
+  const W = def.w - GAP;
+  const steps = def.d;
+  const rise = (def.h * PLATE) / steps;
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < steps; i++) {
+    // step i counts from the front (z = d − 1) to the back (z = 0)
+    const z = def.d / 2 - 0.5 - i;
+    parts.push(box(W, rise * (i + 1) - GAP, 1 - GAP, 0, 0, z));
+    // a tread nosing on each step
+    parts.push(box(W + 0.04, 0.1, 0.3, 0, rise * (i + 1) - GAP - 0.1, z + 0.38, 0.02));
+  }
+  parts.push(...studsOnTop(def, def.h * PLATE - GAP));
+  return { pieces: [{ role: "main", geometry: merge(parts) }] };
+}
+
 function build(def: PartDefinition): PartGeometry {
   const H = def.h * PLATE;
   switch (def.geometry) {
@@ -344,6 +363,8 @@ function build(def: PartDefinition): PartGeometry {
       return fence(def);
     case "planter":
       return planter(def);
+    case "stairs":
+      return stairs(def);
   }
 }
 

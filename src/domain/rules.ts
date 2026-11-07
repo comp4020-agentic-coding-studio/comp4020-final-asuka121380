@@ -2,7 +2,7 @@ import { partDef, type PartDefinition } from "./catalog.ts";
 import { isColour } from "./colours.ts";
 import { key, rotateCell, rotatedSize, type Cell, type Rotation } from "./grid.ts";
 import type { Command } from "./commands.ts";
-import type { SceneTemplate } from "./scene.ts";
+import type { FixedPiece, SceneTemplate } from "./scene.ts";
 
 // The construction rules, shared by the server (which decides) and the
 // client (which only previews). Plain data in, plain data out: no database,
@@ -117,6 +117,71 @@ export function occupancy(parts: readonly PlacedPart[]): Map<string, PlacedPart>
   return occ;
 }
 
+// ---- a scene's fixed structure (ADR 0016) -------------------------------------
+//
+// Some scenes have solid boxes that are already built: a tree's trunk,
+// roots and branches, and the platforms on its branches. Every box blocks
+// parts exactly as a placed part would; only a box with studs (a platform)
+// carries a part resting on its top face. They are never in the build, the
+// kit or the stock, so no command can select, recolour, turn or remove them.
+
+interface Solid {
+  /** Which fixed box fills each grid cell, keyed by `x,y,z`. */
+  occ: Map<string, FixedPiece>;
+  /** Stud cells by the height of the top face they are on, keyed by `x,z`. */
+  studs: Map<number, Set<string>>;
+}
+
+const solids = new WeakMap<SceneTemplate, Solid>();
+
+function solidOf(scene: SceneTemplate | undefined): Solid | null {
+  if (!scene?.fixed) return null;
+  let s = solids.get(scene);
+  if (!s) {
+    s = { occ: new Map(), studs: new Map() };
+    for (const f of scene.fixed.pieces) {
+      for (let x = f.x; x < f.x + f.w; x++) {
+        for (let z = f.z; z < f.z + f.d; z++) {
+          for (let y = f.y; y < f.y + f.h; y++) s.occ.set(key(x, y, z), f);
+          if (f.studs) {
+            const top = f.y + f.h;
+            if (!s.studs.has(top)) s.studs.set(top, new Set());
+            s.studs.get(top)!.add(`${x},${z}`);
+          }
+        }
+      }
+    }
+    solids.set(scene, s);
+  }
+  return s;
+}
+
+const FIXED_NAMES: Record<FixedPiece["kind"], string> = { trunk: "the tree's trunk", root: "a root of the tree", branch: "a branch of the tree", deck: "a fixed platform" };
+
+/** The fixed box in the way of a part at `p`, if any. */
+function fixedCollision(scene: SceneTemplate | undefined, def: PartDefinition, p: Placement): FixedPiece | null {
+  const solid = solidOf(scene);
+  if (!solid) return null;
+  for (const c of footprint(def, p)) {
+    for (let y = p.y; y < p.y + def.h; y++) {
+      const f = solid.occ.get(key(c.x, y, c.z));
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+/** Whether a part at `p` rests on the studs of a fixed platform. */
+function onFixed(scene: SceneTemplate | undefined, def: PartDefinition, p: Placement): boolean {
+  const studs = solidOf(scene)?.studs.get(p.y);
+  return !!studs && socketCells(def, p).some((c) => studs.has(`${c.x},${c.z}`));
+}
+
+/** Held up at `p`: on the plot, on a fixed platform, or on the studs of one of `parts`. */
+function isHeld(scene: SceneTemplate | undefined, def: PartDefinition, p: Placement, parts: readonly PlacedPart[]): boolean {
+  return p.y === 0 || onFixed(scene, def, p) || supporters(def, p, parts).length > 0;
+}
+
 /** The parts whose studs carry a part sitting at `p`. Empty means unsupported, unless on the plot. */
 function supporters(def: PartDefinition, p: Placement, parts: readonly PlacedPart[]): PlacedPart[] {
   const below = new Set(socketCells(def, p).map((c) => `${c.x},${c.z}`));
@@ -149,6 +214,8 @@ function checkBoundsAndCollision(scene: SceneTemplate, parts: readonly PlacedPar
     return { code: "out_of_bounds", message: "That would stick out of the build plot." };
   }
 
+  const fixed = fixedCollision(scene, def, p);
+  if (fixed) return { code: "collision", message: `That space is taken by ${FIXED_NAMES[fixed.kind]}.` };
   const occ = occupancy(parts);
   for (const c of footprint(def, p)) {
     for (let y = p.y; y < p.y + def.h; y++) {
@@ -166,7 +233,7 @@ function checkBoundsAndCollision(scene: SceneTemplate, parts: readonly PlacedPar
 function checkFit(scene: SceneTemplate, parts: readonly PlacedPart[], p: Placement, def: PartDefinition): Rejection | null {
   const base = checkBoundsAndCollision(scene, parts, p, def);
   if (base) return base;
-  if (p.y > 0 && supporters(def, p, parts).length === 0) {
+  if (!isHeld(scene, def, p, parts)) {
     return { code: "unsupported", message: "Nothing to attach to there: it needs studs directly underneath." };
   }
   return null;
@@ -215,11 +282,11 @@ export function validateRotation(scene: SceneTemplate, state: BuildState, placed
 
   const after = [...rest, turned];
   const resting = rest.filter((p) => supporters(partDef(p.partId)!, p, [target]).length > 0);
-  const stranded = resting.filter((p) => p.y > 0 && supporters(partDef(p.partId)!, p, after).length === 0);
+  const stranded = resting.filter((p) => !isHeld(scene, partDef(p.partId)!, p, after));
   if (stranded.length > 0) {
     return { code: "would_unsupport", message: "Can't turn it: a part resting on it would lose its support." };
   }
-  const planAfter = strandedPlans(state, target, after, null);
+  const planAfter = strandedPlans(state, target, after, null, scene);
   if (planAfter) return { code: "plan_depends", message: `Can't turn it: ${planAfter} rests on it. Move or withdraw that plan first.` };
   return null;
 }
@@ -227,8 +294,10 @@ export function validateRotation(scene: SceneTemplate, state: BuildState, placed
 /**
  * C8 rule (author's decision): a part can't be removed if any part resting on
  * it would be left without support. Nothing is removed in a cascade.
+ * `scene` brings in its fixed structure (ADR 0016): a part also resting on a
+ * fixed platform keeps that support. Omitted, there is none.
  */
-export function validateRemoval(state: BuildState, placedId: string): Rejection | null {
+export function validateRemoval(state: BuildState, placedId: string, scene?: SceneTemplate): Rejection | null {
   const target = state.parts.find((p) => p.id === placedId);
   if (!target) return { code: "not_found", message: "That part is no longer in the build." };
   const def = partDef(target.partId);
@@ -236,7 +305,7 @@ export function validateRemoval(state: BuildState, placedId: string): Rejection 
 
   const rest = state.parts.filter((p) => p.id !== placedId);
   const resting = state.parts.filter((p) => supporters(partDef(p.partId)!, p, [target]).length > 0);
-  const stranded = resting.filter((p) => p.y > 0 && supporters(partDef(p.partId)!, p, rest).length === 0);
+  const stranded = resting.filter((p) => !isHeld(scene, partDef(p.partId)!, p, rest));
   if (stranded.length > 0) {
     const names = [...new Set(stranded.map((p) => partDef(p.partId)?.name ?? "part"))].join(", ");
     return {
@@ -244,7 +313,7 @@ export function validateRemoval(state: BuildState, placedId: string): Rejection 
       message: `Can't remove this yet: it's the only support for ${stranded.length === 1 ? "a" : stranded.length} ${names} above it. Remove ${stranded.length === 1 ? "that" : "those"} first.`,
     };
   }
-  const plan = strandedPlans(state, target, rest, null);
+  const plan = strandedPlans(state, target, rest, null, scene);
   if (plan) return { code: "plan_depends", message: `Can't remove this yet: ${plan} rests on it. Withdraw that plan first, or give it other support.` };
   return null;
 }
@@ -302,9 +371,10 @@ function openPlans(state: BuildState): Plan[] {
  * Each open plan's fit against `parts` plus earlier standing plans, in
  * commit order. Deterministic, so the server, every client and a reload
  * agree. A plan that conflicts or floats is skipped as an obstacle and as a
- * support for the plans after it.
+ * support for the plans after it. `scene` brings in its fixed structure
+ * (ADR 0016), which blocks and supports plans as it does parts.
  */
-export function planFits(state: BuildState, parts: readonly PlacedPart[] = state.parts): Map<string, PlanFit> {
+export function planFits(state: BuildState, parts: readonly PlacedPart[] = state.parts, scene?: SceneTemplate): Map<string, PlanFit> {
   const out = new Map<string, PlanFit>();
   const structure: PlacedPart[] = [...parts];
   for (const plan of openPlans(state)) {
@@ -313,7 +383,7 @@ export function planFits(state: BuildState, parts: readonly PlacedPart[] = state
       out.set(plan.id, "conflict");
       continue;
     }
-    const fit = fitAmong(plan, def, structure);
+    const fit = fitAmong(plan, def, structure, scene);
     out.set(plan.id, fit);
     if (fit === "standing") structure.push(planAsPart(plan));
   }
@@ -322,12 +392,13 @@ export function planFits(state: BuildState, parts: readonly PlacedPart[] = state
 
 const planAsPart = (p: Plan): PlacedPart => ({ partId: p.partId, x: p.x, y: p.y, z: p.z, rot: p.rot, colour: p.colour, id: `plan:${p.id}` });
 
-function fitAmong(p: Placement, def: PartDefinition, structure: readonly PlacedPart[]): PlanFit {
+function fitAmong(p: Placement, def: PartDefinition, structure: readonly PlacedPart[], scene: SceneTemplate | undefined): PlanFit {
+  if (fixedCollision(scene, def, p)) return "conflict";
   const occ = occupancy(structure);
   for (const c of footprint(def, p)) {
     for (let y = p.y; y < p.y + def.h; y++) if (occ.has(key(c.x, y, c.z))) return "conflict";
   }
-  if (p.y > 0 && supporters(def, p, structure).length === 0) return "unsupported";
+  if (!isHeld(scene, def, p, structure)) return "unsupported";
   return "standing";
 }
 
@@ -340,8 +411,8 @@ function collidesWithPlan(structure: readonly PlacedPart[], p: Placement, def: P
 }
 
 /** Real parts plus every standing plan, as placed parts: what a new plan is checked against. */
-export function plannedStructure(state: BuildState): PlacedPart[] {
-  const fits = planFits(state);
+export function plannedStructure(state: BuildState, scene?: SceneTemplate): PlacedPart[] {
+  const fits = planFits(state, state.parts, scene);
   return [...state.parts, ...openPlans(state).filter((p) => fits.get(p.id) === "standing").map(planAsPart)];
 }
 
@@ -351,13 +422,13 @@ export function validatePlan(scene: SceneTemplate, state: BuildState, p: Placeme
   if (!def.rotations.includes(p.rot)) return { code: "bad_rotation", message: "That rotation isn't allowed for this part." };
   if (!isColour(p.colour)) return { code: "bad_colour", message: "That colour isn't in the palette." };
   if (![p.x, p.y, p.z].every(isInt)) return { code: "bad_position", message: "Positions are whole studs and plates." };
-  const structure = plannedStructure(state);
+  const structure = plannedStructure(state, scene);
   const base = checkBoundsAndCollision(scene, structure, p, def);
   if (base) {
     if (base.code !== "collision") return base;
     return { code: "collision", message: collidesWithPlan(structure, p, def) ? "Another plan already takes that space." : base.message };
   }
-  if (p.y > 0 && supporters(def, p, structure).length === 0) {
+  if (!isHeld(scene, def, p, structure)) {
     return { code: "unsupported", message: "Nothing to attach to there: a plan needs studs underneath too, from real parts or other plans." };
   }
   return null;
@@ -371,12 +442,12 @@ export function validatePlan(scene: SceneTemplate, state: BuildState, p: Placeme
  * refused then. Plans that already conflict or float are never dependants,
  * and a plan merely overlapped by a turned part is not "resting on" it.
  */
-function strandedPlans(state: BuildState, target: Placement, parts: readonly PlacedPart[], withoutPlan: string | null): string | null {
+function strandedPlans(state: BuildState, target: Placement, parts: readonly PlacedPart[], withoutPlan: string | null, scene: SceneTemplate | undefined): string | null {
   const targetDef = partDef(target.partId);
   if (!targetDef) return null;
-  const before = planFits(state);
+  const before = planFits(state, state.parts, scene);
   const afterState: BuildState = { ...state, plans: (state.plans ?? []).filter((p) => p.id !== withoutPlan) };
-  const after = planFits(afterState, parts);
+  const after = planFits(afterState, parts, scene);
   const asPart: PlacedPart = { ...target, id: "target" };
   for (const plan of openPlans(afterState)) {
     const def = partDef(plan.partId);
@@ -401,11 +472,11 @@ export function plannedRemaining(state: BuildState): Record<string, number> {
 }
 
 /** Refused while a standing plan rests on this one alone (ADR 0012); never cascades. */
-export function validateWithdrawPlan(state: BuildState, planId: string): Rejection | null {
+export function validateWithdrawPlan(state: BuildState, planId: string, scene?: SceneTemplate): Rejection | null {
   const plan = (state.plans ?? []).find((p) => p.id === planId);
   if (!plan) return { code: "not_found", message: "That plan is no longer there." };
   if (plan.status !== "open") return { code: "plan_not_open", message: "That plan has already been realized or withdrawn." };
-  const dependant = strandedPlans(state, plan, state.parts, planId);
+  const dependant = strandedPlans(state, plan, state.parts, planId, scene);
   if (dependant) return { code: "plan_depends", message: `Can't withdraw this plan yet: ${dependant} rests on it. Withdraw that one first, or give it other support.` };
   return null;
 }
@@ -481,6 +552,7 @@ export function applyRecolour(state: BuildState, placedId: string, colour: strin
  * heights are exactly what the server's check accepts.
  */
 export function fitHeights(scene: SceneTemplate, def: PartDefinition, p: Pick<Placement, "x" | "z" | "rot">, parts: readonly PlacedPart[]): number[] {
+  // fixed platforms count as supports and the tree's boxes as obstacles, via checkFit
   const out: number[] = [];
   for (let y = 0; y + def.h <= scene.bounds.h; y++) {
     if (!checkFit(scene, parts, { ...p, y, partId: def.id, colour: def.defaultColour }, def)) out.push(y);
@@ -496,7 +568,7 @@ export function validateCommand(scene: SceneTemplate, state: BuildState, command
     case "place":
       return validatePlacement(scene, state, command.placement);
     case "remove":
-      return validateRemoval(state, command.placedId) ?? checkPartRevision(state, command.placedId, command.expectedRev);
+      return validateRemoval(state, command.placedId, scene) ?? checkPartRevision(state, command.placedId, command.expectedRev);
     case "recolour":
       return validateRecolour(state, command.placedId, command.colour) ?? checkPartRevision(state, command.placedId, command.expectedRev);
     case "rotate":
@@ -504,7 +576,7 @@ export function validateCommand(scene: SceneTemplate, state: BuildState, command
     case "propose-plan":
       return validatePlan(scene, state, command.plan);
     case "withdraw-plan":
-      return validateWithdrawPlan(state, command.planId);
+      return validateWithdrawPlan(state, command.planId, scene);
     case "realize-plan":
       return validateRealizePlan(scene, state, command.planId).rejection;
   }

@@ -76,4 +76,20 @@ describe("migration 5: one default room per visitor and scene", () => {
     expect(snapshotOf(db, findRoom(db, castle.id)!).maxPlayers).toBe(4);
     expect(snapshotOf(db, findRoom(db, beach.id)!).maxPlayers).toBe(2);
   });
+
+  // ADR 0016: a third scene needs no schema change; its rooms and solo plots
+  // sit beside the others under the same index, with six places.
+  it("adds a Woodland Commons solo plot and six-place rooms beside the others", () => {
+    const db = openDatabase(":memory:");
+    const people = Array.from({ length: 7 }, () => visitorFor(db, undefined).id);
+    const beach = defaultRoomFor(db, people[0]);
+    const castle = defaultRoomFor(db, people[0], "castle-01");
+    const tree = defaultRoomFor(db, people[0], "treehouse-01");
+    expect(new Set([beach.id, castle.id, tree.id]).size).toBe(3);
+    expect(defaultRoomFor(db, people[0], "treehouse-01").id).toBe(tree.id);
+    const room = createRoom(db, people[0], { visibility: "public", allowPublish: true, sceneId: "treehouse-01" });
+    for (const v of people.slice(1, 6)) expect(joinRoom(db, room.id, v).ok).toBe(true);
+    expect(joinRoom(db, room.id, people[6])).toEqual({ ok: false, code: "room_full" });
+    expect(snapshotOf(db, findRoom(db, room.id)!).maxPlayers).toBe(6);
+  });
 });

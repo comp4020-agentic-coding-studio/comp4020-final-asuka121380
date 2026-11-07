@@ -29,6 +29,9 @@ export const COLOURS: readonly Colour[] = [
   { id: "bright-yellow", name: "Bright yellow", hex: "#ffcd00" },
   { id: "turquoise", name: "Turquoise", hex: "#1fb4ab" },
   { id: "lavender", name: "Lavender", hex: "#a68fdb" },
+  // 7 Nov 2026 (ADR 0016): the warm timber of the Woodland Commons cabins,
+  // added only.
+  { id: "nougat", name: "Nougat", hex: "#cf8f5e" },
 ];
 
 const byId = new Map(COLOURS.map((c) => [c.id, c]));

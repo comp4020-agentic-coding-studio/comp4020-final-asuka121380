@@ -18,10 +18,11 @@ contributor attribution and immutable snapshots are now in scope and
 specified in ADRs 0006–0009. Still out of scope until the author says
 otherwise: similarity scoring, text/voice chat or any player-written
 communication beyond plans and marks, runtime LLM features, playable
-scenes beyond Beach Houses and the Medieval Castle (ADR 0015),
-physics/collapse, and competitive scoring or brick-count rankings
-(author, phase 2 brief; the castle scene by the author's brief of
-5 Nov 2026). Cooperation is no longer only described:
+scenes beyond Beach Houses, the Medieval Castle (ADR 0015) and Woodland
+Commons (ADR 0016), physics/collapse, and competitive scoring or
+brick-count rankings (author, phase 2 brief; the castle scene by the
+author's brief of 5 Nov 2026; the tree-house scene by the author's brief
+of 7 Nov 2026). Cooperation is no longer only described:
 it is implemented, but only to the extent recorded as DONE in
 `DEVELOPMENT_LOG.md` at any given time — never claim a brief's requirement
 is met before its tests and evidence exist.
@@ -94,7 +95,14 @@ Each entry gives, in proportion to the change:
   room** rather than per visitor (ADR 0007). Invalid actions, cancelled
   previews and transparent plans cost nothing (author).
 - Make colour a stock dimension, or put fixed scenery in the build, the kit or
-  the rules (author, from the design brief).
+  the rules (author, from the design brief). One exception (author, 7 Nov
+  2026; ADR 0016): a scene's **fixed structure**, such as the tree in
+  Woodland Commons, is explicit scene configuration (`SceneTemplate.fixed`)
+  that the rules treat as already built. Its volumes block every part and
+  plan, and only its platform boxes carry parts. It is never in the build,
+  the kit or the stock, and no command can select, recolour, turn or remove
+  it. Its coordinates are frozen with the scene id. No invisible supports:
+  every support box is drawn where it is.
 - Cascade-delete, drag-to-demolish or add undo. Removal is refused while any
   remaining part would lose its only support, and removed parts return to the
   room's shared kit (author).
@@ -341,6 +349,31 @@ Each entry gives, in proportion to the change:
   a clear afternoon with the sun to the side or rear-side. No moat, fog,
   darkness or colour grading.
 
+## Third scene: Woodland Commons (author, 7 Nov 2026; ADR 0016)
+
+- A co-op tree-house settlement round one fixed central tree, for up to 6
+  players. Beach Houses stays at 2 and the castle at 4.
+- Its kit comes from the cabin, roof and stair bags (7–13, 15) of the
+  official LEGO Ideas 21318 instructions, counted from the step callouts,
+  never from photographs or the set's piece count. Allocated quantity is
+  `ceil(required × 1.30)`. The tree, base and foliage are the fixed
+  environment, never in the kit. Accessories and mechanisms are omitted.
+  Sources, pages, counts, mapping and every substitution are in
+  `doc/research/0003-tree-house-reference.md`. The booklet and its renders
+  stay outside the repo and `public/`.
+- The tree is the scene's fixed structure: a trunk, roots and branches
+  (solid, studless) and three platforms (support surfaces) at three
+  heights. Players build cabins, platforms, stairs, railings and
+  connections. No rope physics, sway, collapse or arbitrary angles.
+- New rooms start empty. The adapted reference is a target picture and a
+  test fixture, never pre-placed.
+- The environment is a clearing at a forest edge on a bright early-autumn
+  afternoon: the trunk behind the main working area, a sparse canopy above,
+  behind and to the sides, and an open front at every height. No night,
+  fog or heavy filters. "Hide leaves" is a local, per-viewer view setting
+  that hides only the canopy foliage; it never changes the rules or what
+  others see.
+
 ## Scene and camera (author, 6 Oct 2026; supersedes the finite base and restricted orbit in ADR 0002)
 
 - The 3D world fills the viewport behind floating UI. There is a sky, distant
@@ -452,11 +485,12 @@ Each entry gives, in proportion to the change:
   this never replaces the cookie/visitor model, only layers a login over
   one visitor_id (ADR 0010).
 - **Rooms, not per-visitor builds.** A build belongs to a room with up to
-  the scene's configured `maxPlayers` (Beach Houses: 2; Medieval Castle: 4).
+  the scene's configured `maxPlayers` (Beach Houses: 2; Medieval Castle: 4;
+  Woodland Commons: 6).
   A room's scene is chosen when it is created, stored on the room, and read
   from there by every server and client path; it never changes. Continuing
   a snapshot keeps its scene. A visitor has one solo plot per scene
-  (ADR 0015). A room is public
+  (ADR 0015, 0016). A room is public
   (listed, joinable while capacity allows) or invite-only (unlisted,
   requires a checked server-side invitation; friendship never substitutes
   for one). The inventory is shared by the whole room; joining or leaving

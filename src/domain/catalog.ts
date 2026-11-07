@@ -27,7 +27,8 @@ export type GeometryKey =
   | "round-plate"
   | "round-brick"
   | "arch"
-  | "slope45-inverted";
+  | "slope45-inverted"
+  | "stairs";
 
 export interface PartDefinition {
   id: string;
@@ -99,6 +100,15 @@ export const CATALOG: readonly PartDefinition[] = [
   { id: "arch-1x8x2", code: "A82", name: "Arch 1×8×2", group: "openings", category: "special", w: 8, d: 1, h: 6, studs: "all", sockets: [{ x: 0, z: 0 }, { x: 7, z: 0 }], rotations: HALF, geometry: "arch", defaultColour: "stone" },
   // Rests on its back row (z = 0) and widens towards +z, studs all over the top.
   { id: "inv-slope-2x2", code: "I22", name: "Inverted slope 45° 2×2", group: "roofs", category: "slope", w: 2, d: 2, h: 3, studs: "all", sockets: [{ x: 0, z: 0 }, { x: 1, z: 0 }], rotations: ALL, geometry: "slope45-inverted", defaultColour: "charcoal" },
+  // Woodland Commons parts (doc/research/0003-tree-house-reference.md).
+  { id: "plate-1x1", code: "P11", name: "Plate 1×1", group: "bricks", category: "plate", w: 1, d: 1, h: 1, studs: "all", rotations: ONE, geometry: "plate", defaultColour: "nougat" },
+  { id: "plate-1x4", code: "P14", name: "Plate 1×4", group: "bricks", category: "plate", w: 4, d: 1, h: 1, studs: "all", rotations: HALF, geometry: "plate", defaultColour: "bark" },
+  // A straight flight of four steps, 2 wide and 4 deep, rising 4 bricks
+  // towards the back row (z = 0) at rotation 0. It stands on its bottom step
+  // and carries studs only on its top step, so a second flight rests on the
+  // first's top step and climbs on. Its collision is the whole box: nothing
+  // tucks under the flight.
+  { id: "stairs-2x4", code: "ST4", name: "Stairs 2×4×4", group: "details", category: "special", w: 2, d: 4, h: 12, studs: [{ x: 0, z: 0 }, { x: 1, z: 0 }], sockets: [{ x: 0, z: 3 }, { x: 1, z: 3 }], rotations: ALL, geometry: "stairs", defaultColour: "bark" },
 ];
 
 const byId = new Map(CATALOG.map((p) => [p.id, p]));

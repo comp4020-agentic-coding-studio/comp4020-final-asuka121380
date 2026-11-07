@@ -1,10 +1,45 @@
 import type { Rotation } from "./grid.ts";
 import type { Placement } from "./rules.ts";
 import { CASTLE_SCENE } from "./castle.ts";
+import { TREEHOUSE_SCENE } from "./treehouse.ts";
 
 // A versioned scene: the editable plot, the reference model and the kit.
-// Fixed scenery (street, neighbours, hedge) is drawn by the client and is
-// never part of the build, the kit or the rules.
+// Fixed scenery (street, neighbours, hedge, distant woods) is drawn by the
+// client and is never part of the build, the kit or the rules. The one
+// exception is a scene's fixed structure (ADR 0016): a few solid boxes, such
+// as a tree's trunk and the platforms on its branches, that the rules treat
+// as already built. It is never in the build or the kit.
+
+/**
+ * One solid box of a scene's fixed structure, in the same grid as parts:
+ * it fills cells x..x+w−1, z..z+d−1 and plates y..y+h−1. Every box blocks
+ * building; only a box with `studs` is a support surface, carrying parts on
+ * its top face (y + h) over its whole footprint. Trunk, root and branch
+ * volumes have no studs, so nothing rests on them and nothing passes
+ * through them.
+ */
+export interface FixedPiece {
+  /** Stable for the life of the scene id; never renumbered. */
+  id: string;
+  kind: "trunk" | "root" | "branch" | "deck";
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  studs: boolean;
+}
+
+/**
+ * A scene's fixed structure. Its coordinates are frozen with the scene id:
+ * saved builds rest on them, so a changed tree would be a new scene id, not
+ * a new version (ADR 0016).
+ */
+export interface FixedStructure {
+  version: number;
+  pieces: readonly FixedPiece[];
+}
 
 export interface SceneTemplate {
   id: string;
@@ -27,6 +62,8 @@ export interface SceneTemplate {
    * constant: a future scene sets its own value.
    */
   maxPlayers: number;
+  /** Solid boxes the rules treat as already built (ADR 0016); none if absent. */
+  fixed?: FixedStructure;
 }
 
 // Reference: the dark-blue-roofed house and its tree from LEGO Classic 11035,
@@ -148,6 +185,7 @@ export const STREET_SCENE: SceneTemplate = {
 export const SCENES: Readonly<Record<string, SceneTemplate>> = {
   [STREET_SCENE.id]: STREET_SCENE,
   [CASTLE_SCENE.id]: CASTLE_SCENE,
+  [TREEHOUSE_SCENE.id]: TREEHOUSE_SCENE,
 };
 
 export const isSceneId = (id: unknown): id is string => typeof id === "string" && Object.hasOwn(SCENES, id);
@@ -159,4 +197,4 @@ export function sceneById(id: string): SceneTemplate {
   return scene;
 }
 
-export { CASTLE_SCENE };
+export { CASTLE_SCENE, TREEHOUSE_SCENE };

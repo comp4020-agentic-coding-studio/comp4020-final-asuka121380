@@ -447,7 +447,7 @@ export function preview(s: AppState = state): Preview | null {
   const x = Math.min(scene.bounds.w - w, Math.max(0, held.anchor.x - Math.floor((w - 1) / 2)));
   const z = Math.min(scene.bounds.d - d, Math.max(0, held.anchor.z - Math.floor((d - 1) / 2)));
   // the same structure the server checks against (rules.ts), so heights, verdict and command agree
-  const structure = s.mode === "plan" ? plannedStructure(snapshot) : snapshot.parts;
+  const structure = s.mode === "plan" ? plannedStructure(snapshot, scene) : snapshot.parts;
   const fits = fitHeights(scene, def, { x, z, rot: held.rot }, structure);
   const y = chooseLevel(held, fits);
   const placement: Placement = { partId: def.id, x, y, z, rot: held.rot, colour: s.colour };
@@ -465,7 +465,7 @@ function chooseLevel(held: Held, fits: number[]): number {
 
 /** Each open plan's fit against the current construction (ADR 0012), for drawing and the selected-plan panel. */
 export function planFitsNow(s: AppState = state): Map<string, PlanFit> {
-  return s.snapshot ? planFitsOf(s.snapshot) : new Map();
+  return s.snapshot ? planFitsOf(s.snapshot, s.snapshot.parts, scene) : new Map();
 }
 
 /** Where a placement's footprint is, for "is this tap on the preview?". */
