@@ -3704,3 +3704,109 @@ desktop and mobile; the front stays open in every one.
 - README.md and PROCESS.md not edited (author's prose); claims there that
   now need the author's update are listed in the hand-off.
 - Nothing pushed or deployed.
+
+## 2026-11-07 23:20 AEDT — Woodland Commons: a third, six-player tree-house scene from LEGO 21318 (ADR 0016)
+
+**Commits:**
+- [`7ba5576`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/7ba5576)
+  — domain, rules, kit, tests, research, ADR, CLAUDE.md
+- [`38b9bf8`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/38b9bf8)
+  — branch boxes corrected before release; the tree pinned in a test
+- [`705f055`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/705f055)
+  — the scene in the editor
+- [`0ba205f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0ba205f)
+  — homepage tray, lobby, scripts
+
+**Decided by:** the author's brief of 7 November 2026:
+- a co-op tree-house settlement inspired by 21318, with one fixed central
+  tree and explicit, scene-configured supports
+- 6 players (Beach 2, castle 4)
+- the kit from the official instructions, `ceil(required × 1.30)`
+- a bright early-autumn forest clearing with an open front
+- a local "Hide leaves"
+- three scenes on the homepage and in the lobby
+- nothing existing changed
+
+Choices the agent made are marked "agent" in ADR 0016.
+
+**Research.** `doc/research/0003-tree-house-reference.md`.
+- **Source:** the one booklet (`6294836`, 436 pp.), read in `/tmp`. It is
+  never committed or served.
+- **Groups:**
+  - fixed environment: bags 1–6, 14, 17–19 (1,422 pieces)
+  - accessories: bag 16, omitted
+  - player-buildable: bags 7–13, 15 (1,354 pieces), of which 946 were
+    mapped, 238 (the roofs) substituted as a group, and the rest omitted
+- **Result:** 22 game part types (3 new), 1,090 required, 1,426 allocated.
+  Never inferred from photos or the set's total.
+
+**Implemented.**
+- **`7ba5576`, domain:**
+  - `SceneTemplate.fixed`: versioned boxes (trunk, root, branch, deck).
+    Every box blocks; only decks carry parts.
+  - The rules use the boxes in placement, plans, realizing, rotation,
+    removal, withdrawal, `planFits`/`plannedStructure` and `fitHeights`.
+    `scene` is threaded through as an optional argument, so callers
+    without it are unchanged.
+  - The tree is never in the build or kit, and a command naming it is
+    `not_found`.
+  - `treehouse-01`: 32×28×72, 6 players, three platforms at plate 12, 24
+    and 36.
+  - New parts: plate 1×1, plate 1×4, stairs 2×4×4; the colour nougat.
+  - A 450-part adapted reference.
+- **`38b9bf8`, correction:** the two branch boxes widened to run under
+  their platforms (agent). No saved room existed on `treehouse-01`.
+  Every tree box is now pinned by a test.
+- **`705f055`, the editor:**
+  - `scenes/treehouse/`: the environment draws exactly the rule boxes,
+    plus a batched sparse canopy, forest edge, clearing and sun.
+  - Hide leaves: L and a button; per page, canopy only.
+  - Per-scene camera limits; invisible pointer boxes so the platforms can
+    be aimed at.
+  - One Suspense boundary for the environment, plot and parts, with a
+    "Loading the scene…" status. A first perf run had caught an unlit
+    black plot during loading.
+  - `?debug` `__renderInfo`.
+- **`0ba205f`, homepage and lobby:**
+  - The tray holds three miniatures, from domain data only, with no
+    environment chunk.
+  - Small/Medium/Large tags beside 1–2/1–4/1–6 on the homepage panel and
+    in the lobby.
+  - New: `scripts/woodland.ts` (46 checks, not 47 as its commit message
+    says) and `scripts/scene-perf.ts`.
+  - `tabletop.ts` and `castle.ts` now expect three scenes.
+
+**Tests run.** Production build, local server on port 8417, fresh
+disposable `DATA_DIR` (`/tmp/wc-data`) per batch. Port 8080 belonged to an
+older, unrelated server and was not used.
+- `pnpm typecheck` clean. `APP_URL=http://localhost:8417 pnpm check`
+  303/303, including the logging tests. `pnpm check:evidence` passes.
+- Browser (Chrome via Playwright):
+  - `woodland.ts` 46/46
+  - `tabletop.ts` 174/174
+  - `interaction.ts` 85/85
+  - `castle.ts` 34/34
+  - `multiplayer.ts` 17/17
+  - `log-rehearsal.ts` 13/13
+  The run's log lines were read: `room_full` and the trunk `collision`
+  appear, and nothing on the never-logged list.
+- A WebKit smoke test in Playwright's WebKit 26.6 build (not Safari):
+  scene, Hide leaves by key and tap, homepage tray; no errors.
+- Performance on an M1 (Chrome, Metal GPU): Woodland's environment is 61
+  draw calls empty and 1,009 with the 450-part reference (castle: 835).
+  Frames are at 60 Hz vsync throughout.
+
+**Observed.** Evidence 0025 and `doc/evidence/shots/0025/`.
+
+**Known limitations.**
+- Chrome and Playwright WebKit only; no Safari, Firefox or physical
+  device. Mobile is emulation. The six players were six contexts in one
+  process.
+- Performance was measured on one Mac, vsync-bound.
+- Part identification was visual.
+- Only the trunk is a camera obstacle.
+- `scripts/showcase.ts` still has the pre-existing `731c920` lobby-form
+  problem.
+- README.md and PROCESS.md were not edited (the author's prose). Claims
+  there that now need the author's update are listed in the hand-off.
+- Nothing pushed or deployed.

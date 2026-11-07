@@ -132,6 +132,116 @@ rules out.
 - **Logs:** the `scene` log field is a token, and `treehouse-01` passes
   it unchanged. No allowlist change was needed.
 
+### The environment (agent, within the brief)
+
+`src/client/scenes/treehouse/`, loaded only by the editor and the snapshot
+view (ADR 0004):
+- **The tree is drawn from `TREE_PIECES`.** Every fixed box is drawn
+  exactly where the rules have it: the trunk and stem, roots and branches
+  as bark, the platforms as timber decks with studs. Above the plot's
+  ceiling the tree carries on into a crown of limbs.
+- **The canopy:** sparse leaf clumps in a broad dome above the crown,
+  behind and to the sides, never in front of the working area. They are
+  green with some gold and orange for early autumn, in one batch per
+  colour.
+- **The clearing:** a level grassy plot in a meadow. The forest edge
+  (broad trees and pines, batched) closes in behind and to the sides and
+  stays well back in front, so the view from the default camera is open
+  at every height. A path runs up to the tree from the front. Wooded rises
+  and a painted tree line are far off.
+- **Light:** a bright early-autumn afternoon. The sun is high to the
+  right, a little in front, so the cabins' fronts are lit and the trunk's
+  shadow falls back and left. A plain sky gradient with a few small
+  clouds. No fog, night or colour grading.
+- **Camera obstacles:** the trunk boxes are registered with
+  `scene/obstacles.ts`, like the beach houses, so orbiting close behind the
+  tree puts the camera back on the target's side of the bark. This is
+  checked in `scripts/woodland.ts`. It is not general collision
+  avoidance: the canopy, the branches and the forest edge are not
+  obstacles.
+
+### Hide leaves (agent, within the brief)
+
+- **One per-page flag** (`state/leaves.ts`). The store's `toggleLeaves()`
+  acts only in a scene whose registry entry sets `foliageToggle`.
+- **Controls:** **L** and a visible "Hide leaves" button (with
+  `aria-pressed`, a `<kbd>L</kbd>` hint, and an entry in the help panel).
+  On a phone it is an icon button the same height as Top and Reset.
+- **What it hides:** the canopy group only. Never the trunk, branches,
+  platforms, parts, plans or forest edge.
+- **Purely local:** nothing is sent or stored. Other viewers, the room's
+  revision, the kit and every rule are untouched (checked with six
+  viewers). A reload shows the leaves again.
+
+### Camera (agent, within the brief)
+
+- **Optional camera limits.** A scene's registry entry may set `camera`:
+  - the opening view's centre height (Woodland 10 world units, about 2
+    cabin storeys)
+  - how high the orbit centre may be panned or focused (32, the crown)
+  - the farthest zoom (120)
+  Without it a scene keeps the defaults, so Beach Houses and the castle
+  are unchanged.
+- **The default frame** is frontal and slightly oblique, through the
+  existing `frame` setting.
+- **Focus selected** raises the centre to a part on any platform. **Top
+  view** looks straight down over the plot. **Reset** returns to the
+  opening frame. Nothing moves the camera after a placement.
+
+### Aiming at the tree (agent)
+
+- **Pointer boxes.** `FixedSurfaces` in `Workbench.tsx` adds one invisible
+  box per fixed piece, the same cells the rules block, as pointer
+  surfaces.
+- **Platform tops** are surfaces like a part's top, so a held part aims
+  onto a platform.
+- **Anything else on the tree** (the trunk's side, say) aims at the cell
+  in front of it at that height, where the rules then answer.
+- **Not selectable.** The boxes carry `userData.fixed` and are never
+  selectable or deletable.
+
+### Loading (agent)
+
+- **The defect.** On a cold load the editor drew the plot before the lazy
+  environment and its light had arrived: an unlit, black slab on the page
+  background for about half a second. It was seen in Woodland Commons, but
+  it was a race in every scene.
+- **The fix.** The editor and snapshot canvases now put the environment,
+  the plot and the parts in one Suspense boundary. Nothing is drawn until
+  all of it can be lit, and a "Loading the scene…" status sits over the
+  empty canvas meanwhile.
+
+### Homepage and lobby (agent, within ADR 0014's frozen art direction)
+
+- **The tray.** The homepage's scene tray holds three miniatures in three
+  slots, smallest to largest:
+  - Beach Houses' row
+  - the castle's reference
+  - the tree's fixed boxes with the Woodland reference cabins and a few
+    leaf clumps
+  Each is built from the scene's own domain data with the existing
+  `scenery.ts`/`geometry.ts` batching. No editor or environment chunk
+  loads (checked).
+- **Size tags.** The panel cards and the lobby's `ScenePicker` show
+  **Small / Medium / Large** before the builder counts **1–2 / 1–4 /
+  1–6**.
+- **Room creation.** Choosing Woodland Commons in either place creates a
+  real `treehouse-01` room.
+- **Cover.** Woodland's cover (`public/scenes/woodland-commons.webp`) is a
+  screenshot of this scene with the UI hidden. It is not a LEGO image or
+  render.
+
+### Correction before release (agent, 7 Nov 2026)
+
+`38b9bf8` widened the two branch boxes to run the platforms' width
+(`branch-left` x 7 → 2, both w 6 → 11), after `7ba5576` had first recorded
+them shorter.
+- **No saved room affected.** No room outside disposable test data existed
+  on `treehouse-01`, and nothing had been pushed. So this is a correction
+  before release, not a change to a frozen tree.
+- **Pinned from now on.** The same commit pins every box in a test, so any
+  later change fails.
+
 ## Consequences
 
 - **Beach Houses and the castle are unchanged:** their ids, versions,
@@ -140,6 +250,8 @@ rules out.
   this, and the whole existing suite passes unchanged.
 - **Saved data is untouched.** Existing rooms, inventories, snapshots and
   ids keep working. No migration runs.
+- **Every scene now loads without an unlit frame.** The Suspense change
+  applies to all three scenes and the snapshot view.
 - **The CLAUDE.md "fixed scenery" rule** now has one written exception,
   this structure. Drawn-only scenery (hills, houses, distant woods, the
   canopy's leaves) stays out of the rules.
