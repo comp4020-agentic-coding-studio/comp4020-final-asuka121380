@@ -4152,3 +4152,73 @@ deployment. The agent did the diagnosis and chose the fix.
 - **Change:** [6202b5b](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/6202b5b), `README: articulate the shared-building narrative and design sources`, replaces the C10-era argument with the approved account of narrative coherence across the tabletop, environments, collaboration tools and saved creations. It cites Jenkins and MDA, updates the three scenes and capacities, explains excluded features, and records the author's reported live multiplayer observation.
 - **Verification:** reviewed the committed README diff; whitespace check passed. No application code changed and no application test suite was rerun for this prose-only change. The real-user test statement is the author's observation, not a new test performed by this agent. Detailed user-test evidence and About-page illustration alignment remain separate follow-up work.
 - **Scope:** local commits only; no push or deployment. Existing untracked HANDOFF.md is left untouched.
+
+## 2026-11-08 22:40 AEDT — About page illustrates the approved README (ADR 0014)
+
+**Who decided.**
+- **The author's brief:**
+  - the README is the only prose source, and its wording is unchanged;
+  - art is associated with sections explicitly, and unknown sections
+    render cleanly;
+  - isometric bricks with no three.js, and no people;
+  - shared illustration exports are not to change;
+  - once-on-entry motion, with finished no-JS and reduced-motion states;
+  - About only; local commits; no push or deploy.
+- **The agent's choices:** the compositions and the module layout.
+
+**Commit.**
+- [`0575115`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/0575115) About: illustrate the approved README chapter by chapter
+  - `src/server/readme.ts`:
+    - `CHAPTERS` maps a heading's slug to one of four treatments. A
+      section with no entry renders as a plain chapter, with no art.
+    - The opening, plus four chapter compositions: two-column, a framed
+      panel, two-column again, and a full-width red closing section. The
+      closing section sets the README's last paragraph large under a
+      yellow rule, unedited.
+    - Chapter ids for anchors.
+    - Motion, at once per section, through an IntersectionObserver.
+      Start states exist only under `html.js` and
+      `prefers-reduced-motion: no-preference`.
+    - The signature, Back to the table and the disclaimer are kept.
+  - `src/client/ui/aboutScenes.ts` (new):
+    - `layered()` stacks `isoSvg` layers that share one viewBox.
+    - Five scenes: the opening table (build, tray, loose bricks), the
+      sign, tray and shelf, a planned roof becoming real (with a second
+      open plan), the creation on a plinth with two equal markers, and
+      the whole table.
+    - `brickScenes.ts` and `iso.ts` are unchanged.
+  - `Dockerfile`: the runtime COPY swaps `brickScenes.ts`, which the
+    server no longer imports, for `aboutScenes.ts`.
+  - `scripts/about.ts` (new): the browser and fallback checks.
+  - ADR 0014: an About page section.
+
+**Tests run and observed** (evidence [0030](doc/evidence/0030-about-page-readme-illustrated.md)):
+- **`scripts/about.ts`: 40/40**, at 1920×1080 and 390×844, against the dev
+  server and against the image layout. It covers:
+  - the full README text, headings and links in the server HTML;
+  - natural scrolling playing each chapter once on entry;
+  - the no-JS and reduced-motion finished states;
+  - focus, sticky-header clearance, overflow and links;
+  - unknown and reshaped README sections.
+- **Repository checks:**
+  - `pnpm typecheck` and `pnpm build`: pass.
+  - `pnpm check`: 304/304, against both servers. The invariants file is
+    unmodified.
+  - `pnpm check:evidence`: pass.
+  - `scripts/interaction.ts`: 85/85.
+  - `scripts/tabletop.ts`: `others` 5/5, `entrances` 75/75.
+- **Image layout:**
+  - The import closure from `src/server/index.ts` matches the new COPY
+    list exactly.
+  - The simulated runtime stage serves `/readme/`.
+  - Without `aboutScenes.ts`, it exits with `ERR_MODULE_NOT_FOUND`.
+
+**Known limitations.**
+- **No Docker build:** the local Docker daemon gave no answer.
+- **Chrome/Playwright only:** mobile was emulated, and Safari was not
+  checked.
+- **Unused shared scenes:** the previous About scenes stay exported, now
+  unused, from `brickScenes.ts`.
+- **Reworded headings:** a reworded README heading needs its slug added
+  to `CHAPTERS` to get its picture back.
+- **Not pushed or deployed.**
