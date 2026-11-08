@@ -29,7 +29,11 @@ const selfId = (page: Page) => page.evaluate(async () => (await (await fetch("/a
 /** The lobby's room form unfolds from the "Start a shared room" tile (731c920). */
 async function createRoom(page: Page, label: string, scene: string | null = null, inviteOnly = false): Promise<void> {
   await page.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
-  if (scene) await page.getByRole("radio", { name: new RegExp(scene) }).check();
+  // the scene picker's cards are labels: click the card, as a visitor does
+  if (scene) {
+    await page.locator(".scene-option", { hasText: scene }).click();
+    if (!(await page.getByRole("radio", { name: new RegExp(scene) }).isChecked())) throw new Error(`could not choose ${scene}`);
+  }
   await page.locator(".start-plot-shared").click();
   await page.waitForSelector("text=Create and open");
   await page.fill('input[placeholder="e.g. Saturday build"]', label);
