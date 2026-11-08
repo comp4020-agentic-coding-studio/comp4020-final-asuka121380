@@ -4013,3 +4013,87 @@ The tree, platforms, rules, Focus framing and other scenes are unchanged.
   chips.
 - No Safari; mobile is emulation.
 - Nothing pushed or deployed.
+
+## 2026-11-08 20:15 AEDT — Production database backed up and reset; `625f14b` deployed and verified live
+
+**Who decided.** The author authorised, in this conversation:
+- backing up and resetting the production database (their development
+  test data);
+- deploying the current version;
+- the push the deployment workflow needs.
+
+They paused the work once, partway through, and then asked for it to be
+resumed. The agent carried out the procedure.
+
+**Commit.**
+- [`625f14b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/625f14b) Dockerfile: copy the client UI modules the server imports for /readme/
+  - The runtime stage also copies `src/client/ui/pageHeader.ts`,
+    `brickScenes.ts` and `iso.ts`.
+  - [`ed0b206`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ed0b206) had made `src/server/readme.ts` import
+    them, and the image crashed without them.
+  - An import walk from `src/server/index.ts` finds exactly these three
+    outside server/domain.
+
+**What happened** (evidence [0028](doc/evidence/0028-live-deploy-625f14b.md)):
+- **Backup.** The production DB (schema 4, from v12 / [`254aa99`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/254aa99))
+  was copied with SQLite's online backup to `/data/backups/`, with a copy
+  downloaded outside the repo. Integrity ok, hashes match, and it was
+  re-checked after every later step.
+- **Before the reset:**
+  - the release passed its checks on fresh, isolated data;
+  - the upgrade was rehearsed on a copy of the backup (migration 5, all
+    old data readable);
+  - a fresh database was checked for all three scenes.
+- **Reset.** The machine was run on `sleep` (no app, no listener), and
+  only `/data/app.db` was removed. `backups/` and `lost+found/` were
+  kept.
+- **First deploy (v13, `c4818e2`) failed** with `ERR_MODULE_NOT_FOUND`.
+  The local checks had run from source, because no Docker daemon was
+  available here. The app wrote nothing.
+  - The site was down from about 07:45Z to 08:49Z, through the author's
+    pause, which was handed over in `HANDOFF.md`.
+- **The fix** was checked with a reproduction of the runtime stage: the
+  old Dockerfile crashed the same way; the fixed one served every route
+  and passed `pnpm check` 304/304.
+- **v14** (`625f14b`) is healthy. It created a fresh `user_version` 5
+  database, and the live bundle matches the local build.
+- **Push.** `main` was fast-forwarded `254aa99..625f14b` (52 commits).
+  - The first CI attempt failed downloading mise (GitHub 504).
+  - On the re-run, the **check job passed**: Docker build, `pnpm check`
+    on the container, evidence, secret scans.
+  - The deploy job failed downloading flyctl (504) before deploying.
+    Production stays on the manual v14, the same commit.
+
+**Tests run on the live site** (real HTTPS, Chrome 156, independent
+browser contexts): **56/56**, rehearsed first against the local release
+build. They covered:
+- the homepage and entrances, with camera move, panel, URL, Back/Forward;
+- the dedicated pages;
+- the three scenes' plots, kits and 2/4/6 capacity;
+- invalid room codes;
+- in an invite-only room, through the UI: friend link, invitation and
+  acceptance, live placement and edits both ways, the same shared stock,
+  a plan costing no stock, leaving without losing the build;
+- save, contributors, collection, continuing;
+- a refused publish for the invite-only room, and one permitted publish;
+- registration, sign-out and sign-in with identity continuity, and a
+  wrong password refused;
+- a genuine pre-reset cookie recovering to a new identity;
+- 390×844 layouts.
+
+**Logs.** The 80 production lines from the run explain each step. They
+contain no username, room label, password, token or cookie
+(`doc/evidence/logs/0028-production-verification.jsonl`).
+
+**Persistence.** After a `flyctl machine restart` (volume untouched),
+every recorded read and every table count was identical. `/data` is the
+Fly volume.
+
+**Known limitations.**
+- No Safari or physical devices; two users were two contexts, not two
+  devices (a manual checklist is in 0028).
+- The CI deploy job has not completed.
+- About an hour of downtime.
+- Production keeps a few "Verify 202611080906 …" records, one public
+  showcase entry and one `verify…` account.
+- Recovery pairs and steps are in 0028 §10.
