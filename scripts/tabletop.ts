@@ -534,10 +534,33 @@ async function entrances(browser: Browser): Promise<void> {
     // ADR 0016 added Woodland Commons as the third, largest scene.
     titles.join("|") === "Beach Houses|Medieval Castle|Woodland Commons" &&
       ["Small", "Medium", "Large", "1–2 builders", "1–4 builders", "1–6 builders"].every((t) => tags.includes(t)) &&
-      tags.filter((t) => /playable/i.test(t)).length === 3,
+      // ADR 0016: the chosen scene's plot and status follow the compact list
+      ((await page.locator(".scene-summary .tag").allTextContents()).some((t) => /playable/i.test(t))),
     { titles, tags },
   );
   check("scene tray: Beach Houses is chosen first", (await page.locator('.scene-card[aria-checked="true"] .scene-card-title').textContent()) === "Beach Houses");
+  // ADR 0016: both actions are on screen without scrolling, and stay where
+  // they are whichever scene is chosen; the arrows move the choice
+  const actionBoxes = async () => {
+    const panel = (await page.locator(".table-panel").boundingBox())!;
+    return Promise.all(["Build alone", "Set up a room"].map(async (n) => {
+      const b = (await page.getByRole("button", { name: n, exact: true }).boundingBox())!;
+      return { n, y: Math.round(b.y), inView: b.y >= panel.y && b.y + b.height <= Math.min(panel.y + panel.height, page.viewportSize()!.height) };
+    }));
+  };
+  const actionsFirst = await actionBoxes();
+  await page.locator('.scene-card[aria-checked="true"]').focus();
+  await page.keyboard.press("ArrowDown");
+  const afterOne = await page.locator('.scene-card[aria-checked="true"] .scene-card-title').textContent();
+  await page.keyboard.press("ArrowDown");
+  const afterTwo = await page.locator('.scene-card[aria-checked="true"] .scene-card-title').textContent();
+  const focusedChosen = await page.evaluate(() => document.activeElement?.getAttribute("aria-checked"));
+  const summary = await page.locator(".scene-summary .tag").allTextContents();
+  const actionsWood = await actionBoxes();
+  check("scene tray: the arrow keys move the choice and the focus, and only the chosen scene's plot is shown", afterOne === "Medieval Castle" && afterTwo === "Woodland Commons" && focusedChosen === "true" && summary.some((t) => /32×28/.test(t)), { afterOne, afterTwo, focusedChosen, summary });
+  check("scene tray: Build alone and Set up a room are both in view, and don't move when the scene changes", actionsFirst.every((a) => a.inView) && actionsWood.every((a, i) => a.inView && a.y === actionsFirst[i].y), { actionsFirst, actionsWood });
+  await page.keyboard.press("Home");
+  check("scene tray: Home goes back to the first scene", (await page.locator('.scene-card[aria-checked="true"] .scene-card-title').textContent()) === "Beach Houses");
   const camBefore = await cam(page);
   await page.getByRole("button", { name: "Set up a room" }).click();
   await page.getByPlaceholder("e.g. Saturday build").fill("Table check room");

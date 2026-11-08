@@ -615,19 +615,20 @@ body.home {
 .home .table-panel h3 {
   font-size: 1rem;
 }
-/* the scene: its picture and facts, like the label on the tray */
-/* the playable scenes (ADR 0015): one card each, a single choice */
+/* the playable scenes (ADR 0015): one compact row each, a single choice;
+   only the chosen scene's details follow, so the actions stay in view
+   (ADR 0016) */
 .home .scene-cards {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.35rem;
 }
 .home .scene-card {
   display: grid;
-  grid-template-columns: 9.5rem 1fr;
-  gap: 0.8rem;
+  grid-template-columns: 4.6rem 1fr;
+  gap: 0.65rem;
   align-items: center;
   width: 100%;
-  padding: 0.55rem;
+  padding: 0.3rem 0.45rem 0.3rem 0.3rem;
   border: 2px solid var(--kit-line);
   border-radius: var(--radius);
   background: var(--white);
@@ -640,6 +641,10 @@ body.home {
   border-color: var(--red);
   box-shadow: 0 3px 0 var(--red-edge);
 }
+.home .scene-card:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
 .home .scene-card:disabled {
   cursor: default;
 }
@@ -648,19 +653,17 @@ body.home {
 }
 .home .scene-card-text {
   display: grid;
+  gap: 0.2rem;
 }
 .home .scene-card-title {
-  font: 800 1.15rem var(--font-display);
+  font: 800 1.02rem/1.1 var(--font-display);
 }
 .home .scene-card img {
   width: 100%;
   height: auto;
   aspect-ratio: 16 / 10;
   object-fit: cover;
-  border-radius: 8px;
-}
-.home .scene-card-text .kit-help {
-  margin: 0.15rem 0 0.4rem;
+  border-radius: 7px;
 }
 .home .scene-facts {
   display: flex;
@@ -668,11 +671,39 @@ body.home {
   gap: 0.3rem;
   margin: 0;
 }
+/* the chosen scene, in a line: where it is, its plot, that it's playable */
+.home .scene-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  margin: 0.55rem 0 0;
+}
+.home .scene-setting {
+  margin: 0 0 0.3rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.home .scene-about {
+  display: grid;
+}
+.home .scene-about-one {
+  grid-area: 1 / 1;
+}
+.home .scene-about-one[data-chosen="false"] {
+  visibility: hidden;
+}
+.home .scene-about-head {
+  margin-top: 0.7rem;
+}
+.home .scene-about .kit-help {
+  margin: 0;
+}
 /* two clear choices, each with its button beside its explanation */
 .home .choice-list {
   display: grid;
-  gap: 0.55rem;
-  margin: 0.8rem 0 0.4rem;
+  gap: 0.45rem;
+  margin: 0.6rem 0 0.4rem;
 }
 .home .choice {
   display: flex;
@@ -752,12 +783,30 @@ body.home {
 
 @media (max-width: 759px), (max-aspect-ratio: 4/5) {
   .home .scene-card {
-    grid-template-columns: 7rem 1fr;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0.55rem;
+    padding: 0.2rem 0.4rem 0.2rem 0.2rem;
   }
+  .home .scene-card-text {
+    gap: 0.1rem;
+  }
+  .home .scene-card-title {
+    font-size: 0.95rem;
+  }
+  .home .scene-cards {
+    gap: 0.3rem;
+  }
+  /* each button stays beside its line, so both choices fit on a phone's
+     first screen of the sheet */
   .home .choice {
-    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.55rem 0.65rem;
   }
   .home .choice .btn {
-    width: 100%;
+    padding-inline: 0.8rem;
   }
+  .home .scene-summary {
+    margin-top: 0.45rem;
+  }
+
 }

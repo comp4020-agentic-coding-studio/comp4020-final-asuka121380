@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { SCENE_LIST, sceneInfo, templateOf } from "../../scenes/registry.ts";
 import { ensureIdentity } from "../../state/identity.ts";
 import { getSnapshot, mySnapshots, whoAmI, type SnapshotSummary } from "../../state/api.ts";
@@ -44,43 +45,65 @@ export function ScenesPanel() {
   const solo = useSoloRoom(enterRoom, sceneId);
   const create = useCreateRoom(enterRoom, sceneId);
 
+  // a radio group: one tab stop, arrows move the choice (as native radios do)
+  const choose = (i: number) => {
+    const next = SCENE_LIST[(i + SCENE_LIST.length) % SCENE_LIST.length];
+    flushSync(() => setSceneId(next.id));
+    document.getElementById(`scene-option-${next.id}`)?.focus();
+  };
+  const onKey = (e: React.KeyboardEvent, i: number) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") choose(i + 1);
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") choose(i - 1);
+    else if (e.key === "Home") choose(0);
+    else if (e.key === "End") choose(SCENE_LIST.length - 1);
+    else return;
+    e.preventDefault();
+  };
+
   return (
     <>
+      {/* compact choices: a small cover, the name, its size and builders;
+          the chosen one's details follow, then the actions, which stay in
+          the same place whichever scene is chosen (ADR 0016) */}
       <div className="scene-cards" role="radiogroup" aria-label="Scene">
-        {SCENE_LIST.map((s) => {
-          const t = templateOf(s);
+        {SCENE_LIST.map((s, i) => {
           const chosen = s.id === sceneId;
           return (
             <button
               key={s.id}
+              id={`scene-option-${s.id}`}
               type="button"
               role="radio"
               aria-checked={chosen}
+              tabIndex={chosen ? 0 : -1}
               className={`scene-card${chosen ? " is-chosen" : ""}`}
               onClick={() => setSceneId(s.id)}
+              onKeyDown={(e) => onKey(e, i)}
               disabled={step !== "choose"}
             >
               <img src={s.cover} alt={s.coverAlt} width={480} height={300} loading="lazy" />
               <span className="scene-card-text">
                 <span className="scene-card-title">{s.title}</span>
-                <span className="kit-help">{s.setting}.</span>
                 <span className="scene-facts">
                   <span className="tag tag-muted">{s.size}</span>
                   <span className="tag tag-muted">{buildersOf(s)}</span>
-                  <span className="tag tag-muted">
-                    Plot {t.bounds.w}×{t.bounds.d} studs
-                  </span>
-                  <span className="tag tag-ok">Playable</span>
                 </span>
               </span>
             </button>
           );
         })}
       </div>
+      <div className="scene-summary">
+        <p className="scene-facts" aria-label={`${info.title}: plot ${template.bounds.w} by ${template.bounds.d} studs, playable`}>
+          <span className="tag tag-muted">
+            Plot {template.bounds.w}×{template.bounds.d} studs
+          </span>
+          <span className="tag tag-ok">Playable</span>
+        </p>
+      </div>
 
       {step === "choose" ? (
         <>
-          <p className="kit-help">{info.blurb}</p>
           <div className="choice-list" role="group" aria-label="How to build">
             <div className="choice">
               <div>
@@ -103,6 +126,17 @@ export function ScenesPanel() {
           </div>
           {solo.error && <p className="kit-error" role="alert">{solo.error}</p>}
           <p className="kit-fine">{ENTER_EDITOR} Nothing is created until you choose.</p>
+          {/* every scene's notes share one cell, and only the chosen one is
+              shown: the panel keeps one height, so nothing above moves */}
+          <div className="scene-about">
+            {SCENE_LIST.map((s) => (
+              <div key={s.id} className="scene-about-one" aria-hidden={s.id !== sceneId} data-chosen={s.id === sceneId}>
+                <h3 className="kit-subhead scene-about-head">About {s.title}</h3>
+                <p className="scene-setting">{s.setting}.</p>
+                <p className="kit-help">{s.blurb}</p>
+              </div>
+            ))}
+          </div>
         </>
       ) : (
         <form
