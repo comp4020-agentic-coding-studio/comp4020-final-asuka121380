@@ -66,7 +66,10 @@ for (const s of SCENES) {
     if (i < 6) await page.screenshot({ path: `${out}/${s.id}-load-${i}.png` }).catch(() => {});
     const ready = await page.evaluate(() => {
       const info = (window as any).__renderInfo?.();
-      return !!info && info.calls > 20;
+      // nothing is drawn until the environment, plot and parts can all be
+      // lit (one Suspense boundary), and the smallest environment is now
+      // about 19 calls (Woodland, batched by vertex colour; ADR 0016)
+      return !!info && info.calls > 10;
     });
     if (ready && envAt < 0) envAt = Date.now() - t0;
     if (envAt >= 0 && Date.now() - t0 > envAt + 1500) break;

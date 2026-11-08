@@ -116,9 +116,10 @@ export function backdropTexture(): THREE.CanvasTexture {
   c.height = H;
   const ctx = c.getContext("2d")!;
   const rows: [string, number, number, number][] = [
-    ["#b9cfc6", 0.46, 0.05, 3],
-    ["#9db8a6", 0.36, 0.08, 7],
-    ["#7f9f84", 0.27, 0.13, 11],
+    // quiet and hazy: close in tone to the horizon, so the near groves lead
+    ["#c6d8d0", 0.44, 0.04, 3],
+    ["#b0c7b8", 0.35, 0.06, 7],
+    ["#99b49f", 0.27, 0.09, 11],
   ];
   for (const [colour, base, freq, seed] of rows) {
     ctx.fillStyle = colour;

@@ -2,15 +2,14 @@ import { Environment as EnvMap } from "@react-three/drei";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { TREEHOUSE_SCENE } from "../../../domain/treehouse.ts";
-import type { FixedPiece } from "../../../domain/scene.ts";
-import { Batched } from "../../scene/Batched.tsx";
-import { PLATE } from "../../scene/geometry.ts";
+import { BatchedColoured } from "../../scene/Batched.tsx";
 import { plastic } from "../../scene/PartMesh.tsx";
 import { setObstacles } from "../../scene/obstacles.ts";
 import { Batch } from "../../scene/scenery.ts";
 import { useLeavesHidden } from "../../state/leaves.ts";
 import { HORIZON, skyMaterial, SUN_COLOUR, SUN_DIR } from "./sky.ts";
 import { backdropTexture, CENTRE, groundGeometry, groundY, onPath, outerGroundGeometry, outside, PLOT, rng } from "./terrain.ts";
+import { AUTUMN, canopyBatch, LEAVES, treeBatch, worldBox } from "./tree.ts";
 
 // Woodland Commons' surroundings (ADR 0016): one great tree in a forest
 // clearing on a bright early-autumn afternoon.
@@ -26,149 +25,20 @@ import { backdropTexture, CENTRE, groundGeometry, groundY, onPath, outerGroundGe
 //
 // Nothing here is in the build or the kit, and none of it is pickable.
 
-const BARK = "#5b3a26";
-const BARK_DARK = "#48301f";
-const BARK_LIGHT = "#6d4630";
-const DECK = "#9a6a42";
-const DECK_EDGE = "#7a5032";
-const LEAVES = ["#4f8f3f", "#5d9c45", "#3f7a39", "#6aa64c"];
-const AUTUMN = ["#d9a23a", "#e0832f", "#c9692a", "#e6b84a"];
 const TRUNK = "#6a4a33";
 const PINE = ["#2f5f3c", "#3a6d45"];
 const STONE = ["#9a9890", "#8a8880", "#aaa79e"];
 const FLOWERS = ["#f2c94c", "#e3a3b6", "#ffffff"];
 
-/** World box of a fixed piece. */
-function worldBox(f: FixedPiece): { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number } {
-  return { x0: f.x, x1: f.x + f.w, y0: f.y * PLATE, y1: (f.y + f.h) * PLATE, z0: f.z, z1: f.z + f.d };
-}
-
-/**
- * The trunk, roots and branches: each box filled solid, with bark ridges as
- * shallow vertical strips inside its faces, so the silhouette is exactly
- * the box. Platforms are timber decks with studs on top: the support
- * surface, drawn where it is.
- */
-function treeBatch(): Batch {
-  const b = new Batch();
-  const r = rng(318);
-  for (const f of TREEHOUSE_SCENE.fixed!.pieces) {
-    const w = worldBox(f);
-    const cx = (w.x0 + w.x1) / 2;
-    const cz = (w.z0 + w.z1) / 2;
-    const sx = w.x1 - w.x0;
-    const sz = w.z1 - w.z0;
-    const h = w.y1 - w.y0;
-    if (f.kind === "deck") {
-      // planks running across, with a darker rim, and studs on top
-      b.box(DECK_EDGE, sx, h * 0.5, sz, cx, w.y0, cz);
-      for (let i = 0; i < sx; i++) b.box(i % 2 ? DECK : "#a87850", 0.96, h * 0.5 - 0.01, sz - 0.04, w.x0 + i + 0.5, w.y0 + h * 0.5, cz);
-      b.studs(DECK, w.x0, w.x1, w.z0, w.z1, w.y1);
-      continue;
-    }
-    const colour = f.kind === "root" ? BARK_DARK : BARK;
-    // the solid core, a hair inside the box
-    b.box(colour, sx - 0.06, h, sz - 0.06, cx, w.y0, cz);
-    // bark ridges on the four faces, inside the box's outline
-    const ridges = (along: "x" | "z", at: number, from: number, to: number, out: number) => {
-      for (let t = from + 0.5; t < to; t += 1) {
-        if (r() < 0.35) continue;
-        const shade = r() < 0.5 ? BARK_LIGHT : BARK_DARK;
-        const y0 = w.y0 + r() * Math.min(1.5, h * 0.2);
-        const hh = Math.max(0.4, h - (y0 - w.y0) - r() * Math.min(2, h * 0.3));
-        if (along === "x") b.box(shade, 0.42, hh, 0.04, t, y0, at + out * 0.01);
-        else b.box(shade, 0.04, hh, 0.42, at + out * 0.01, y0, t);
-      }
-    };
-    ridges("x", w.z1 - 0.03, w.x0, w.x1, -1);
-    ridges("x", w.z0 + 0.03, w.x0, w.x1, 1);
-    ridges("z", w.x0 + 0.03, w.z0, w.z1, 1);
-    ridges("z", w.x1 - 0.03, w.z0, w.z1, -1);
-  }
-  return b;
-}
-
-/**
- * Above the plot's ceiling the trunk carries on and divides into the limbs
- * that hold the canopy. They are part of the crown, so "Hide leaves" hides
- * them with it: all that stays is the trunk and the platforms the rules use.
- */
-function crownLimbs(b: Batch): void {
-  const stem = TREEHOUSE_SCENE.fixed!.pieces.find((f) => f.id === "trunk-stem")!;
-  const top = (stem.y + stem.h) * PLATE;
-  const sx = (stem.x + stem.x + stem.w) / 2;
-  const sz = (stem.z + stem.z + stem.d) / 2;
-  b.box(BARK, stem.w - 0.06, 3, stem.d - 0.06, sx, top, sz);
-  const limb = (dx: number, dz: number, len: number, rise: number, thick: number) => {
-    const g = new THREE.BoxGeometry(thick, len, thick);
-    g.translate(0, len / 2, 0);
-    const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(dz * rise, 0, -dx * rise)).setPosition(sx, top + 2, sz);
-    b.add(BARK, g, m);
-  };
-  limb(-1, 0, 12, 0.75, 2.2);
-  limb(1, 0, 12, 0.7, 2.2);
-  limb(0, -1, 11, 0.6, 2);
-  limb(-0.6, -0.8, 10, 0.9, 1.6);
-  limb(0.7, -0.7, 10, 0.95, 1.6);
-  limb(0, 0, 9, 0, 2.4);
-}
-
-/** A rounded clump of leaves: a few overlapping low-poly blobs. */
-function clump(b: Batch, x: number, y: number, z: number, s: number, r: () => number, autumn: number): void {
-  const n = 3 + Math.floor(r() * 3);
-  for (let i = 0; i < n; i++) {
-    const g = new THREE.IcosahedronGeometry((1.6 + r() * 1.4) * s, 0);
-    g.scale(1, 0.7 + r() * 0.2, 1);
-    g.translate(x + (r() - 0.5) * 3.2 * s, y + (r() - 0.5) * 1.4 * s, z + (r() - 0.5) * 3.2 * s);
-    const gold = r() < autumn;
-    b.add(gold ? AUTUMN[Math.floor(r() * AUTUMN.length)] : LEAVES[Math.floor(r() * LEAVES.length)], g);
-  }
-}
-
-/**
- * The great tree's canopy: clumps in a broad dome over the crown, high above
- * the plot's ceiling, and a sparse fringe that hangs behind and to the
- * sides. Nothing hangs in front of the working area, and nothing reaches
- * down into the plot, at any height.
- */
-function canopyBatch(): Batch {
-  const b = new Batch();
-  const r = rng(21318);
-  crownLimbs(b);
-  const stem = TREEHOUSE_SCENE.fixed!.pieces.find((f) => f.id === "trunk-stem")!;
-  const top = (stem.y + stem.h) * PLATE + 2;
-  const cx = stem.x + stem.w / 2;
-  const cz = stem.z + stem.d / 2;
-  for (let i = 0; i < 46; i++) {
-    const a = r() * Math.PI * 2;
-    const d = Math.sqrt(r()) * 17;
-    const x = cx + Math.cos(a) * d * 1.15;
-    let z = cz + Math.sin(a) * d * 0.8 - 2;
-    // pull anything in front of the trunk back behind its front face
-    if (z > cz + 4) z = cz + 4 - r() * 3;
-    const y = top + 6 + (1 - d / 17) * 6 + r() * 2;
-    clump(b, x, y, z, 1.25, r, 0.22);
-  }
-  // the dome's skirt, hanging a little lower behind and to the sides of
-  // the crown, joined to it; never in front of the trunk
-  for (let i = 0; i < 18; i++) {
-    const a = Math.PI + (i / 17) * Math.PI; // from the left, round the back, to the right
-    const x = cx + Math.cos(a) * (15 + r() * 4);
-    const z = cz + Math.sin(a) * (9 + r() * 3) - 1;
-    clump(b, x, top + 1 + r() * 3, z, 1.1, r, 0.3);
-  }
-  return b;
-}
-
 /** A broad deciduous tree at the forest edge, in the brick idiom: a trunk and stepped, slightly irregular canopy tiers. */
-function broadTree(b: Batch, x: number, z: number, s: number, r: () => number): THREE.Box3 {
+function broadTree(b: Batch, x: number, z: number, s: number, r: () => number, autumn = 0.28): THREE.Box3 {
   const one = new Batch();
   const y = groundY(x, z);
   const t = new THREE.CylinderGeometry(0.35 * s, 0.5 * s, 3.2 * s, 8);
   t.translate(x, y + 1.6 * s, z);
   one.add(TRUNK, t);
   // early autumn: most trees green, some turning gold or orange all over
-  const palette = r() < 0.28 ? AUTUMN : LEAVES;
+  const palette = r() < autumn ? AUTUMN : LEAVES;
   const tint = Math.floor(r() * palette.length);
   [3.8, 3.2, 2.0].forEach((w, i) => {
     const c = new THREE.CylinderGeometry((w / 2) * s, (w / 2 + 0.25) * s, 1.3 * s, 9);
@@ -216,6 +86,16 @@ function details(b: Batch, r: () => number): void {
       }
     }
   }
+  // the path up to the tree from the front: low, flat stepping stones along
+  // its middle, flush with the grass, so the way in reads at a glance
+  for (let z = PLOT.d + 2.2; z < PLOT.d + 60; z += 1.7 + r() * 0.6) {
+    const x = CENTRE.x - 2 + Math.sin(z * 0.08) * 3 + (r() - 0.5) * 0.6;
+    const g = new THREE.CylinderGeometry(0.55 + r() * 0.2, 0.62 + r() * 0.2, 0.08, 7);
+    g.scale(1.15, 1, 0.85);
+    g.rotateY(r() * Math.PI);
+    g.translate(x, groundY(x, z) + 0.03, z);
+    b.add(STONE[Math.floor(r() * 3)], g);
+  }
   // wildflowers in the meadow in front, low and sparse
   for (let i = 0; i < 70; i++) {
     const x = CENTRE.x + (r() - 0.5) * 70;
@@ -227,25 +107,58 @@ function details(b: Batch, r: () => number): void {
   }
 }
 
+/**
+ * The forest edge, composed rather than scattered: groves of different
+ * density and mix close in behind and to the sides, each with its own
+ * share of autumn colour, a few large trees anchor the back, and single
+ * trees stand out in the meadow at the clearing's edge. The front corridor
+ * stays open at every height, out to the horizon.
+ */
+const GROVES: { x: number; z: number; rx: number; rz: number; n: number; pines: number; autumn: number; scale: number }[] = [
+  // behind the tree: a dense, tall, mostly broadleaf wood
+  { x: 16, z: -26, rx: 30, rz: 12, n: 34, pines: 0.25, autumn: 0.25, scale: 1.5 },
+  { x: -14, z: -14, rx: 14, rz: 10, n: 16, pines: 0.55, autumn: 0.15, scale: 1.25 },
+  { x: 46, z: -14, rx: 14, rz: 10, n: 16, pines: 0.4, autumn: 0.45, scale: 1.3 },
+  // the sides: looser groves, stepping forward and thinning out
+  { x: -26, z: 8, rx: 9, rz: 12, n: 12, pines: 0.7, autumn: 0.1, scale: 1.2 },
+  { x: 58, z: 6, rx: 9, rz: 12, n: 12, pines: 0.3, autumn: 0.5, scale: 1.2 },
+  { x: -34, z: 32, rx: 8, rz: 9, n: 7, pines: 0.5, autumn: 0.3, scale: 1.05 },
+  { x: 66, z: 34, rx: 8, rz: 9, n: 7, pines: 0.6, autumn: 0.2, scale: 1.05 },
+  // farther off behind: a quiet mass that leads into the painted tree line
+  { x: 16, z: -70, rx: 70, rz: 18, n: 30, pines: 0.5, autumn: 0.2, scale: 1.7 },
+];
+/** Single trees at the clearing's edge, for a less even outline. */
+const SINGLES: [number, number, number, "broad" | "pine"][] = [
+  [-6, -4, 1.0, "broad"],
+  [38, -5, 1.1, "pine"],
+  [-12, 22, 0.95, "broad"],
+  [45, 20, 1.0, "broad"],
+];
+
 function nearBatch(boxes: THREE.Box3[]): Batch {
   const b = new Batch();
   const r = rng(6294836);
   details(b, r);
-  // the forest edge: a ring of trees round the clearing, close behind and
-  // beside it, far back in front; denser the farther out
-  for (let i = 0; i < 200; i++) {
-    const x = CENTRE.x + (r() - 0.5) * 260;
-    const z = -150 + r() * 260;
+  const plant = (x: number, z: number, s: number, kind: "broad" | "pine", autumn: number, seed: number) => {
     const o = outside(x, z);
-    if (o < 1.1) continue;
-    // a loose edge: sparse near the clearing, closer together farther in
-    if (r() < 0.6 - Math.min(0.4, (o - 1.1) * 0.2)) continue;
+    if (o < 1.1) return; // the clearing stays open round the tree
     // keep the front corridor open: only far off to the sides in front
-    if (z > PLOT.d + 2 && Math.abs(x - CENTRE.x) < 34 + (z - PLOT.d) * 0.6) continue;
-    const s = 1.1 + r() * 0.9;
-    const box = r() < 0.6 ? broadTree(b, x, z, s, r) : pine(b, x, z, s, i);
+    if (z > PLOT.d + 2 && Math.abs(x - CENTRE.x) < 34 + (z - PLOT.d) * 0.6) return;
+    const box = kind === "pine" ? pine(b, x, z, s, seed) : broadTree(b, x, z, s, r, autumn);
     if (o < 1.8) boxes.push(box);
-  }
+  };
+  GROVES.forEach((g, gi) => {
+    for (let i = 0; i < g.n; i++) {
+      // denser towards each grove's middle
+      const a = r() * Math.PI * 2;
+      const d = Math.pow(r(), 0.7);
+      const x = g.x + Math.cos(a) * d * g.rx;
+      const z = g.z + Math.sin(a) * d * g.rz;
+      const s = g.scale * (0.75 + r() * 0.5) * (d < 0.3 && r() < 0.3 ? 1.35 : 1);
+      plant(x, z, s, r() < g.pines ? "pine" : "broad", g.autumn, gi + i);
+    }
+  });
+  SINGLES.forEach(([x, z, s, kind], i) => plant(x, z, s, kind, 0.4, i));
   return b;
 }
 
@@ -327,7 +240,7 @@ function Canopy() {
   }, []);
   return (
     <group ref={group} visible={!hidden} name="canopy">
-      <Batched batch={batch} />
+      <BatchedColoured batch={batch} />
     </group>
   );
 }
@@ -400,9 +313,9 @@ export function WoodlandEnvironment() {
       <Backdrop />
       <Ground />
       <Tufts />
-      <Batched batch={scenery.tree} />
+      <BatchedColoured batch={scenery.tree} />
       <Canopy />
-      <Batched batch={scenery.near} shadows={false} />
+      <BatchedColoured batch={scenery.near} shadows={false} />
     </group>
   );
 }

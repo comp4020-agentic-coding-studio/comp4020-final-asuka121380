@@ -68,6 +68,29 @@ export class Batch {
   }
 }
 
+/**
+ * The whole batch as one geometry, its colours in a vertex attribute: one
+ * draw call (and one shadow pass) where `build()` makes one per colour.
+ * For scenery with many shades of one material, drawn with
+ * `vertexPlastic` (ADR 0016). Opaque plastic only: glass and lanterns
+ * keep their own materials through `build()`.
+ */
+export function buildColoured(batch: Batch): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const { colour, geometry } of batch.build()) {
+    const c = new THREE.Color(colour);
+    const n = geometry.attributes.position.count;
+    const rgb = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) rgb.set([c.r, c.g, c.b], i * 3);
+    geometry.setAttribute("color", new THREE.BufferAttribute(rgb, 3));
+    parts.push(geometry);
+  }
+  const merged = mergeGeometries(parts);
+  if (!merged) throw new Error("could not merge scenery");
+  merged.computeBoundingSphere();
+  return merged;
+}
+
 const withUv = (g: THREE.BufferGeometry): THREE.BufferGeometry => {
   g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array((g.attributes.position.count ?? 0) * 2), 2));
   return g;
