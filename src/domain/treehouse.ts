@@ -83,25 +83,35 @@ export const TREE_PIECES: readonly FixedPiece[] = [
 
 // ---- the reference assembly ---------------------------------------------------
 //
-// An adapted assembly of the official build: three timber cabins, one on each
-// platform, with a door onto a porch, windows, a wall-top band and a blue
-// 45° gable roof (the official octagonal roofs, substituted as a whole);
-// stairs from the ground to the two side platforms and from the right porch
-// up to the crown deck; porch railings; and a little picnic spot on the
-// ground. Built only from the kit, and checked against the rules by the
-// tests, in this order.
+// An illustrative settlement built only from the kit, and checked against
+// the rules by the tests, in this order (ADR 0016). It is inspiration and a
+// test fixture, never pre-placed: new rooms start empty. It uses fewer parts
+// than the kit holds; the kit is sized from the official cabins, not from
+// this picture (research record, "Reference and kit").
+//
+// Three buildings with different jobs and shapes, round one shared deck:
+// - the Lodge on the low platform (12): wide and low, its long roof facing
+//   the front, a door to one side and a deep porch;
+// - the Commons (12): a deck on timber stilts in front of the trunk, flush
+//   with the lodge's porch, with a long table, railings and a fire ring
+//   below; stairs up from the ground and on up to the right platform;
+// - the Bunkhouse on the middle platform (24): taller, its gable end to the
+//   front, lighter timber, windows round three sides;
+// - the Lookout on the crown deck (36): an open pavilion on four posts
+//   under a red gable, railed on three sides, reached by a switchback from
+//   the bunkhouse porch.
 
 const P = (partId: string, x: number, y: number, z: number, rot: Rotation, colour: string): Placement => ({ partId, x, y, z, rot, colour });
 
 const LOG = "nougat";
+const LIGHT = "sand";
 const DARK = "bark";
 const BAND = "charcoal";
-const ROOF = "navy";
 const TRIM = "sand";
 
 type Axis = "x" | "z";
 
-/** One course of bricks along a wall: long pieces first, 1×1s to finish. */
+/** One course of bricks along a run: long pieces first, 1×1s to finish. */
 function bricks(axis: Axis, from: number, length: number, at: number, y: number, colour: string, offset = false): Placement[] {
   const out: Placement[] = [];
   let i = 0;
@@ -117,7 +127,7 @@ function bricks(axis: Axis, from: number, length: number, at: number, y: number,
   return out;
 }
 
-/** One layer of plates along a wall. */
+/** One layer of plates along a run. */
 function plates(axis: Axis, from: number, length: number, at: number, y: number, colour: string, offset = false): Placement[] {
   const out: Placement[] = [];
   let i = 0;
@@ -133,96 +143,194 @@ function plates(axis: Axis, from: number, length: number, at: number, y: number,
   return out;
 }
 
+/** A gap in a wall run: `at` cells in, `len` long, from course `k0` to before `k1`. */
+interface Gap {
+  at: number;
+  len: number;
+  k0: number;
+  k1: number;
+}
+const DOOR = (at: number): Gap => ({ at, len: 4, k0: 0, k1: 6 });
+const WINDOW = (at: number): Gap => ({ at, len: 2, k0: 2, k1: 4 });
+
+/** The pieces of a run of `length` cells left between its gaps at course k. */
+function segments(length: number, gaps: readonly Gap[], k: number): [number, number][] {
+  const open = gaps.filter((g) => k >= g.k0 && k < g.k1).sort((a, b) => a.at - b.at);
+  const out: [number, number][] = [];
+  let i = 0;
+  for (const g of open) {
+    if (g.at > i) out.push([i, g.at - i]);
+    i = g.at + g.len;
+  }
+  if (i < length) out.push([i, length - i]);
+  return out;
+}
+
+interface Walls {
+  left: number;
+  back: number;
+  w: number;
+  d: number;
+  base: number;
+  log: string;
+  band: string;
+  front?: readonly Gap[];
+  rear?: readonly Gap[];
+  /** Gaps in the side walls, counted from the back corner's next cell. */
+  sides?: readonly Gap[];
+}
+
 /**
- * A cabin 8 wide and 6 deep standing on a platform at height `base`, its
- * door in the middle of the front wall (facing +z). Walls are 18 plates
- * high, alternating a course of log bricks with three layers of plates, as
- * the official walls alternate logs with stacked plates; a window in each
- * side wall and in the back wall; a dark band on the wall top; and a 45°
- * gable roof whose ridge runs front to back.
+ * Timber walls 18 plates high round a w × d rectangle: six courses that
+ * alternate a course of log bricks with three layers of plates (the middle
+ * one a darker band), as the official walls alternate logs and stacked
+ * plates. Doors and windows stand in real gaps, placed in course order so
+ * each rests on what is below it. A band of plates caps the wall top.
  */
-function cabin(cx: number, cz: number, base: number): Placement[] {
+function walls(c: Walls): Placement[] {
   const out: Placement[] = [];
-  const back = cz;
-  const front = cz + 5;
-  const left = cx;
-  const right = cx + 7;
-  // the door first, standing on the platform
-  out.push(P("door-1x4x6", cx + 2, base, front, 0, DARK));
+  const front = c.back + c.d - 1;
+  const right = c.left + c.w - 1;
+  const runs: { axis: Axis; from: number; length: number; at: number; gaps: readonly Gap[]; rot: Rotation }[] = [
+    { axis: "x", from: c.left, length: c.w, at: c.back, gaps: c.rear ?? [], rot: 0 },
+    { axis: "x", from: c.left, length: c.w, at: front, gaps: c.front ?? [], rot: 0 },
+    { axis: "z", from: c.back + 1, length: c.d - 2, at: c.left, gaps: c.sides ?? [], rot: 1 },
+    { axis: "z", from: c.back + 1, length: c.d - 2, at: right, gaps: c.sides ?? [], rot: 1 },
+  ];
+  // doors stand on the platform before any course
+  for (const r of runs) for (const g of r.gaps) if (g.k0 === 0) out.push(r.axis === "x" ? P("door-1x4x6", r.from + g.at, c.base, r.at, 0, DARK) : P("door-1x4x6", r.at, c.base, r.from + g.at, 1, DARK));
   for (let k = 0; k < 6; k++) {
-    const y0 = base + 3 * k;
-    const windowCourse = k === 2 || k === 3;
-    const offset = k % 4 >= 2;
-    if (k % 2 === 0) {
-      // a course of log bricks
-      out.push(...(windowCourse ? [...bricks("x", left, 3, back, y0, LOG), ...bricks("x", left + 5, 3, back, y0, LOG)] : bricks("x", left, 8, back, y0, LOG, offset)));
-      out.push(...bricks("x", left, 2, front, y0, LOG), ...bricks("x", right - 1, 2, front, y0, LOG));
-      for (const x of [left, right]) {
-        out.push(...(windowCourse ? [...bricks("z", back + 1, 1, x, y0, LOG), ...bricks("z", back + 4, 1, x, y0, LOG)] : bricks("z", back + 1, 4, x, y0, LOG)));
+    const y0 = c.base + 3 * k;
+    for (const r of runs) {
+      for (const [i, n] of segments(r.length, r.gaps, k)) {
+        if (k % 2 === 0) out.push(...bricks(r.axis, r.from + i, n, r.at, y0, c.log, k % 4 === 2 && n > 3));
+        else for (let j = 0; j < 3; j++) out.push(...plates(r.axis, r.from + i, n, r.at, y0 + j, j === 1 ? c.band : c.log, (j + k) % 2 === 1 && n > 3));
       }
-    } else {
-      // three layers of plates
-      for (let j = 0; j < 3; j++) {
-        const y = y0 + j;
-        const colour = j === 1 ? DARK : LOG;
-        const o = (j + k) % 2 === 1;
-        out.push(...(windowCourse ? [...plates("x", left, 3, back, y, colour), ...plates("x", left + 5, 3, back, y, colour)] : plates("x", left, 8, back, y, colour, o)));
-        out.push(...plates("x", left, 2, front, y, colour), ...plates("x", right - 1, 2, front, y, colour));
-        for (const x of [left, right]) {
-          out.push(...(windowCourse ? [...plates("z", back + 1, 1, x, y, colour), ...plates("z", back + 4, 1, x, y, colour)] : plates("z", back + 1, 4, x, y, colour, o)));
-        }
-      }
-    }
-    if (k === 2) {
-      // windows 1×2×2 fill the gaps left in courses 2 and 3
-      out.push(P("window-1x2x2", left + 3, y0, back, 0, DARK));
-      out.push(P("window-1x2x2", left, y0, back + 2, 1, DARK), P("window-1x2x2", right, y0, back + 2, 1, DARK));
+      // windows stand in their gaps once the course below them is laid
+      for (const g of r.gaps) if (g.k0 === k && g.k0 > 0) out.push(r.axis === "x" ? P("window-1x2x2", r.from + g.at, y0, r.at, 0, DARK) : P("window-1x2x2", r.at, y0, r.from + g.at, 1, DARK));
     }
   }
-  const top = base + 18;
-  // the wall-top band, over the door too
-  out.push(...plates("x", left, 8, back, top, BAND), ...plates("x", left, 8, front, top, BAND));
-  for (const x of [left, right]) out.push(...plates("z", back + 1, 4, x, top, BAND));
-  // the roof: three 2×8 plates front to back and a row of 2×2 plates,
-  // three 2×4 bricks under the ridge, then two courses of 45° slopes
-  const deck = top + 1;
-  for (const x of [left, left + 2, left + 4, left + 6]) {
-    out.push(P("plate-2x4", x, deck, back, 1, ROOF), P("plate-2x2", x, deck, back + 4, 0, ROOF));
-  }
-  out.push(P("brick-2x4", left + 2, deck + 1, back, 1, ROOF), P("brick-2x4", left + 4, deck + 1, back, 1, ROOF));
-  out.push(P("brick-2x4", left + 2, deck + 1, back + 4, 0, ROOF));
+  const top = c.base + 18;
+  out.push(...plates("x", c.left, c.w, c.back, top, BAND), ...plates("x", c.left, c.w, front, top, BAND));
+  for (const x of [c.left, right]) out.push(...plates("z", c.back + 1, c.d - 2, x, top, BAND));
+  return out;
+}
+
+/**
+ * A 45° gable 8 studs wide whose ridge runs front to back, on a deck of
+ * plates at `deck`: two courses of 2×2 slopes, with 2×4 bricks under the
+ * upper course. `d` is 6.
+ */
+function gableAlongZ(left: number, back: number, deck: number, colour: string): Placement[] {
+  const out: Placement[] = [];
+  const right = left + 7;
+  for (const x of [left, left + 2, left + 4, left + 6]) out.push(P("plate-2x4", x, deck, back, 1, colour), P("plate-2x2", x, deck, back + 4, 0, colour));
+  out.push(P("brick-2x4", left + 2, deck + 1, back, 1, colour), P("brick-2x4", left + 4, deck + 1, back, 1, colour));
+  out.push(P("brick-2x4", left + 2, deck + 1, back + 4, 0, colour));
   for (const z of [back, back + 2, back + 4]) {
-    out.push(P("slope-2x2", left, deck + 1, z, 3, ROOF), P("slope-2x2", right - 1, deck + 1, z, 1, ROOF));
-    out.push(P("slope-2x2", left + 2, deck + 4, z, 3, ROOF), P("slope-2x2", left + 4, deck + 4, z, 1, ROOF));
+    out.push(P("slope-2x2", left, deck + 1, z, 3, colour), P("slope-2x2", right - 1, deck + 1, z, 1, colour));
+    out.push(P("slope-2x2", left + 2, deck + 4, z, 3, colour), P("slope-2x2", left + 4, deck + 4, z, 1, colour));
   }
   return out;
 }
 
-const reference: Placement[] = [
-  // left cabin on the left platform (top 12), stairs up from the ground
-  ...cabin(1, 4, 12),
-  P("fence-1x4x1", 5, 12, 11, 0, DARK),
-  P("stairs-2x4", 3, 0, 12, 0, DARK),
-  // right cabin on the right platform (top 24), two flights from the ground
-  ...cabin(23, 5, 24),
-  P("fence-1x4x1", 27, 24, 12, 0, DARK),
-  P("stairs-2x4", 25, 0, 16, 0, DARK),
-  P("stairs-2x4", 25, 12, 13, 0, DARK),
-  // a flight from the right porch up to the crown deck (rising towards −x)
-  P("stairs-2x4", 21, 24, 11, 1, DARK),
-  // the crown cabin (top 36)
-  ...cabin(12, 5, 36),
-  P("fence-1x4x1", 11, 36, 12, 0, DARK),
-  // a picnic spot on the ground in front of the trunk
-  P("plate-6x6", 12, 0, 18, 0, "leaf"),
-  P("brick-1x2", 14, 1, 20, 0, DARK),
-  P("plate-2x4", 13, 4, 20, 0, TRIM),
-  P("round-brick-1x1", 12, 1, 20, 0, DARK),
-  P("round-brick-1x1", 17, 1, 21, 0, DARK),
-  P("flower", 12, 1, 23, 0, "orange"),
-  P("flower", 17, 1, 18, 0, "bright-red"),
-  P("flower", 9, 0, 14, 0, "butter"),
+/**
+ * A low gable 4 studs deep whose ridge runs across, its long faces to the
+ * front and the back: one course of 2×2 slopes on a deck of 2×4 plates.
+ */
+function gableAlongX(left: number, back: number, w: number, deck: number, colour: string): Placement[] {
+  const out: Placement[] = [];
+  for (let x = left; x < left + w; x += 4) out.push(P("plate-2x4", x, deck, back, 0, colour), P("plate-2x4", x, deck, back + 2, 0, colour));
+  for (let x = left; x < left + w; x += 2) out.push(P("slope-2x2", x, deck + 1, back + 2, 0, colour), P("slope-2x2", x, deck + 1, back, 2, colour));
+  return out;
+}
+
+/** A post of round bricks and round plates, `h` plates tall, on the ground. */
+function stilt(x: number, z: number, h: number): Placement[] {
+  const out: Placement[] = [];
+  let y = 0;
+  while (h - y >= 3) out.push(P("round-brick-1x1", x, y, z, 0, DARK)), (y += 3);
+  while (h - y >= 1) out.push(P("round-1x1", x, y, z, 0, DARK)), (y += 1);
+  return out;
+}
+
+// The Lodge: 8 × 4 on the left platform, door to one side, windows round.
+const LODGE = { left: 1, back: 4, base: 12 };
+const lodge: Placement[] = [
+  ...walls({ ...LODGE, w: 8, d: 4, log: LOG, band: DARK, front: [DOOR(1), WINDOW(5)], rear: [WINDOW(1), WINDOW(5)], sides: [WINDOW(0)] }),
+  ...gableAlongX(LODGE.left, LODGE.back, 8, LODGE.base + 19, "forest"),
+  // a rail on the porch's open side
+  P("fence-1x4x1", 1, 12, 8, 1, DARK),
 ];
+
+// The Commons: four 6×6 plates on stilts 11 plates tall, so the deck's top
+// is flush with the left platform (12), in front of the trunk.
+const commonsPosts: [number, number][] = [
+  [1, 12], [1, 17], [6, 17], [7, 12], [12, 17], [13, 17], [18, 12], [19, 17], [24, 12], [24, 17],
+];
+const commons: Placement[] = [
+  ...commonsPosts.flatMap(([x, z]) => stilt(x, z, 11)),
+  ...[1, 7, 13, 19].map((x) => P("plate-6x6", x, 11, 12, 0, LOG)),
+  // railings along the front, leaving the stairs and the far end open
+  P("fence-1x4x1", 7, 12, 17, 0, DARK),
+  P("fence-1x4x1", 11, 12, 17, 0, DARK),
+  P("fence-1x4x1", 15, 12, 17, 0, DARK),
+  // a long table and two benches
+  P("brick-1x2", 10, 12, 14, 0, DARK),
+  P("brick-1x2", 16, 12, 14, 0, DARK),
+  P("plate-2x8", 10, 15, 14, 0, TRIM),
+  ...plates("x", 10, 8, 12, 12, DARK),
+  ...plates("x", 10, 8, 16, 12, DARK),
+];
+
+// Stairs: ground to the Commons, Commons to the middle platform, and a
+// switchback from the bunkhouse porch up to the crown deck.
+const stairs: Placement[] = [
+  P("stairs-2x4", 3, 0, 18, 0, DARK),
+  P("stairs-2x4", 23, 12, 13, 0, DARK),
+  P("stairs-2x4", 21, 24, 11, 1, DARK),
+];
+
+// The Bunkhouse: 8 × 6 on the middle platform, its gable to the front.
+const BUNK = { left: 23, back: 5, base: 24 };
+const bunkhouse: Placement[] = [
+  ...walls({ ...BUNK, w: 8, d: 6, log: LIGHT, band: LOG, front: [WINDOW(1), DOOR(3)], rear: [WINDOW(1), WINDOW(5)], sides: [WINDOW(1)] }),
+  ...gableAlongZ(BUNK.left, BUNK.back, BUNK.base + 19, "navy"),
+  P("fence-1x4x1", 27, 24, 12, 0, DARK),
+];
+
+// The Lookout: an open pavilion on the crown deck. Four posts 15 plates
+// tall carry two 2×8 beams, a layer of plates across them, and a red gable.
+const LOOK = { left: 12, back: 6, base: 36 };
+const lookoutPosts: [number, number][] = [
+  [12, 6], [19, 6], [12, 11], [19, 11],
+];
+const lookout: Placement[] = [
+  ...lookoutPosts.flatMap(([x, z]) => [0, 3, 6, 9, 12].map((dy) => P("brick-1x1", x, LOOK.base + dy, z, 0, DARK))),
+  // railings on three sides; the front stays open to the stairs
+  P("fence-1x4x1", 13, 36, 6, 0, DARK),
+  P("brick-1x2", 17, 36, 6, 0, DARK),
+  P("fence-1x4x1", 12, 36, 7, 1, DARK),
+  P("fence-1x4x1", 19, 36, 7, 1, DARK),
+  P("plate-2x8", 12, 51, 6, 0, DARK),
+  P("plate-2x8", 12, 51, 10, 0, DARK),
+  ...gableAlongZ(LOOK.left, LOOK.back, 52, "brick-red"),
+];
+
+// A fire ring and log seats on the ground in front, and a few flowers.
+const ground: Placement[] = [
+  P("plate-6x6", 10, 0, 20, 0, "leaf"),
+  ...([[12, 22], [13, 21], [14, 22], [13, 23]] as const).map(([x, z]) => P("round-1x1", x, 1, z, 0, "stone")),
+  P("round-1x1", 13, 1, 22, 0, "orange"),
+  P("round-1x1", 13, 2, 22, 0, "bright-yellow"),
+  P("brick-1x4", 10, 1, 20, 0, DARK),
+  P("brick-1x4", 12, 1, 25, 0, DARK),
+  P("flower", 15, 1, 20, 0, "orange"),
+  P("flower", 9, 0, 19, 0, "butter"),
+  P("flower", 27, 0, 18, 0, "bright-red"),
+];
+
+const reference: Placement[] = [...lodge, ...commons, ...stairs, ...bunkhouse, ...lookout, ...ground];
 
 export const TREEHOUSE_SCENE: SceneTemplate = {
   id: "treehouse-01",

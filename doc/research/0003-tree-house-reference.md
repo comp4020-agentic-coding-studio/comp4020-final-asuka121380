@@ -310,28 +310,28 @@ is not rounded up to 14 by floating-point error. This is `allocate()` in
 `src/domain/treehouse.ts`, the castle's rule (ADR 0015).
 `spec/domain/treehouse.test.ts` checks every row below.
 
-| Game part | Name | Catalogue | Required | Allocated | In the adapted reference |
+| Game part | Name | Catalogue | Required | Allocated | In the reference picture |
 | --- | --- | --- | --- | --- | --- |
-| `plate-1x2` | Plate 1×2 | existing | 265 | ceil(265 × 1.30) = **345** | 108 |
-| `plate-1x4` | Plate 1×4 | new part | 160 | ceil(160 × 1.30) = **208** | 54 |
-| `plate-2x2` | Plate 2×2 | existing | 124 | ceil(124 × 1.30) = **162** | 12 |
-| `brick-1x1` | Brick 1×1 | existing | 107 | ceil(107 × 1.30) = **140** | 18 |
-| `plate-1x1` | Plate 1×1 | new part | 105 | ceil(105 × 1.30) = **137** | 126 |
-| `plate-2x4` | Plate 2×4 | existing | 70 | ceil(70 × 1.30) = **91** | 13 |
-| `round-1x1` | Round plate 1×1 | existing | 39 | ceil(39 × 1.30) = **51** | 0 |
-| `slope-2x2` | Slope 45° 2×2 | existing | 36 | ceil(36 × 1.30) = **47** | 36 |
-| `brick-1x4` | Brick 1×4 | existing | 34 | ceil(34 × 1.30) = **45** | 24 |
-| `brick-1x2` | Brick 1×2 | existing | 33 | ceil(33 × 1.30) = **43** | 25 |
-| `round-brick-1x1` | Round brick 1×1 | existing | 27 | ceil(27 × 1.30) = **36** | 2 |
-| `window-1x2x2` | Window 1×2×2 | existing | 20 | ceil(20 × 1.30) = **26** | 9 |
+| `plate-1x2` | Plate 1×2 | existing | 265 | ceil(265 × 1.30) = **345** | 48 |
+| `plate-1x4` | Plate 1×4 | new part | 160 | ceil(160 × 1.30) = **208** | 34 |
+| `plate-2x2` | Plate 2×2 | existing | 124 | ceil(124 × 1.30) = **162** | 8 |
+| `brick-1x1` | Brick 1×1 | existing | 107 | ceil(107 × 1.30) = **140** | 40 |
+| `plate-1x1` | Plate 1×1 | new part | 105 | ceil(105 × 1.30) = **137** | 92 |
+| `plate-2x4` | Plate 2×4 | existing | 70 | ceil(70 × 1.30) = **91** | 12 |
+| `round-1x1` | Round plate 1×1 | existing | 39 | ceil(39 × 1.30) = **51** | 26 |
+| `slope-2x2` | Slope 45° 2×2 | existing | 36 | ceil(36 × 1.30) = **47** | 32 |
+| `brick-1x4` | Brick 1×4 | existing | 34 | ceil(34 × 1.30) = **45** | 14 |
+| `brick-1x2` | Brick 1×2 | existing | 33 | ceil(33 × 1.30) = **43** | 13 |
+| `round-brick-1x1` | Round brick 1×1 | existing | 27 | ceil(27 × 1.30) = **36** | 30 |
+| `window-1x2x2` | Window 1×2×2 | existing | 20 | ceil(20 × 1.30) = **26** | 10 |
 | `slope-2x1` | Slope 45° 2×1 | existing | 19 | ceil(19 × 1.30) = **25** | 0 |
-| `plate-6x6` | Plate 6×6 | existing | 12 | ceil(12 × 1.30) = **16** | 1 |
-| `fence-1x4x1` | Fence 1×4×1 | existing | 10 | ceil(10 × 1.30) = **13** | 3 |
-| `brick-2x4` | Brick 2×4 | existing | 9 | ceil(9 × 1.30) = **12** | 9 |
-| `plate-2x8` | Plate 2×8 | existing | 5 | ceil(5 × 1.30) = **7** | 0 |
+| `plate-6x6` | Plate 6×6 | existing | 12 | ceil(12 × 1.30) = **16** | 5 |
+| `fence-1x4x1` | Fence 1×4×1 | existing | 10 | ceil(10 × 1.30) = **13** | 8 |
+| `brick-2x4` | Brick 2×4 | existing | 9 | ceil(9 × 1.30) = **12** | 6 |
+| `plate-2x8` | Plate 2×8 | existing | 5 | ceil(5 × 1.30) = **7** | 3 |
 | `arch-1x4` | Arch 1×4 | existing | 4 | ceil(4 × 1.30) = **6** | 0 |
-| `stairs-2x4` | Stairs 2×4×4 | new part | 4 | ceil(4 × 1.30) = **6** | 4 |
-| `door-1x4x6` | Door with frame 1×4×6 | existing | 3 | ceil(3 × 1.30) = **4** | 3 |
+| `stairs-2x4` | Stairs 2×4×4 | new part | 4 | ceil(4 × 1.30) = **6** | 3 |
+| `door-1x4x6` | Door with frame 1×4×6 | existing | 3 | ceil(3 × 1.30) = **4** | 2 |
 | `flower` | Flower | existing | 3 | ceil(3 × 1.30) = **4** | 3 |
 | `brick-2x2` | Brick 2×2 | existing | 1 | ceil(1 × 1.30) = **2** | 0 |
 
@@ -354,39 +354,92 @@ type (ADR 0007), the same for every new tree-house room. A new room starts
 | — omitted (crane, details, accessories, furniture, landscape, plants) | 170 | none |
 | **Required game parts** | | **1,090** |
 | **Allocated kit** (× 1.30, per type, rounded up) | | **1,426** |
-| The adapted reference uses | | 450 parts, every one within its type's allocation |
+| The reference picture uses | | 389 parts, every one within its type's allocation (see "Reference and kit") |
 
-The adapted reference uses fewer parts than the requirement because its
-cabins are square, with flat-plate floors on the fixed platforms, while the
-official cabins are octagonal, on 6×6 wedge floors, with interiors. The
-spare allocation is what players have for their own cabins, bridges and
-platforms.
+## Reference and kit: four different numbers
 
-## The adapted reference
+Four things in this record are easy to run together. They are separate,
+and each has its own job:
 
-`src/domain/treehouse.ts` builds the tree house in the game's own parts. It
-keeps the official model's arrangement (three cabins at three heights
-round one trunk, connected by stairs), not its exact brick layout. It has
-450 parts:
+1. **The official assemblies researched.** Bags 7–13 and 15 of the 21318
+   booklet: three octagonal cabins with interiors, their roofs, the
+   stairs and the railings, 1,354 official pieces. They are what was
+   counted, not something the game draws or asks for.
+2. **The mapped requirement: 1,090 game parts.** Each counted official
+   piece mapped to game parts (splits, substitutions and the roof group
+   above). It answers one question: what would it take, in this game's
+   parts, to build the official cabins? It is the base of the kit's size,
+   not a list of what a room must build.
+3. **The allocated kit: 1,426 parts.** For each of the 22 part types
+   separately, `ceil(required × 1.30)`. The 30 % is per type, so a type
+   with 1 required gets 2 and one with 265 gets 345. It is never applied
+   to the total, and it is not an estimate of the reference picture.
+4. **The reference picture: 389 parts.** One smaller idea of what the kit
+   can make round the fixed tree, drawn in the editor's "Tree-house
+   inspiration" card and placed part by part through the rules in
+   `spec/domain/treehouse.test.ts`. It is not the official model, and it
+   is not sized to the kit. It uses 27 % of the kit (the last column
+   above), so a room of six has most of the kit left over for cabins,
+   walkways and platforms of their own.
 
-- **Three cabins, one per fixed platform:** left (platform top at 12
-  plates), right (24) and on the crown deck (36). Each cabin:
-  - is 8 × 6 studs, with the door in the middle of the front wall;
-  - has walls 18 plates high, alternating a course of log bricks (nougat)
-    with three layers of plates (nougat, bark, nougat), as the official
-    walls alternate log bricks with stacked plates;
-  - has a 1×2×2 window in the back wall and in each side;
-  - has a dark wall-top band and a blue 45° gable roof (the roof group's
-    substitution).
-- **Stairs:**
-  - one flight from the ground up to the left porch;
-  - two flights, one on the other, from the ground up to the right porch;
-  - a flight from the right porch up to the crown deck.
-- **Railings:** porch railings on all three platforms.
-- **A picnic spot** on the ground in front of the trunk, with flowers.
+So the kit counts are not the reference's needs, and the reference is not
+the requirement. The kit is unchanged by the reference's redesign (8 Nov
+2026, ADR 0016's "Presentation pass"). No type's allocation was changed,
+and no error was found in the requirement.
 
-Footprint 30 × 24 studs, 63 plates high (the crown roof's ridge), in a
-32 × 28 × 72 plot. The front four rows of the plot stay open.
+The reference uses fewer parts than the requirement because:
+
+- its cabins are square, with no interiors;
+- its floors are the fixed platforms or a few large plates;
+- the crown carries an open lookout, not a third closed cabin.
+
+The official cabins are octagonal, on 6×6 wedge floors, with interiors.
+Three types (slope 2×1, arch 1×4, brick 2×2) are in the kit but not in
+the picture. They come from the official walls and are there for
+players' own designs.
+
+## The reference picture
+
+`src/domain/treehouse.ts` builds one idea for the kit in the game's own
+parts. It keeps the official model's idea, cabins at several heights round
+one trunk joined by stairs, not its layout. It was redesigned on 8 Nov
+2026 (ADR 0016's "Presentation pass") so that the cabins differ and the
+circulation reads. It has 389 parts:
+
+- **The lodge, on the left platform (top at 12 plates).**
+  - 8 × 4 studs and 18 plates high.
+  - Walls alternate a course of log bricks (nougat) with three layers of
+    plates, as the official walls alternate log bricks with stacked
+    plates.
+  - A door and a window at the front, two windows at the back, one in
+    each side, and a dark band at the wall top.
+  - A low green gable runs across it.
+- **The commons:** a wide shared deck in front of the trunk, at the left
+  platform's height.
+  - Four 6×6 plates on ten stilts (round bricks topped with round
+    plates), 11 plates high, so the deck's top is level with the lodge's
+    floor.
+  - A long table and benches.
+  - A railing along its front.
+- **The bunkhouse, on the right platform (24).**
+  - 8 × 6 studs, in sand with a nougat band.
+  - A window and a door at the front, two windows at the back, one in
+    each side.
+  - A taller navy gable along it, and a porch railing.
+- **The lookout, on the crown deck (36).** An open frame of brick posts
+  with railings round it and a red gable, so the top level reads as a
+  gathering place under the canopy, not a third closed room.
+- **Circulation.** Three stair flights:
+  - from the ground up to the commons;
+  - from the commons up to the bunkhouse's porch;
+  - from the right platform, turned, up to the crown deck.
+- **On the ground,** in front: a grass mat, a fire ring of stone round
+  plates with a flame, two log benches and three flowers.
+
+Footprint x 1–31, z 4–26, 59 plates high (the lookout's ridge), in a
+32 × 28 × 72 plot. The front two rows stay open. Every part rests on the
+plot, on a fixed platform or on another part, and none touches the
+trunk, roots or branches.
 
 ### Adaptations and simplifications
 

@@ -324,17 +324,29 @@ describe("the tree-house reference", () => {
     for (const [id, k] of Object.entries(tree.kit)) expect(s.inventory[id] + (bom[id] ?? 0), id).toBe(k);
   });
 
-  it("has a cabin on each platform, stairs, railings, windows and three roofs", () => {
+  it("has two cabins with doors, a common deck, a crown lookout, stairs between the levels, railings, windows and three roofs", () => {
     const bom = billOfMaterials(tree.reference);
-    expect(bom["door-1x4x6"]).toBe(3);
-    expect(bom["stairs-2x4"]).toBeGreaterThanOrEqual(3);
-    expect(bom["fence-1x4x1"]).toBeGreaterThanOrEqual(3);
-    expect(bom["window-1x2x2"]).toBeGreaterThanOrEqual(6);
-    expect(bom["slope-2x2"]).toBeGreaterThanOrEqual(24);
-    for (const deck of [LEFT, RIGHT, CROWN]) {
+    // a lodge on the left platform and a bunkhouse on the right, each with a door in its wall
+    for (const deck of [LEFT, RIGHT]) {
       const door = tree.reference.find((p) => p.partId === "door-1x4x6" && p.y === top(deck));
       expect(door, deck.id).toBeTruthy();
     }
+    // the crown carries an open lookout rather than a third cabin
+    expect(tree.reference.some((p) => p.y === top(CROWN))).toBe(true);
+    // the common deck: big plates on stilts, level with the left platform
+    expect(tree.reference.filter((p) => p.partId === "plate-6x6" && p.y + 1 === top(LEFT)).length).toBeGreaterThanOrEqual(4);
+    // stairs climb from the ground, from the common deck, and from the right platform's level
+    for (const y of [0, top(LEFT), top(RIGHT)]) expect(tree.reference.some((p) => p.partId === "stairs-2x4" && p.y === y), `stairs at ${y}`).toBe(true);
+    expect(bom["fence-1x4x1"]).toBeGreaterThanOrEqual(3);
+    expect(bom["window-1x2x2"]).toBeGreaterThanOrEqual(6);
+    expect(bom["slope-2x2"]).toBeGreaterThanOrEqual(24);
+  });
+
+  it("is smaller than the kit: one idea, not a list of what must be built", () => {
+    const bom = billOfMaterials(tree.reference);
+    const used = Object.values(bom).reduce((a, b) => a + b, 0);
+    const kit = Object.values(tree.kit).reduce((a, b) => a + b, 0);
+    expect(used).toBeLessThan(kit);
   });
 
   it("reaches all three height zones", () => {
