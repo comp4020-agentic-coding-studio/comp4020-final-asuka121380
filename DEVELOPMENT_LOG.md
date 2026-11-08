@@ -4145,3 +4145,10 @@ deployment. The agent did the diagnosis and chose the fix.
   miss.
 - This entry's commit triggers one more deploy of unchanged code. Its
   result isn't given another bookkeeping commit.
+
+## 8 November 2026, 21:49 AEDT — Author-approved final README narrative
+
+- **Decision:** the author approved the exact README draft in discussion and requested a local commit only, after confirming no unpushed commits. After fetching origin, HEAD and origin/main were identical at d32a172.
+- **Change:** [6202b5b](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/6202b5b), `README: articulate the shared-building narrative and design sources`, replaces the C10-era argument with the approved account of narrative coherence across the tabletop, environments, collaboration tools and saved creations. It cites Jenkins and MDA, updates the three scenes and capacities, explains excluded features, and records the author's reported live multiplayer observation.
+- **Verification:** reviewed the committed README diff; whitespace check passed. No application code changed and no application test suite was rerun for this prose-only change. The real-user test statement is the author's observation, not a new test performed by this agent. Detailed user-test evidence and About-page illustration alignment remain separate follow-up work.
+- **Scope:** local commits only; no push or deployment. Existing untracked HANDOFF.md is left untouched.
