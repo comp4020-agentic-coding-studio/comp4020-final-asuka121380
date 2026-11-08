@@ -81,6 +81,13 @@ so this decision keeps them by other means.
 - A resize across the layout breakpoint re-frames at once, without
   replaying the move.
 - The frame loop runs on demand, so an idle table draws nothing.
+- **How the move is tested (agent, 8 Nov 2026; evidence 0027).** The move
+  is time-based, so a renderer slower than one frame per 700 ms (as in
+  `tabletop.ts`'s SwiftShader runs) lands on its first frame. The checks
+  therefore step the page's clock in 100 ms frames and assert real poses:
+  part-way, nearer the destination each step, and landing on it with no
+  dialog before. They don't count wall-clock frames. `?debug`'s
+  `__tableCamera()` reports the requested `destination` for this.
 
 ### Layout (agent)
 

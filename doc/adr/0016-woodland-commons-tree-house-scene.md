@@ -290,6 +290,13 @@ unchanged.
   the canopy. The farthest zoom rises to 130 so a phone's taller frame
   fits. The defaults for other scenes are unchanged. Nothing moves the
   camera after placement.
+  - **Short screens (later the same day; evidence 0027).** At 1280×720 the
+    canopy was still framed to the screen's top edge, under the right-hand
+    chips. `camera.topClear` (Woodland: 96 px; default 0) keeps a band at
+    the top out of the opening and reset fit and of the orbit centre's
+    screen position. The canopy now opens below the chips, tray open or
+    folded. With the tray open at 1280×720 the fit reaches the 130 zoom
+    limit, so the tree is smaller there.
 - **The tree's look.** Bark segments, shades, corner bevels, knots,
   collars where branches join and a darker or mossy foot. All of it lies
   on or inside each rule box: no new surface, ledge or support.

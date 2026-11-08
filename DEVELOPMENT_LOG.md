@@ -3929,3 +3929,87 @@ Evidence: [0026](doc/evidence/0026-woodland-presentation-pass.md) and
 - The tabletop camera-arrival failure is still open.
 - README.md, PROCESS.md and `reflections/` were not edited.
 - Nothing pushed or deployed.
+
+## 2026-11-08 17:45 AEDT — Tabletop camera-motion check diagnosed and replaced; Woodland canopy clear at short heights
+
+**Who decided.** The author asked to investigate the tabletop failure
+recorded in evidence 0026, rather than accept "it also fails on the
+baseline". They also asked for a small framing fix for the tree house at
+about 1280×720. The agent did the diagnosis and chose the changes.
+
+**Commits.**
+- [`92b7302`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/92b7302) tabletop.ts: check camera moves in animation time, not wall-clock frames
+  - `TableScene.tsx`: `?debug` `__tableCamera()` also reports the
+    requested `destination`. No behaviour change.
+  - `scripts/tabletop.ts`:
+    - a `travel()` helper that pauses `page.clock` and steps 100 ms per
+      frame, asserting real part-way poses, a steady approach, no dialog
+      while moving, and landing on the destination at 600–900 ms;
+    - a new `motion` section: four entrances and Escape back, the sign by
+      Enter, back-then-another in one tick, Back/Forward, a mid-move
+      retarget, the booklet approach;
+    - the wall-clock motion asserts in `desktop` and `entrances` are
+      removed (their other checks stay);
+    - reduced motion asserts poses.
+- [`bc99cec`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/bc99cec) Woodland opening view keeps the canopy clear of the top controls
+  - `SceneInfo.camera.topClear` (default 0); Woodland sets 96 px.
+  - `woodland.ts`'s zoom-in loop bound goes from 40 to 80 steps.
+
+**Diagnosis** (evidence [0027](doc/evidence/0027-tabletop-camera-motion-check.md)):
+- **Reproduced** with a per-frame timeline: time since the click, `moving`,
+  position and target, dialog and opacity, URL. The start was at the
+  overview, still, with no dialog, normal motion, 50.8 units from the
+  destination.
+- **On the M1's GPU** the tray move draws 41–42 eased frames over about
+  700 ms, and the panel mounts after the landing frame. With the CPU
+  throttled 6× it is still 41 frames.
+- **Under SwiftShader**, which `tabletop.ts` forces, the first frame after
+  the click came 0.66–2.2 s later. The time-based move had already
+  finished, so it landed on that frame and the sampler saw 0–1 moving
+  frames.
+- **Cause.** The test measured how fast the software renderer draws. Users
+  on a GPU were not seeing a broken animation. That also explains why
+  0025 passed (174/174) with the same code.
+- **The old checks were also too weak.** The sign and booklet checks would
+  have passed with a stationary camera that only reported `moving`.
+- **The new check can fail.** Two deliberately broken builds were tried,
+  each restored afterwards:
+  - a camera held still while `moving`: caught as `stepsPartWay: 0`;
+  - always cutting: caught as `stepsMoving: 0`.
+
+**Correction.** Evidence 0026 and the 16:25 entry above called the failure
+"pre-existing", based only on `a3cdb33`. That showed when it started, not
+why. 0026 now says so and links 0027. The 16:25 entry is left as written.
+
+**Woodland framing.** At 1280×720 the canopy's top was at the screen's top
+edge (y −1 px) under the chips. It now opens at 83–95 px, below them, at
+1280×720, 1366×768, 1440×900 and 1920×1080, tray open or folded, empty or
+built. At 1280×720 with the tray open the fit reaches the 130 zoom limit.
+The tree, platforms, rules, Focus framing and other scenes are unchanged.
+
+**Tests run.** Production build; local server on port 8417 with a fresh
+`DATA_DIR` (`/tmp/wp-data2`); Chrome 156.
+- `pnpm typecheck` clean.
+- `APP_URL=http://localhost:8417 pnpm check` 304/304.
+- `pnpm check:evidence` passes.
+- Browser scripts:
+  - `tabletop.ts` 188/188, the whole script under SwiftShader
+  - `woodland.ts` 64/64
+  - `interaction.ts` 85/85
+  - `castle.ts` 34/34
+  - `showcase.ts` 20/20
+- One full tabletop run was discarded: `dist/` was rebuilt partway
+  through it.
+- `multiplayer.ts` and `log-rehearsal.ts` were not rerun; no server or
+  realtime code changed.
+
+**Known limitations.**
+- Wall-clock smoothness was measured on one M1 Mac's GPU only.
+- In the `motion` section the README load isn't awaited (the `desktop`
+  section follows it).
+- Why Playwright's resumed clock stopped frames under SwiftShader was
+  observed, not traced.
+- On a 360 px phone the canopy top still passes under the third row of
+  chips.
+- No Safari; mobile is emulation.
+- Nothing pushed or deployed.

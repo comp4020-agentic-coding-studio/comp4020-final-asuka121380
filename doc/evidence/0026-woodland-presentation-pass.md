@@ -30,7 +30,7 @@ Commits:
 | `APP_URL=http://localhost:8417 pnpm check` | 304/304 (31 files), logging tests included |
 | `pnpm check:evidence` | passes |
 | `scripts/woodland.ts` | 64/64 |
-| `scripts/tabletop.ts` | 176/177 (one failure that predates this pass, below) |
+| `scripts/tabletop.ts` | 176/177 (one failure, below; diagnosed and resolved in the follow-up) |
 | `scripts/interaction.ts` | 85/85 |
 | `scripts/castle.ts` | 34/34 |
 | `scripts/multiplayer.ts` | 17/17 |
@@ -44,7 +44,14 @@ Commits:
   - Before this pass, `a3cdb33` was checked out in a separate worktree,
     built, and served on port 8418 with its own copy of `tabletop.ts`. The
     same check failed the same way there (173/174).
-  - This pass did not change it. It is recorded here, not fixed.
+  - **Correction (8 Nov, later).** That showed only that the failure
+    predates this pass. It did not show the cause, nor that the
+    interaction works. The follow-up,
+    [0027](0027-tabletop-camera-motion-check.md), diagnosed it: under the
+    suite's SwiftShader renderer a frame can take longer than the whole
+    700 ms move, so a wall-clock frame sampler can see no moving frame.
+    The app's move was smooth on the GPU. The check was replaced with one
+    that steps animation time and checks real poses.
 - **`showcase.ts`.** The first run of the rewritten script stopped at the
   new Woodland step. The scene radio's `check()` was intercepted by the
   card's picture, which covers the visually hidden input. `17a35d9` makes
@@ -186,8 +193,8 @@ reference:
   device emulation in desktop browsers.
 - **Performance.** One M1 Mac, vsync-bound; draw calls and triangles are
   the comparable figures.
-- **Tabletop.** The pre-existing camera-arrival failure (section 1) is
-  still open.
+- **Tabletop.** The camera-arrival failure (section 1) was open when this
+  was written; see [0027](0027-tabletop-camera-motion-check.md).
 - **Focus test.** It used whichever part the pointer hit first on each
   level, so the "middle" part was the lodge door on the plate-12
   platform, not a plate-24 part.
