@@ -5,27 +5,19 @@
      proposals, awaiting the author's review. Edit freely: this file is the
      author's. -->
 
-A browser 3D brick-building and cooperative-creation site that will hold
-several scenes. The first scene is a row of colourful beach houses; it is not
-the identity of the whole site (author, 6 Oct 2026 evening; ADR 0004).
+## Current project and scope (author, 9 Nov 2026)
 
-**Current milestone: C10, fly by instruments (author, 20 Oct 2026): the
-server logs who did what (ADR 0013) on top of C9's real-time shared rooms
-(author, 13 Oct 2026; supersedes the solo-only scope below).** A build now belongs to a room with
-up to a scene's configured number of members (ADR 0007), not to one visitor.
-Real-time sync, shared inventory, transparent plans, live marks, durable
-contributor attribution and immutable snapshots are now in scope and
-specified in ADRs 0006–0009. Still out of scope until the author says
-otherwise: similarity scoring, text/voice chat or any player-written
-communication beyond plans and marks, runtime LLM features, playable
-scenes beyond Beach Houses, the Medieval Castle (ADR 0015) and Woodland
-Commons (ADR 0016), physics/collapse, and competitive scoring or
-brick-count rankings (author, phase 2 brief; the castle scene by the
-author's brief of 5 Nov 2026; the tree-house scene by the author's brief
-of 7 Nov 2026). Cooperation is no longer only described:
-it is implemented, but only to the extent recorded as DONE in
-`DEVELOPMENT_LOG.md` at any given time — never claim a brief's requirement
-is met before its tests and evidence exist.
+Brick Commons is a browser-based shared brick-building space. Its implemented scope includes the interactive tabletop homepage, dedicated account/lobby/collection/showcase pages, server-rendered About page, shared construction, plans and marks, contributor attribution, saved versions, and three playable scenes:
+
+- Beach Houses: up to 2 builders.
+- Medieval Castle: up to 4 builders.
+- Woodland Commons: up to 6 builders.
+
+All planned tabletop entrances are implemented; their behaviour is documented in ADR 0014. This replaces the earlier C10 milestone description, not the technical and behavioural constraints developed during those milestones. A build belongs to a room, with a scene-configured capacity (ADR 0007). Real-time sync, shared inventory, plans, marks, attribution and immutable snapshots remain governed by ADRs 0006–0009.
+
+Still out of scope without author approval: similarity scoring, built-in text/voice chat or player-written communication beyond plans and marks, runtime LLM features, additional playable scenes beyond the three above, physics/collapse, competitive scoring and brick-count rankings. The castle and Woodland scope changes are recorded in ADRs 0015 and 0016.
+
+Distinguish implemented features from verified behaviour. Consult the current code, DEVELOPMENT_LOG.md, and relevant evidence before making completion claims. Historical results are not proof that a newly changed version passes. Never claim a brief's requirement is met before its tests and evidence exist.
 
 **Explicit accounts (author, 13 Oct 2026; ADR 0010; author-approved scope
 change, overriding ADR 0006's earlier cookie-first-only framing).** A real,
@@ -40,6 +32,90 @@ no-runtime-external-services rule below). Browsing and building still need
 no account at all; see ADR 0010 for the full architecture and the
 migration-conflict handling.
 
+## Expressive intention and design consistency (author, 9 Nov 2026)
+
+The author’s central intention is to return to childhood experiences of gathering around LEGO bricks with friends and sometimes strangers, making something together, and keeping a trace of that time.
+
+README.md states the argument. This harness turns it into constraints. The tabletop, environments, navigation, construction tools, and saved creations must support that same intention. For a proposed feature or redesign, explain how it contributes to this experience. A familiar product feature, more decoration, or a larger feature list is not sufficient justification.
+
+### Space and visual design
+
+- Preserve the tabletop as a place of activity: meaningful objects, unfinished work, materials, and a composition that suggests building in progress.
+- Treat physical navigation objects as functional parts of that setting. Preserve approach-and-interact behaviour where it suits the task.
+- Use dedicated pages when the function needs them. Maintain the site’s visual identity and clear routes between the table and those pages.
+- Preserve the non-gameplay site’s warm, red-led identity and recognisable brick construction. Decorative studs alone do not establish a coherent design.
+- Keep gameplay visual changes outside a website-only styling task unless explicitly authorised.
+- Let lighting, composition, geometry, and motion support the activity and information. They must not obscure controls, readable text, the construction area, or the placement preview.
+- Maintain usable keyboard, pointer, and touch interactions, responsive layouts, reduced-motion behaviour, and the documented fallbacks.
+- Do not introduce fake interactive objects. Any future unfinished entrance remains decoration without hover, click, or accessibility cues suggesting it works. Existing functions must remain reachable through working navigation.
+
+### Social scope and creative freedom
+
+- Concentrate social mechanisms on gathering, proposing, responding, building, and retaining shared creations.
+- Keep built-in text/voice chat, competitive rankings, similarity scoring, and compulsory reference-model completion outside the approved scope.
+- Reference buildings are optional inspiration. Do not turn them into prescribed outcomes or use resemblance as a measure of success.
+- Preserve one shared room inventory. Plans express proposals and derived demand; they do not reserve or consume real stock.
+- Preserve admitted collaborators’ ability to edit the shared construction. Do not make each placed part editable only by its original author.
+- Retain contribution attribution without equating brick counts with the value of a person’s contribution.
+- Preserve immutable saved versions, independent continuations, and the existing access and publication restrictions.
+- A new scene must provide a usable building environment, appropriate framing and controls, and consistent rules—not only additional scenery or a different kit.
+
+## Author direction and implementation workflow (author, 9 Nov 2026)
+
+The author decides expressive intention, product scope, and acceptance of the experience. Claude investigates the codebase, proposes implementation mechanisms, implements the authorised work, and performs technical verification.
+
+For substantial work:
+
+1. Inspect the current repository, relevant rules, ADRs, and working tree.
+2. Translate the requested outcome into concrete implementation and acceptance criteria. Identify affected systems and material trade-offs.
+3. Use reviewable stages where a new interaction pattern or large redesign benefits from one complete example before expansion.
+4. Complete the authorised stage, including necessary verification, and provide a runnable result for the author’s inspection.
+5. Incorporate the author’s concrete feedback and recheck the affected behaviour.
+6. Record consequential decisions, corrections, and actual verification results in their established locations.
+
+Continue autonomously within authorised scope. Do not turn ordinary implementation choices into repeated approval requests. When the task establishes an author-review boundary, provide a concrete, reviewable result at that boundary.
+
+A completion report must distinguish:
+
+- What changed.
+- What was actually checked, where, and with what result.
+- What the author has reviewed or accepted.
+- Any remaining problem or untested condition.
+
+Passing tests does not replace rendered-page inspection. Claude must inspect the result it produces and must not claim that the author is satisfied unless the author has said so.
+
+README.md, PROCESS.md, and reflections remain author-directed documents; the authorship and factual-record rules below continue to apply.
+
+## Corrections and verification (author, 9 Nov 2026)
+
+Investigate a failure before choosing a repair. Distinguish application defects, test defects, stale builds, wrong server targets, and environment limitations.
+
+- Reproduce the relevant failure where practical.
+- Add or update a meaningful check or harness constraint when the correction protects a continuing promise.
+- Verify that a regression check detects the failure it is intended to prevent, where practical.
+- Remove speculative repairs when their premise is disproved.
+- Do not weaken assertions, skip checks, or repeat runs merely to obtain a green result.
+- Separate automated checks, agent browser inspection, and author-observed user testing in reports and evidence.
+- Run checks appropriate to the changed systems. Broaden testing when failures or unresolved risks justify it.
+- Keep original course invariant tests unchanged.
+
+## Production packaging and deployment verification (author, 9 Nov 2026)
+
+A working source tree is not sufficient evidence that the production image works.
+
+- Inspect the transitive runtime imports from the server entry point when changing server-rendered pages or shared modules.
+- Ensure required source modules, runtime packages, and assets exist in the Dockerfile’s final stage. Update packaging alongside dependency changes.
+- Build and test the actual image when Docker is available.
+- If Docker is unavailable, state that limitation and verify the final-stage file layout and import closure. Do not describe that simulation as an image build.
+- Require the existing CI image build and checks to pass before describing the image as verified.
+- Do not change course-provided hosting limits or bypass CI, evidence checks, or secret scans to make a deployment pass.
+- Obtain explicit author authorisation before pushing or deploying, according to the existing repository rule below.
+- Preserve production data and verified backups. A deployment is not permission to reset, restore, or migrate content beyond the authorised scope.
+- After deployment, check the actual HTTPS site and relevant existing data. Do not substitute a local result or HTTP status alone for functional verification.
+- Verify persistence through controlled restart or redeployment when the task affects persistence or requires release acceptance.
+- Use isolated test data for fixture-generating suites; do not fill production with automated test records.
+- Record failures and recovery accurately. Do not describe an incomplete or failed deployment as successful.
+
 ## Development log and commits (author, 6 Oct 2026)
 
 `DEVELOPMENT_LOG.md` is the running factual record. Each kind of record has
@@ -49,7 +125,7 @@ one home:
 - decisions: `doc/adr/`
 
 The author writes `README.md`, `PROCESS.md` and `reflections/`. Never write
-personal experience, opinion, tutor feedback or lessons learned on the
+personal experience, opinion, participant feedback, design decisions, prompt quotations, tutor feedback or lessons learned on the
 author's behalf.
 
 1. Make small, coherent commits as work progresses.
