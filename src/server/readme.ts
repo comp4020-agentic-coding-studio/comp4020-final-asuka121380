@@ -1,39 +1,40 @@
 import { readFileSync } from "node:fs";
 import { marked } from "marked";
 import { pageHeaderHtml } from "../client/ui/pageHeader.ts";
-import {
-  contributionsApproachScene,
-  displayedCreationScene,
-  neighbourhoodScene,
-  pieceSettlesScene,
-  unfinishedCreationScene,
-} from "../client/ui/brickScenes.ts";
+import { ABOUT_SCENES } from "../client/ui/aboutScenes.ts";
 
 // /readme/ is README.md rendered on the server, so the whole argument is in
 // the HTML a visitor (or the shipped check) receives, with no script needed.
-// The URL, the full rendered content, the server-side rendering and the
-// shipped invariant (spec/invariants.test.ts, checked by heading text and
-// order, never by colour or structure) are unchanged by anything below
-// (ADR 0014, "Colour system", "Artistic identity pass").
+// README.md is the page's only source of prose: it is split by heading and
+// each piece goes through `marked.parse()` unchanged, so every word, link
+// and heading of README.md, in order, is what ships (spec/invariants.test.ts
+// checks the headings).
 //
-// The table's booklet leads here (ADR 0014), so the page wears the site's
-// warm identity (red leads, white reads, yellow accents) and reads as a
-// flowing, illustrated account rather than one long card: each of
-// README.md's sections gets its own small composition, in a different
-// rhythm, closing in a deliberate farewell scene. The markdown is split by
-// heading and each piece still goes through the same `marked.parse()` as
-// before — only the *wrapper* around each piece is new, so every word of
-// README.md, and the order its headings appear in, is exactly what ships.
-// All illustration is original, inline SVG, `aria-hidden` and decorative
-// only; no fonts or scripts load from anywhere, so the page works, and
-// reads completely, with no JavaScript (ADR 0014 "Artistic identity pass").
-// Motion is CSS-only, plays once on load (never scroll-hijacking), and
-// collapses entirely under `prefers-reduced-motion: reduce`.
+// The presentation (ADR 0014, "About page: the README's argument in
+// pictures", 8 Nov 2026): each of README.md's sections is illustrated by a
+// scene chosen FOR THAT SECTION, by its heading (CHAPTERS below), not by
+// its position, with a composition suited to what it says:
+// - the opening: a corner of a building table, an unfinished build;
+// - "A table before a menu": the table's sign, parts tray and creation
+//   shelf, with the tray picked out as the object being approached;
+// - "Social interaction with a purpose": a shared build and a roof proposed
+//   as a plan, which then becomes real;
+// - "Keeping what we made": the finished build kept on a display plinth,
+//   two equal contributor markers;
+// - "One intention throughout": every earlier object on one table, the
+//   section's closing argument set large below it.
+// A section CHAPTERS doesn't name (a future README heading) renders in a
+// plain, complete layout.
+//
+// All artwork is original inline SVG (ui/aboutScenes.ts), decorative and
+// `aria-hidden`. No fonts or scripts load from elsewhere. Motion: each
+// scene plays once, when its section first comes into view (an
+// IntersectionObserver, never scroll-linked or scroll-jacking). The
+// animation start states exist only under `html.js`, so without JavaScript
+// every scene is shown finished; `prefers-reduced-motion: reduce` shows
+// the finished scenes without movement.
 
 const escape = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-
-/** Gives an `isoSvg()` string a class so the page's CSS can size and animate it, without touching the SVG markup it already produced. */
-const withClass = (svg: string, cls: string): string => svg.replace("<svg ", `<svg class="${cls}" `);
 
 const ICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect y='5' width='16' height='11' rx='2' fill='%23d2242c'/%3E%3Crect x='2' y='2' width='4' height='4' rx='1' fill='%23d2242c'/%3E%3Crect x='10' y='2' width='4' height='4' rx='1' fill='%23d2242c'/%3E%3C/svg%3E";
@@ -46,7 +47,7 @@ interface Section {
 }
 
 /** Splits README.md into one section per top-level heading (# or ##), each still containing its own heading line — so `marked.parse()` renders the same `<h1>`/`<h2>` text, in the same order, as rendering the whole file at once would. */
-function splitSections(md: string): Section[] {
+export function splitSections(md: string): Section[] {
   const lines = md.split(/\r?\n/);
   const sections: Section[] = [];
   let current: string[] = [];
@@ -73,48 +74,73 @@ function splitSections(md: string): Section[] {
 
 const render = (md: string): string => marked.parse(md, { async: false, gfm: true }) as string;
 
-// ---- original, decorative illustrations ------------------------------------
-// The hero and the three narrative chapter scenes below are built from the
-// same isometric brick primitive the saved-creation thumbnails and the
-// lobby's new "ways to begin" tiles use (`ui/brickScenes.ts`, itself built
-// on `ui/iso.ts`) — one brick-drawing system for the whole site, not a
-// second, flatter icon language invented for this page (author's brief,
-// "Bolder artistic pass", 5 Nov 2026). The hero keeps a real `aria-label`
-// (it is the substantive opening image, not decoration); the chapter scenes
-// are marked `aria-hidden` since each sits beside prose that already says
-// what it shows.
+/** A heading reduced to lower-case words, so small punctuation or case edits to README.md still find their chapter. */
+export const slug = (heading: string): string =>
+  heading
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
-/** The opening scene (brief: "a memorable scene… an unfinished creation with room for another person's idea"): three built contributions around one deliberate gap, with a translucent proposed piece — the same "plan" look the editor itself uses — approaching it. */
-const heroArt = (): string => withClass(unfinishedCreationScene(), "hero-art");
+type Treatment = "table" | "proposal" | "kept" | "intention";
 
 /**
- * The joining chapter's "a suggestion finds its place": two isoSvg renders
- * of the *same* geometry, one with the third piece still a translucent
- * proposal (`contributionsApproachScene`), one with it real and seated
- * (`pieceSettlesScene`) — both share one viewBox (same bricks, same
- * bounding box), so they can be stacked and cross-faded in place, playing
- * once as the proposal becomes part of the build, never as a loop.
+ * Which treatment illustrates which README section, by the section's
+ * heading. Unknown headings get none (a plain chapter). If a heading is
+ * reworded, add its new slug here: the page still renders every word in the
+ * meantime, just without that section's picture.
  */
-const joiningArt = (): string => `
-<span class="joining-art">
-  ${withClass(contributionsApproachScene(), "joining-before")}
-  ${withClass(pieceSettlesScene(), "joining-after")}
-</span>`;
+export const CHAPTERS: Readonly<Record<string, Treatment>> = {
+  [slug("A table before a menu")]: "table",
+  [slug("Social interaction with a purpose")]: "proposal",
+  [slug("Keeping what we made")]: "kept",
+  [slug("One intention throughout")]: "intention",
+};
 
-/** The creation among a couple of plainer neighbours, same ground, same strip: build somewhere, not in a void. */
-const neighbourhoodArt = (): string => withClass(neighbourhoodScene(), "place-art");
+export const treatmentFor = (heading: string): Treatment | undefined => CHAPTERS[slug(heading)];
 
-/** The creation on a display plinth, with two equal-sized contributor nameplate studs: shared memory, without inventing anyone's name or story. */
-const keepsakeArt = (): string => withClass(displayedCreationScene(), "keepsake-art");
+/** One README section in its chapter's composition. The section's own rendered markdown is placed whole, never edited. */
+function chapterHtml(s: Section, n: number): string {
+  const t = treatmentFor(s.heading);
+  const body = render(s.md);
+  const num = `<span class="chapter-num" aria-hidden="true">${String(n).padStart(2, "0")}</span>`;
+  // a stable anchor per chapter (#a-table-before-a-menu), kept clear of the sticky beam by section's scroll-margin
+  const id = `id="${slug(s.heading).replace(/ /g, "-")}"`;
+  switch (t) {
+    case "table":
+      return `
+    <section class="chapter ch-table" data-anim ${id}>
+      <div class="ch-table-copy">${num}${body}</div>
+      <figure class="ch-table-art">${ABOUT_SCENES.table()}</figure>
+    </section>`;
+    case "proposal":
+      return `
+    <section class="chapter ch-proposal" data-anim ${id}>
+      <figure class="ch-proposal-art">${ABOUT_SCENES.proposal()}<figcaption aria-hidden="true"><span class="cap-plan">a plan</span><span class="cap-arrow">&rarr;</span><span class="cap-real">part of the build</span></figcaption></figure>
+      <div class="ch-proposal-copy">${num}${body}</div>
+    </section>`;
+    case "kept":
+      return `
+    <section class="chapter ch-kept" data-anim ${id}>
+      <div class="ch-kept-copy">${num}${body}</div>
+      <figure class="ch-kept-art">${ABOUT_SCENES.kept()}</figure>
+    </section>`;
+    case "intention":
+      return `
+    <section class="chapter ch-intention" data-anim ${id}>
+      <div class="ch-intention-inner">
+        <div class="ch-intention-copy">${num}${body}</div>
+        <figure class="ch-intention-art">${ABOUT_SCENES.intention()}</figure>
+      </div>
+    </section>`;
+    default:
+      return `
+    <section class="chapter ch-plain" ${id}>
+      <div class="ch-plain-copy">${body}</div>
+    </section>`;
+  }
+}
 
-/** A small checklist mark beside a plain brick: the two kinds of claim the last chapter makes — what's tested, and what still needs a person's judgement. */
-const checklistArt = (): string => `
-<svg class="checklist-art" viewBox="0 0 64 64" aria-hidden="true">
-  <rect x="8" y="8" width="48" height="48" rx="10" fill="var(--yellow-soft)"/>
-  <path d="M20 33 L29 42 L45 23" fill="none" stroke="var(--ok)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
-
-/** The closing scene: a small finished-enough stack with a brick cap and a heart pressed into the top stud, standing in for the "unfinished house" motif settling, at last, into something kept. */
+/** The closing heart brick (unchanged from the previous About page). */
 const finaleArt = (): string => `
 <svg class="finale-art" viewBox="0 0 120 110" aria-hidden="true">
   <rect x="20" y="58" width="80" height="34" rx="4" fill="var(--red)"/>
@@ -128,57 +154,19 @@ export function renderReadme(path: string): string {
   const md = readFileSync(path, "utf8");
   const sections = splitSections(md);
   const title = md.match(/^#\s+(.+)$/m)?.[1] ?? "About";
+  // the opening is README.md's title section (# …), or the untitled text
+  // before its first heading; a file that starts with ## has no opening and
+  // every section is a chapter
+  const opening = sections[0]?.level === 1 ? sections[0] : undefined;
+  const chapters = opening ? sections.slice(1) : sections;
 
-  const hero = sections[0] ? `
+  const hero = opening
+    ? `
     <section class="hero" data-anim>
-      <div class="hero-copy">
-        ${render(sections[0].md)}
-      </div>
-      ${heroArt()}
-    </section>` : "";
-
-  // README.md's four H2 sections, in order: "A shared building, a shared
-  // memory", "Build somewhere, not in a void", "Join, build, and keep a
-  // creation", "What is checked, and what needs judgement". Matched by
-  // position, not by guessing at exact wording, so a small wording edit to
-  // README.md doesn't silently break the illustration assignment — if the
-  // author ever adds or removes a section, the extra ones still render,
-  // undecorated, in the generic `.chapter-plain` layout below.
-  //
-  // Refinement (author's brief, 5 Nov 2026): a real browser check found
-  // every chapter mechanically alternating the same two-column shape,
-  // squeezing text into a narrow column beside an oversized illustration.
-  // Each chapter now picks a composition suited to its own length and
-  // role: the longest, most substantive chapter (cooperation and shared
-  // memory) reads at full width with its illustration as a floated accent,
-  // not a permanent side column; the two shorter, more scene-setting
-  // chapters (the neighbourhood, the saved keepsake) keep a supporting
-  // illustration column, sized to the text rather than overwhelming it;
-  // the closing, informational chapter (what's checked vs. what needs
-  // judgement) is a single compact column with a small inline icon.
-  // `inCopy: true` means the art is placed first inside `.chapter-copy`
-  // (so it floats correctly beside the start of the rendered prose);
-  // otherwise it's a separate column beside the copy.
-  const chapters = sections.slice(1);
-  const layouts: { art: () => string; cls: string; inCopy: boolean }[] = [
-    { art: joiningArt, cls: "chapter-wide chapter-join", inCopy: true },
-    { art: neighbourhoodArt, cls: "chapter-support chapter-place alt", inCopy: false },
-    { art: keepsakeArt, cls: "chapter-support chapter-keep", inCopy: false },
-    { art: checklistArt, cls: "chapter-compact chapter-checked", inCopy: true },
-  ];
-  const chapterHtml = chapters
-    .map((s, i) => {
-      const layout = layouts[i];
-      const art = layout ? layout.art() : "";
-      const cls = layout ? layout.cls : "chapter-plain";
-      const copy = `<div class="chapter-copy">${layout?.inCopy ? art : ""}${render(s.md)}</div>`;
-      return `
-    <section class="chapter ${cls}" data-anim>
-      ${!layout || layout.inCopy ? "" : art}
-      ${copy}
-    </section>`;
-    })
-    .join("\n");
+      <div class="hero-copy">${render(opening.md)}</div>
+      <figure class="hero-art">${ABOUT_SCENES.opening()}</figure>
+    </section>`
+    : "";
 
   return `<!doctype html>
 <html lang="en-AU">
@@ -187,15 +175,14 @@ export function renderReadme(path: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escape(title)}</title>
 <link rel="icon" href="${ICON}" />
+<script>document.documentElement.classList.add("js");</script>
 <style>
   :root {
     --ink: #241a17;
     --ink-soft: #5c4f49;
     --white: #ffffff;
-    --paper: #ffffff;
     --wash: #fbf5ee;
     --line: #ecdfd2;
-    --line-strong: #cdb9a4;
     --red: #d2242c;
     --red-edge: #9c141c;
     --red-deep: #7a0f17;
@@ -204,334 +191,239 @@ export function renderReadme(path: string): string {
     --yellow: #ffcf3d;
     --yellow-edge: #d99f00;
     --yellow-soft: #fff3cf;
-    --ok: #1d7f45;
     --link: #134f85;
     --display: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --measure: 40rem;
+    --beam: 4.6rem;
     color: var(--ink);
     background: var(--wash);
     font: 17px/1.65 ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    width: 100%;
-    min-height: 100vh;
-    background: var(--wash);
-    overflow-x: hidden;
-  }
+  body { margin: 0; width: 100%; min-height: 100vh; background: var(--wash); overflow-x: hidden; }
   :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
 
-  /* ---- the shared dedicated-page header (ui/pageHeader.ts) --------------
-     Refinement (author's brief, 5 Nov 2026): About previously had its own
-     bar with only the brand and a return button, not the shared nav the
-     other dedicated pages use. This is the exact same markup Shell.tsx
-     renders client-side, styled here with plain CSS (no JavaScript
-     involved in producing or showing it), so About keeps working with no
-     script while still reading as the same place as the lobby/account/
-     collection/showcase pages. */
-  .page-beam {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: linear-gradient(180deg, var(--red) 0%, var(--red) 82%, var(--red-edge) 100%);
-    box-shadow: 0 3px 0 var(--red-deep);
-  }
-  .page-beam-studs {
-    height: 7px;
-    background-image: radial-gradient(circle at 50% 35%, rgb(255 255 255 / 0.4) 0 28%, transparent 30%);
-    background-size: 22px 100%;
-    background-position: 11px 0;
-    background-repeat: repeat-x;
-    opacity: 0.55;
-  }
-  .page-beam-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1.2rem;
-    padding: 0.65rem clamp(1rem, 4vw, 2rem) 0.75rem;
-  }
-  .home-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    color: #fff;
-    font: 800 1.2rem/1 var(--display);
-    letter-spacing: -0.01em;
-    text-decoration: none;
-  }
+  /* ---- the shared dedicated-page header (ui/pageHeader.ts) -------------- */
+  .page-beam { position: sticky; top: 0; z-index: 5; background: linear-gradient(180deg, var(--red) 0%, var(--red) 82%, var(--red-edge) 100%); box-shadow: 0 3px 0 var(--red-deep); }
+  .page-beam-studs { height: 7px; background-image: radial-gradient(circle at 50% 35%, rgb(255 255 255 / 0.4) 0 28%, transparent 30%); background-size: 22px 100%; background-position: 11px 0; background-repeat: repeat-x; opacity: 0.55; }
+  .page-beam-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.2rem; padding: 0.65rem clamp(1rem, 4vw, 2rem) 0.75rem; }
+  .home-link { display: inline-flex; align-items: center; gap: 0.55rem; color: #fff; font: 800 1.2rem/1 var(--display); letter-spacing: -0.01em; text-decoration: none; }
   .home-link svg { width: 32px; height: 32px; filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.18)); }
   .page-nav { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-right: auto; }
-  .page-nav a {
-    padding: 0.5rem 0.75rem;
-    border-radius: 10px;
-    color: #fff;
-    font-weight: 800;
-    font-size: 0.94rem;
-    text-decoration: none;
-    opacity: 0.88;
-  }
+  .page-nav a { padding: 0.5rem 0.75rem; border-radius: 10px; color: #fff; font-weight: 800; font-size: 0.94rem; text-decoration: none; opacity: 0.88; }
   .page-nav a:hover { background: rgb(255 255 255 / 0.16); opacity: 1; }
   .page-nav a[aria-current="page"] { background: #fff; color: var(--red-deep); opacity: 1; box-shadow: 0 2px 0 rgb(0 0 0 / 0.18); }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    min-height: 44px;
-    padding: 0.5rem 0.95rem;
-    border: 2px solid rgb(255 255 255 / 0.4);
-    border-radius: 12px;
-    background: rgb(255 255 255 / 0.14);
-    color: #fff;
-    font: 800 0.95rem/1 var(--display);
-    text-decoration: none;
-    backdrop-filter: blur(2px);
-  }
-  .btn:hover { background: rgb(255 255 255 / 0.22); }
-  .btn:active { transform: translateY(1px); }
-  .btn-small { min-height: 40px; padding: 0.4rem 0.8rem; font-size: 0.9rem; }
+  .page-beam .btn { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 40px; padding: 0.4rem 0.8rem; border: 2px solid rgb(255 255 255 / 0.4); border-radius: 12px; background: rgb(255 255 255 / 0.14); color: #fff; font: 800 0.9rem/1 var(--display); text-decoration: none; }
+  .page-beam .btn:hover { background: rgb(255 255 255 / 0.22); }
   .to-table { white-space: nowrap; }
+  .page-beam :focus-visible { outline-color: #fff; }
+  .ch-intention a { color: #fff; }
+  .ch-intention :focus-visible { outline-color: var(--yellow); }
 
-  /* ---- the story: one flowing page, each chapter its own composition --- */
-
-  /* Refinement (author's brief, 5 Nov 2026): a real browser check found the
-     middle chapters cramming body text into a narrow column beside an
-     oversized illustration, causing frequent short line wraps. The page
-     now uses a wider shared frame (.story), and each chapter picks its
-     own composition rather than mechanically alternating one two-column
-     template: a wide single column for the longest, most important prose
-     (the opening and the cooperation chapter), a supporting-illustration
-     layout with a narrower but still comfortable art column for the two
-     shorter chapters, and a compact single-column read for the closing
-     "checked vs. judgement" chapter — varied rhythm, not one repeated
-     shape (the brief's own description of the intended structure). */
-  .story { width: min(74rem, 100%); margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem); }
-
-  /* the beam is sticky and sits above everything (z-index: 5); any
-     scroll-to-section (a browser's own find-in-page jump, or a future
-     in-page link) must not land a heading underneath it */
-  h1, h2, h3, h4 { font-family: var(--display); line-height: 1.12; letter-spacing: -0.015em; color: var(--ink); scroll-margin-top: 6.5rem; }
-  .chapter, .chapter-wide, .chapter-support, .chapter-compact, .chapter-plain, .hero { scroll-margin-top: 5.5rem; }
+  /* ---- type ---------------------------------------------------------------- */
+  h1, h2, h3, h4 { font-family: var(--display); line-height: 1.1; letter-spacing: -0.015em; color: var(--ink); scroll-margin-top: calc(var(--beam) + 1.5rem); }
   p, ul, ol { margin: 0 0 1rem; }
   li + li { margin-top: 0.3rem; }
-  a { color: var(--link); text-underline-offset: 2px; }
+  a { color: var(--link); text-underline-offset: 2px; text-decoration-thickness: 1.5px; }
+  a:hover { text-decoration-thickness: 2.5px; }
   strong { color: var(--ink); }
-  blockquote { margin: 1.2rem 0; padding: 0.6rem 1rem; border-left: 4px solid var(--yellow); background: var(--yellow-soft); border-radius: 0 10px 10px 0; color: var(--ink-soft); }
+  blockquote { margin: 1.2rem 0; padding: 0.6rem 1rem; border-left: 4px solid var(--yellow); background: var(--yellow-soft); border-radius: 0 10px 10px 0; }
   img { max-width: 100%; height: auto; border-radius: 10px; }
   code { background: var(--wash); padding: 0.05em 0.3em; border-radius: 4px; font-size: 0.92em; }
   pre { background: var(--wash); padding: 0.9rem; overflow-x: auto; border-radius: 10px; }
-  pre code { padding: 0; background: none; }
-  .table-wrap, table { display: block; max-width: 100%; overflow-x: auto; }
-  table { border-collapse: collapse; font-size: 0.92rem; margin: 0 0 1rem; }
+  table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.92rem; margin: 0 0 1rem; }
   th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--wash); }
+  figure { margin: 0; }
+  section { scroll-margin-top: calc(var(--beam) + 1rem); }
 
-  /* the opening (brief: "a substantial original visual scene… enough scale,
-     detail and contrast to carry the opening — do not replace one tiny
-     icon with several tiny icons"): the scene now sits directly beside the
-     title and lede, at a real hero size, in a two-column frame on wide
-     screens that still reads top-to-bottom first (the text column comes
-     first in the markup) and stacks on narrow ones — asymmetric, but with
-     one clear reading order, never requiring the scene to be understood
-     before the words are. */
+  /* ---- layered scenes (ui/aboutScenes.ts): layers share one viewBox, stacked in one box ---- */
+  .scene { position: relative; display: block; width: 100%; }
+  .scene .layer { display: block; width: 100%; height: auto; overflow: visible; }
+  .scene .layer + .layer { position: absolute; inset: 0; }
+
+  .story { width: min(78rem, 100%); margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem); }
+  .chapter { position: relative; }
+  .chapter-num { display: block; margin-bottom: 0.4rem; font: 800 0.95rem/1 var(--display); letter-spacing: 0.08em; color: var(--red); }
+  .chapter h2 { margin: 0 0 0.9rem; font-size: clamp(1.9rem, 4vw, 2.9rem); font-weight: 800; color: var(--red-deep); }
+
+  /* ---- the opening: a building table, the title beside it ---------------- */
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 26rem);
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
     align-items: center;
-    gap: clamp(1.6rem, 4vw, 3.5rem);
-    padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(2.2rem, 5vw, 3.4rem);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    padding: clamp(2.5rem, 6vw, 5rem) 0 clamp(2rem, 4vw, 3rem);
   }
-  .hero-copy { max-width: 42rem; }
-  .hero-copy h1 {
-    margin: 0 0 1rem;
-    font-size: clamp(2.6rem, 6vw, 4.2rem);
-    font-weight: 800;
+  .hero-copy { max-width: 38rem; }
+  .hero-copy h1 { margin: 0 0 1.1rem; font-size: clamp(2.8rem, 7vw, 5rem); font-weight: 800; color: var(--red-deep); }
+  .hero-copy p { font-size: 1.12rem; line-height: 1.65; }
+  .hero-copy p:first-of-type { font-size: 1.24rem; color: var(--ink); }
+  .hero-art { position: relative; }
+  .hero-art::before {
+    /* a warm pool of light on the table */
+    content: ""; position: absolute; inset: 8% -4% -4% 4%; z-index: -1;
+    background: radial-gradient(closest-side, var(--yellow-soft), transparent);
   }
-  .hero-copy p { font-size: 1.15rem; line-height: 1.6; color: var(--ink-soft); }
-  .hero-art {
-    width: 100%;
-    height: auto;
-    filter: drop-shadow(0 10px 18px rgb(36 26 23 / 0.16));
-    opacity: 0;
-    transform: translateY(18px) scale(0.96);
-  }
-  .hero.anim-in .hero-art { animation: popIn 640ms 120ms cubic-bezier(.2,.7,.3,1) both; }
-  .hero:not(.anim-in) .hero-art { opacity: 1; transform: none; }
+  .hero-art .scene { filter: drop-shadow(0 14px 22px rgb(36 26 23 / 0.18)); }
 
-  /* a wide chapter: full-width, comfortably-measured prose (the longest,
-     most substantive chapter gets the most reading room), with its
-     illustration set as a smaller accent beside the heading — floated,
-     so the text still reads at one even measure beneath it rather than
-     being squeezed into a narrow permanent side column */
-  .chapter-wide {
-    padding: clamp(2.2rem, 5vw, 3.6rem) 0;
-    border-top: 2px dashed var(--line);
-  }
-  .chapter-wide .chapter-copy { max-width: 50rem; }
-  .chapter-wide .chapter-copy h2 {
-    margin: 0 0 0.7rem;
-    font-size: clamp(1.6rem, 3.4vw, 2.3rem);
-    color: var(--red-deep);
-  }
-  .chapter-wide .joining-art {
-    float: right;
-    position: relative;
-    display: block;
-    width: min(16rem, 40%);
-    margin: 0.2rem 0 1rem 1.6rem;
-  }
-  .chapter-wide .chapter-copy::after { content: ""; display: block; clear: both; }
-
-  /* a supporting chapter: prose keeps a comfortable measure of its own
-     (constrained on the copy, not stretched to fill a narrow grid track);
-     its illustration sits beside it as a smaller, proportionate column,
-     never wider than the text it accompanies */
-  .chapter-support {
+  /* ---- "A table before a menu": a wide table strip under the text --------- */
+  .ch-table {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(11rem, 15rem);
-    align-items: start;
-    gap: 2.2rem;
-    padding: clamp(2.2rem, 5vw, 3.6rem) 0;
-    border-top: 2px dashed var(--line);
+    grid-template-columns: minmax(0, var(--measure)) minmax(0, 1fr);
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    align-items: center;
+    padding: clamp(3rem, 7vw, 5.5rem) 0;
   }
-  .chapter-support.alt { grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); }
-  .chapter-support.alt .chapter-copy { order: 2; }
-  /* non-alt: the art is emitted before .chapter-copy in markup (so it
-     reads art-then-prose in a screen reader or no-CSS fallback), but the
-     wide column is first in this variant's track list -- without an
-     explicit order, the art would land in the wide column and the prose
-     in the narrow one, the opposite of "a supporting illustration column,
-     sized to the text, never overwhelming it" (found in a real browser
-     check, 5 Nov 2026, once the art became a real detailed scene rather
-     than a small flat icon and the bug became visible). */
-  .chapter-support:not(.alt) > :first-child:not(.chapter-copy) { order: 2; }
-  .chapter-support .chapter-copy {
-    max-width: 38rem;
-  }
-  .chapter-support .chapter-copy h2 {
-    margin: 0 0 0.7rem;
-    font-size: clamp(1.5rem, 3.2vw, 2.1rem);
-    color: var(--red-deep);
-  }
-  .chapter-support :is(.place-art, .keepsake-art) { width: 100%; height: auto; justify-self: center; margin-top: 0.3rem; filter: drop-shadow(0 6px 12px rgb(36 26 23 / 0.14)); }
+  .ch-table-art { position: relative; }
+  .ch-table-art .scene { filter: drop-shadow(0 10px 16px rgb(36 26 23 / 0.15)); }
 
-  .chapter p, .chapter ul, .chapter-wide p, .chapter-wide ul, .chapter-support p, .chapter-support ul { color: var(--ink); }
-
-  /* a compact, informational chapter: smaller type, a single-column read
-     at a comfortable measure, a small icon set beside the heading instead
-     of a full scene */
-  .chapter-compact {
-    padding: clamp(2.2rem, 5vw, 3.6rem) 0;
-    border-top: 2px dashed var(--line);
-  }
-  .chapter-compact .chapter-copy { max-width: 46rem; }
-  .chapter-compact .checklist-art {
-    float: left;
-    width: 2.2rem;
-    height: 2.2rem;
-    margin: 0.2rem 0.7rem 0 0;
-  }
-  .chapter-compact .chapter-copy h2 { margin: 0 0 0.6rem; font-size: 1.3rem; color: var(--red-deep); }
-  .chapter-compact .chapter-copy p { font-size: 0.98rem; }
-  /* the icon floats only beside the heading; the prose below always
-     starts at the full column width, never squeezed beside it */
-  .chapter-compact .chapter-copy p:first-of-type { clear: both; }
-
-  /* a generic fallback for any section this file doesn't name a layout
-     for (if README.md ever gains or loses a heading): a plain wide read,
-     never broken, never undecorated-looking as an error */
-  .chapter-plain {
-    padding: clamp(2.2rem, 5vw, 3.6rem) 0;
-    border-top: 2px dashed var(--line);
-  }
-  .chapter-plain .chapter-copy { max-width: 48rem; }
-
-  /* the proposed piece finding its place (brief, section 7: "a proposed
-     piece settling into a gap"): two renders of the same scene, stacked in
-     the same box — the "before" (piece still a translucent plan) visible
-     first, the "after" (piece now real) fading in over it and staying, a
-     single settling moment, never a loop. */
-  .joining-art { position: relative; display: block; }
-  .joining-before, .joining-after { display: block; width: 100%; height: auto; }
-  .joining-after { position: absolute; inset: 0; opacity: 0; }
-  .chapter-join.anim-in .joining-after { animation: settleIn 520ms 420ms cubic-bezier(.3,0,.2,1) both; }
-  .chapter-join:not(.anim-in) .joining-after { opacity: 1; }
-
-  .place-art, .keepsake-art { opacity: 0; transform: translateY(10px); }
-  .chapter-place.anim-in .place-art { animation: popIn 560ms 140ms ease-out both; }
-  .chapter-place:not(.anim-in) .place-art { opacity: 1; transform: none; }
-  .chapter-keep.anim-in .keepsake-art { animation: popIn 560ms 100ms ease-out both; }
-  .chapter-keep:not(.anim-in) .keepsake-art { opacity: 1; transform: none; }
-
-  @keyframes popIn { from { opacity: 0; transform: translateY(14px) scale(0.92); } to { opacity: 1; transform: none; } }
-  @keyframes settleIn { from { opacity: 0; } to { opacity: 1; } }
-
-  @media (prefers-reduced-motion: reduce) {
-    .hero-art, .joining-after, .place-art, .keepsake-art {
-      animation: none !important;
-      opacity: 1 !important;
-      transform: none !important;
-    }
-  }
-
-  /* the closing scene: warm, unhurried, a deliberate farewell */
-  .finale {
+  /* ---- "Social interaction": the proposal on a red stage, prose beside it -- */
+  .ch-proposal {
     display: grid;
-    justify-items: center;
-    gap: 0.7rem;
-    margin-top: 1rem;
-    padding: clamp(3rem, 8vw, 5rem) 1.5rem clamp(2.5rem, 6vw, 4rem);
-    background: linear-gradient(180deg, var(--wash), var(--yellow-soft) 140%);
-    text-align: center;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, var(--measure));
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    align-items: center;
+    margin: 0 calc(-1 * clamp(1rem, 4vw, 2.5rem));
+    padding: clamp(3rem, 7vw, 5.5rem) clamp(1rem, 4vw, 2.5rem);
+    background: linear-gradient(160deg, #fff 0%, #fff 55%, var(--yellow-soft) 100%);
+    border-radius: 28px;
+    box-shadow: 0 2px 0 var(--line);
   }
+  .ch-proposal-art { position: relative; padding: clamp(1rem, 3vw, 2rem); border-radius: 22px; background: radial-gradient(120% 90% at 50% 70%, #ffe3e3 0%, #fff 70%); }
+  .ch-proposal-art figcaption {
+    display: flex; justify-content: center; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    margin-top: 0.8rem; font: 800 0.85rem/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  /* plain labels, not pills: nothing in the picture may look like a button */
+  .ch-proposal-art figcaption { font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 0.92rem; color: var(--ink-soft); }
+  .cap-plan { padding-bottom: 0.15rem; border-bottom: 2px dashed var(--blue); }
+  .cap-arrow { color: var(--red); }
+  .cap-real { padding-bottom: 0.15rem; border-bottom: 2px solid var(--blue); }
+
+  /* ---- "Keeping what we made": the kept creation on its plinth ------------ */
+  .ch-kept {
+    display: grid;
+    grid-template-columns: minmax(0, var(--measure)) minmax(0, 0.8fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: center;
+    padding: clamp(3rem, 7vw, 5.5rem) 0;
+  }
+  .ch-kept-art { position: relative; padding: 1rem 8% 0; }
+  .ch-kept-art::before {
+    /* the shelf the kept piece stands on: a wall shelf, behind and below */
+    content: ""; position: absolute; left: 0; right: 0; bottom: 6%; height: 16px; z-index: -1;
+    background: var(--red); border-radius: 6px; box-shadow: 0 6px 0 var(--red-edge), 0 18px 24px rgb(36 26 23 / 0.15);
+  }
+
+  /* ---- "One intention throughout": the conclusion, full-bleed red -------- */
+  .ch-intention {
+    margin: clamp(1rem, 3vw, 2rem) calc(50% - 50vw) 0;
+    padding: clamp(3.2rem, 7vw, 6rem) 0 clamp(2.5rem, 5vw, 4rem);
+    background: radial-gradient(120% 80% at 50% 0%, #e0333b 0%, var(--red) 45%, var(--red-edge) 100%);
+    color: #fff;
+  }
+  .ch-intention-inner { width: min(78rem, 100%); margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem); }
+  .ch-intention-copy { max-width: 52rem; margin: 0 auto; }
+  .ch-intention .chapter-num { color: var(--yellow); }
+  .ch-intention h2 { color: #fff; font-size: clamp(2.2rem, 5vw, 3.6rem); }
+  .ch-intention p { color: rgb(255 255 255 / 0.92); font-size: 1.06rem; }
+  .ch-intention a { color: #fff; }
+  /* the section's closing argument: README.md's own last paragraph, set as
+     the page's conclusion (style only; the words are exactly README.md's) */
+  .ch-intention-copy > p:last-of-type {
+    margin: 1.6rem 0 0;
+    padding: 1.4rem 0 0;
+    border-top: 3px solid var(--yellow);
+    font: 700 clamp(1.25rem, 2.4vw, 1.7rem)/1.42 var(--display);
+    letter-spacing: -0.005em;
+    color: #fff;
+  }
+  .ch-intention-art { margin: clamp(2rem, 5vw, 3.5rem) auto 0; max-width: 64rem; }
+  .ch-intention-art .scene { filter: drop-shadow(0 18px 26px rgb(60 0 0 / 0.35)); }
+
+  /* ---- a section with no named treatment: a plain, complete read --------- */
+  .ch-plain { padding: clamp(2.5rem, 6vw, 4rem) 0; border-top: 2px dashed var(--line); }
+  .ch-plain-copy { max-width: var(--measure); }
+  .ch-plain h2 { margin: 0 0 0.9rem; font-size: clamp(1.7rem, 3.6vw, 2.4rem); color: var(--red-deep); }
+
+  /* ---- the signature -------------------------------------------------------- */
+  .finale { display: grid; justify-items: center; gap: 0.7rem; padding: clamp(3rem, 7vw, 4.5rem) 1.5rem clamp(2.2rem, 5vw, 3.2rem); background: linear-gradient(180deg, var(--wash), var(--yellow-soft) 140%); text-align: center; }
   .finale-art { width: 5.5rem; height: auto; }
-  .finale-made {
-    margin: 0;
-    font: 800 clamp(1.3rem, 3.4vw, 1.9rem) / 1.2 var(--display);
-    color: var(--ink);
-  }
+  .finale-made { margin: 0; font: 800 clamp(1.3rem, 3.4vw, 1.9rem) / 1.2 var(--display); color: var(--ink); }
   .finale-heart { color: var(--red); }
   .finale-actions { margin-top: 0.6rem; }
-  .finale-table {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 48px;
-    padding: 0.65rem 1.4rem;
-    border: none;
-    border-radius: 14px;
-    background: var(--red);
-    box-shadow: 0 4px 0 var(--red-edge);
-    color: #fff;
-    font: 800 1.02rem/1 var(--display);
-    text-decoration: none;
-  }
+  .finale-table { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 48px; padding: 0.65rem 1.4rem; border-radius: 14px; background: var(--red); box-shadow: 0 4px 0 var(--red-edge); color: #fff; font: 800 1.02rem/1 var(--display); text-decoration: none; }
   .finale-table:hover { filter: brightness(1.05); }
   .finale-table:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--red-edge); }
-
   .foot { margin: 0 auto 2.5rem; width: min(44rem, calc(100% - 2rem)); color: var(--ink-soft); font-size: 0.8rem; text-align: center; }
 
-  @media (max-width: 760px) {
-    .hero { grid-template-columns: 1fr; }
-    .hero-art { width: min(20rem, 80%); margin: 0 auto; }
-    .chapter-wide .joining-art { float: none; width: min(18rem, 75%); margin: 0 auto 1rem; }
-    .chapter-support { grid-template-columns: 1fr; }
-    .chapter-support.alt .chapter-copy { order: 0; }
-    .chapter-support :is(.place-art, .keepsake-art) { max-width: 18rem; margin: 0 auto; }
+  /* ---- motion: once, when a section comes into view ---------------------------
+     Start states exist only with JavaScript (html.js) and before .in-view; a
+     section that is never observed, or a page without script, shows the
+     finished scene. */
+  @media (prefers-reduced-motion: no-preference) {
+    /* the opening: the build's bricks settle on to the table, the tray fills, loose bricks drop */
+    html.js .hero:not(.in-view) .layer-build,
+    html.js .hero:not(.in-view) .layer-contents,
+    html.js .hero:not(.in-view) .layer-loose { opacity: 0; transform: translateY(-7%); }
+    .hero.in-view .layer-build { animation: drop 620ms 150ms cubic-bezier(.25,.8,.3,1.15) both; }
+    .hero.in-view .layer-contents { animation: drop 420ms 520ms cubic-bezier(.25,.8,.3,1.2) both; }
+    .hero.in-view .layer-loose { animation: drop 480ms 760ms cubic-bezier(.25,.8,.3,1.25) both; }
+
+    /* a table before a menu: the view frames in towards the tray, which lights up */
+    html.js .ch-table:not(.in-view) .scene { transform: scale(0.94); transform-origin: 48% 60%; }
+    html.js .ch-table:not(.in-view) .layer-glow { opacity: 0; }
+    .ch-table.in-view .scene { animation: frameIn 900ms 120ms cubic-bezier(.3,.7,.3,1) both; transform-origin: 48% 60%; }
+    .ch-table.in-view .layer-glow { animation: glow 700ms 700ms ease-out both; }
+
+    /* social interaction: the planned roof comes down and becomes real */
+    html.js .ch-proposal:not(.in-view) .layer-real { opacity: 0; transform: translateY(-6%); }
+    html.js .ch-proposal:not(.in-view) .layer-plan { opacity: 1; }
+    html.js .ch-proposal:not(.in-view) .cap-real { opacity: 0; }
+    html.js .ch-proposal:not(.in-view) .layer-next { opacity: 0; }
+    .ch-proposal.in-view .layer-next { animation: capOn 400ms 1500ms ease-out both; }
+    .ch-proposal.in-view .layer-plan { animation: planLeaves 700ms 650ms ease-in both; }
+    .ch-proposal.in-view .layer-real { animation: seat 520ms 900ms cubic-bezier(.3,.8,.35,1.2) both; }
+    .ch-proposal.in-view .cap-real { animation: capOn 300ms 1250ms ease-out both; }
+
+    /* keeping: the creation is set down on its plinth */
+    html.js .ch-kept:not(.in-view) .layer-creation { opacity: 0; transform: translateY(-9%); }
+    .ch-kept.in-view .layer-creation { animation: drop 640ms 200ms cubic-bezier(.25,.8,.3,1.12) both; }
+
+    /* one intention: the whole table rises into place */
+    html.js .ch-intention:not(.in-view) .ch-intention-art { opacity: 0; transform: translateY(26px); }
+    .ch-intention.in-view .ch-intention-art { animation: rise 760ms 200ms cubic-bezier(.25,.8,.3,1) both; }
+  }
+  /* without motion (or once played) the finished state is the default: the
+     planned roof is gone and the real one is in place */
+  .layer-plan { opacity: 0; }
+  html.js .ch-proposal.in-view .layer-plan { opacity: 0; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-7%); } 70% { opacity: 1; } to { opacity: 1; transform: none; } }
+  @keyframes frameIn { from { transform: scale(0.94); } to { transform: scale(1); } }
+  @keyframes glow { 0% { opacity: 0; } 55% { opacity: 1; } 75% { opacity: 0.75; } 100% { opacity: 1; } }
+  @keyframes planLeaves { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes seat { from { opacity: 0; transform: translateY(-6%); } to { opacity: 1; transform: none; } }
+  @keyframes capOn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+
+  /* ---- narrower screens ------------------------------------------------------ */
+  @media (max-width: 900px) {
+    .hero, .ch-table, .ch-proposal, .ch-kept { grid-template-columns: minmax(0, 1fr); }
+    .hero-art { max-width: 34rem; margin: 0 auto; width: 100%; }
+    .ch-table-art { max-width: 38rem; margin: 0 auto; width: 100%; }
+    .ch-proposal-art { order: 2; max-width: 30rem; margin: 0 auto; width: 100%; }
+    .ch-kept-art { max-width: 24rem; margin: 0 auto; width: 100%; }
+    .ch-proposal { margin: 0; border-radius: 20px; }
   }
   @media (max-width: 560px) {
-    :root { font-size: 16px; }
+    :root { font-size: 16px; --beam: 7.4rem; }
     .page-beam-row { gap: 0.4rem 0.6rem; }
     .page-nav { order: 3; width: 100%; margin-right: 0; overflow-x: auto; flex-wrap: nowrap; }
     .page-nav a { white-space: nowrap; }
     .to-table { margin-left: auto; }
-    .btn-small { min-height: 40px; padding: 0.4rem 0.8rem; font-size: 0.92rem; white-space: nowrap; }
-    /* the beam wraps the nav onto its own row here, roughly doubling its
-       height, so a scrolled-to heading needs more clearance to stay clear
-       of it (brief: "check sticky-header overlap... so headings are not
-       obscured when navigating or scrolling") */
-    h1, h2, h3, h4 { scroll-margin-top: 10.5rem; }
-    .chapter, .chapter-wide, .chapter-support, .chapter-compact, .chapter-plain, .hero { scroll-margin-top: 9.5rem; }
+    .hero { padding-top: 2rem; }
+    .ch-proposal { padding: 2.2rem 1rem; }
+    .ch-intention-copy > p:last-of-type { font-size: 1.2rem; }
   }
 </style>
 </head>
@@ -539,9 +431,9 @@ export function renderReadme(path: string): string {
 ${pageHeaderHtml({ section: "about" })}
 <main class="story">
 ${hero}
-${chapterHtml}
+${chapters.map((s, i) => chapterHtml(s, i + 1)).join("\n")}
 </main>
-<section class="finale">
+<section class="finale" aria-label="Signature">
   ${finaleArt()}
   <p class="finale-made">Made with love <span class="finale-heart" aria-hidden="true">&hearts;</span> by Asuka121380</p>
   <div class="finale-actions">
@@ -549,7 +441,17 @@ ${chapterHtml}
   </div>
 </section>
 <p class="foot">An independent student project. Not made, sponsored or endorsed by the LEGO Group.</p>
-<script>document.querySelectorAll('[data-anim]').forEach(function(el){el.classList.add('anim-in');});</script>
+<script>
+(function () {
+  var els = document.querySelectorAll("[data-anim]");
+  function show(el) { el.classList.add("in-view"); }
+  if (!("IntersectionObserver" in window)) { els.forEach(show); return; }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { show(e.target); io.unobserve(e.target); } });
+  }, { threshold: 0.25, rootMargin: "0px 0px -8% 0px" });
+  els.forEach(function (el) { io.observe(el); });
+})();
+</script>
 </body>
 </html>`;
 }

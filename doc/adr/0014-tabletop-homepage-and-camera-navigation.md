@@ -1119,3 +1119,71 @@ were not edited).
   follow-up pass rather than applied mechanically everywhere.
 - No change was made to the tabletop's own 3D objects, gameplay scenery,
   camera or construction rules, per the brief's explicit scope boundary.
+
+## About page: the approved README's argument in pictures (author's brief, 8 Nov 2026)
+
+**Decided by the author:**
+- README.md is the page's only source of prose. Its wording is not
+  rewritten.
+- Each section's art is associated explicitly, not by position. An
+  unknown future section must still render cleanly.
+- The art reuses the isometric brick primitive (no three.js), with no
+  people or minifigures.
+- Shared illustration exports must not change in ways that alter other
+  pages.
+- Motion below the fold plays once, when it comes into view. No scroll
+  hijacking. Without JavaScript, and under reduced motion, the page shows
+  the finished state.
+- Scope is About and its assets only.
+
+**Agent's choices:**
+- **Explicit association.** `CHAPTERS` in `src/server/readme.ts` maps a
+  heading's *slug* (lower-case words, punctuation ignored) to one of four
+  treatments.
+  - A heading with no entry renders as a plain chapter: its whole
+    markdown, no art.
+  - A reworded heading therefore loses only its picture until its new
+    slug is added.
+  - Text before the first `##` is the opening. A file that starts with
+    `##` has no opening.
+- **A new About-only module**, `src/client/ui/aboutScenes.ts`, built only
+  on `isoSvg` (`ui/iso.ts`).
+  - `brickScenes.ts` and `iso.ts` are unchanged, so the lobby and the
+    other pages draw exactly what they drew before.
+  - The four scenes the old About page used stay exported from
+    `brickScenes.ts`, unused, rather than being removed from a shared
+    module.
+- **Layered scenes.** `layered()` renders several `<svg>`s that share one
+  fitted viewBox, stacked by CSS, so a single layer can move: the build,
+  a highlight, a planned roof.
+  - Every layer is `aria-hidden`; no art is a link or a button.
+  - The proposal's labels are plain underlined text, not pills.
+- **The five compositions:**
+  - **Opening:** a table with an unfinished two-colour build, a parts
+    tray and loose bricks, which settle once.
+  - **"A table before a menu":** the sign, the tray and the creation
+    shelf on one table. The view frames in and a glow comes up under the
+    tray.
+  - **"Social interaction with a purpose":** a translucent planned roof
+    becomes the real one. The still picture keeps a second, open plan (a
+    translucent chimney), so "plan" is visible without the motion.
+  - **"Keeping what we made":** the finished house set on a display
+    plinth, with two equal contributor markers. No names and no ranking.
+  - **"One intention throughout":** a full-width red section. The
+    README's closing paragraph is set large under a yellow rule, and one
+    long table joins every earlier motif.
+- **Motion.**
+  - Start states exist only under `html.js` and before `.in-view`,
+    inside `prefers-reduced-motion: no-preference`.
+  - An IntersectionObserver adds `.in-view` once per section and stops
+    observing it.
+  - Without IntersectionObserver, every section is shown at once.
+- **Chapter anchors.** Chapters carry stable ids
+  (`#a-table-before-a-menu`, …) cleared by the sticky beam's
+  `scroll-margin`.
+- **Production image.** The server's import closure outside `src/server`
+  and `src/domain` is now `pageHeader.ts`, `aboutScenes.ts` and `iso.ts`.
+  The Dockerfile's runtime COPY lists exactly those. `brickScenes.ts` is
+  no longer imported by the server.
+- **Checks.** `scripts/about.ts` is the browser and fallback check
+  (evidence 0030).

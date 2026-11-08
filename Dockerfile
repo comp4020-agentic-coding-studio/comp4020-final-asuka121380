@@ -23,9 +23,11 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 COPY src/domain ./src/domain
 COPY src/server ./src/server
-# the server renders /readme/ with the shared page header and brick scenes,
-# plain string modules (no React, no three.js) that live with the client UI
-COPY src/client/ui/pageHeader.ts src/client/ui/brickScenes.ts src/client/ui/iso.ts ./src/client/ui/
+# the server renders /readme/ with the shared page header and the About
+# page's isometric scenes: plain string modules (no React, no three.js) that
+# live with the client UI. Keep this list equal to the server's import
+# closure outside src/server and src/domain.
+COPY src/client/ui/pageHeader.ts src/client/ui/aboutScenes.ts src/client/ui/iso.ts ./src/client/ui/
 COPY --from=build /app/dist/client ./dist/client
 COPY README.md ./
 COPY docs ./docs
