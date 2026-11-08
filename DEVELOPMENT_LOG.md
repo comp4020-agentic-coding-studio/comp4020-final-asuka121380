@@ -4222,3 +4222,10 @@ deployment. The agent did the diagnosis and chose the fix.
 - **Reworded headings:** a reworded README heading needs its slug added
   to `CHAPTERS` to get its picture back.
 - **Not pushed or deployed.**
+
+## 9 November 2026, 00:12 AEDT — Author-approved final PROCESS account
+
+- **Decision:** the author confirmed ownership of the decisions, approved the revised account emphasising their decisions, staged Claude implementation, personal inspection and successive feedback, and requested local commits only.
+- **Change:** [ae3fd2c](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ae3fd2c), `PROCESS: record the author-directed implementation and review workflow`, replaces the C10 overview with the exact approved final draft. It covers narrative scope, stack and realtime trade-offs, staged tabletop work, Plan interaction and scene refinement, repair review, and deployed verification.
+- **Verification:** reviewed the committed diff; `pnpm check:evidence` passed with 22 resolving PROCESS commit references and all three reflections; `git diff --check` passed. This is a prose-only change; no application suite was rerun and no new user test is claimed.
+- **Scope:** no push or deployment; existing untracked HANDOFF.md is untouched.
