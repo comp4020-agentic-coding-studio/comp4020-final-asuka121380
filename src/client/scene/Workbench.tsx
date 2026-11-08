@@ -53,12 +53,14 @@ const PAN_MIN = new THREE.Vector3(-4, 0, -4);
 const panMax = () => new THREE.Vector3(scene.bounds.w + 4, cameraOf()?.panHeight ?? scene.bounds.h * 0.4 + 2, scene.bounds.d + 4);
 // low enough that a strip of horizon shows above the street
 const DEFAULT_POLAR = 1.32;
+const defaultPolar = () => cameraOf()?.polar ?? DEFAULT_POLAR;
 const DEFAULT_AZIMUTH = 0.2;
 const MIN_DISTANCE = 6;
 const maxDistance = () => cameraOf()?.maxDistance ?? 95;
 // where the orbit target sits in the screen above the dock, from the top:
 // below the middle, leaving headroom for roofs and the horizon
 const TARGET_AT = 0.6;
+const targetAt = () => cameraOf()?.targetAt ?? TARGET_AT;
 // what the opening view frames around the target: the plot's width, a
 // two-storey house above (the reference house tops out near 12 units), and
 // the plot's front edge below; a scene may set its own
@@ -69,7 +71,7 @@ const DRAG_PX = { mouse: 6, pen: 6, touch: 10 } as const;
 /** The angles from the orbit target to the edges of the screen the dock leaves clear. */
 function viewAngles(camera: THREE.PerspectiveCamera, width: number, height: number, dock: number) {
   const focal = height / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-  const targetY = TARGET_AT * (height - dock);
+  const targetY = targetAt() * (height - dock);
   return {
     across: Math.atan(width / 2 / focal),
     above: Math.atan(targetY / focal),
@@ -114,7 +116,7 @@ function CameraRig({ dock }: { dock: number }) {
     const dist = fitDistance(cam, size.width, size.height, dock, request.kind === "top");
     if (request.kind === "reset") {
       c.target.copy(plotCentre());
-      cam.position.copy(plotCentre()).add(new THREE.Vector3().setFromSphericalCoords(dist, DEFAULT_POLAR, DEFAULT_AZIMUTH));
+      cam.position.copy(plotCentre()).add(new THREE.Vector3().setFromSphericalCoords(dist, defaultPolar(), DEFAULT_AZIMUTH));
     } else if (request.kind === "focus") {
       // frame the selection from the current heading and pitch, a little
       // tighter than the part's size needs, and make it the new centre

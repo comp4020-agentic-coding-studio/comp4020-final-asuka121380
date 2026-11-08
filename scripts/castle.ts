@@ -236,7 +236,7 @@ check(
   "Build alone with Beach Houses (the default) opens a different, Beach Houses plot",
   soloBeach.snapshot.sceneId === "street-01" && soloBeach.snapshot.roomId !== soloCastle.snapshot.roomId && soloBeach.snapshot.maxPlayers === 2,
 );
-check("the Beach Houses editor is unchanged: its own title, target, and 14 part types", (await solo.locator(".chip-title").textContent()) === "Beach Houses" && (await solo.getByRole("button", { name: "Target house" }).count()) === 1 && (await solo.locator(".tray button").count()) === 14);
+check("the Beach Houses editor is unchanged: its own title, target, and 14 part types", (await solo.locator(".chip-title").textContent()) === "Beach Houses" && (await solo.getByRole("button", { name: "House inspiration" }).count()) === 1 && (await solo.locator(".tray button").count()) === 14);
 await solo.screenshot({ path: `${out}/beach-unchanged-desktop.png` });
 
 // ---- 6. mobile: the empty castle site and the construction, front view clear

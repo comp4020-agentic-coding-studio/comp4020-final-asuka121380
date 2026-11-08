@@ -113,12 +113,14 @@ await home.waitForTimeout(1800);
 const cards = await home.locator(".scene-card-title").allTextContents();
 check("the homepage tray panel lists three scenes, smallest to largest", cards.join("|") === "Beach Houses|Medieval Castle|Woodland Commons", cards);
 const cardFacts = await home.locator(".scene-card .tag").allTextContents();
-check("the cards state Small/2, Medium/4, Large/6", ["Small", "1–2 builders", "Medium", "1–4 builders", "Large", "1–6 builders", "Plot 32×28 studs"].every((f) => cardFacts.some((c) => c.toLowerCase() === f.toLowerCase())), cardFacts);
+check("the cards state Small/2, Medium/4, Large/6", ["Small", "1–2 builders", "Medium", "1–4 builders", "Large", "1–6 builders"].every((f) => cardFacts.some((c) => c.toLowerCase() === f.toLowerCase())), cardFacts);
 const cover = home.locator('.scene-card img[src="/scenes/woodland-commons.webp"]');
 check("the Woodland card shows its cover, rendered from the scene", (await cover.count()) === 1 && (await cover.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)));
 check("the homepage loaded no editor or scene environment chunk", !homeRequests.some((r) => /Workbench|Environment|\/build\/room/.test(r)), homeRequests.filter((r) => /assets/.test(r)).slice(0, 12));
 await home.screenshot({ path: `${out}/home-tray-desktop.png` });
 await home.locator(".scene-card", { hasText: "Woodland Commons" }).click();
+check("choosing Woodland Commons shows its plot, 32×28 studs, as the one scene's details", (await home.locator(".scene-summary .tag").allTextContents()).some((t) => /^Plot 32×28 studs$/i.test(t)));
+await home.screenshot({ path: `${out}/home-tray-woodland-desktop.png` });
 check("the panel's shared-room line says up to 6 people", /Up to 6 people/.test((await home.locator(".choice-list").textContent()) ?? ""));
 await home.getByRole("button", { name: "Build alone" }).click();
 await home.waitForURL(/\/build\/room\//, { timeout: 15000 });
@@ -246,7 +248,7 @@ await host.keyboard.press("Home");
 await host.waitForTimeout(400);
 await host.evaluate(() => (window as any).__settleCamera());
 const reset = await camera(host);
-check("Reset brings the view back to the scene's own opening frame", Math.abs(reset.target[1] - before.target[1]) < 0.01 && Math.abs(reset.polar - 1.32) < 0.01, reset.target);
+check("Reset brings the view back to the scene's own opening frame", Math.abs(reset.target[1] - before.target[1]) < 0.01 && Math.abs(reset.polar - 1.3) < 0.01, reset.target);
 // orbiting round behind, close in, would put the camera inside the trunk:
 // it is kept out, on the target's side of the bark (scene/obstacles.ts)
 await host.mouse.move(800, 400);
@@ -332,11 +334,97 @@ await homePhone.getByRole("button", { name: /Scene tray/ }).first().tap();
 await homePhone.waitForTimeout(2000);
 await homePhone.screenshot({ path: `${out}/home-tray-mobile.png` });
 
+// ---- 7b. the inspiration card in every scene and at every width: its
+// heading is never under another control, the controls hint makes way, the
+// card fits between the toggle and the dock and scrolls inside, the toggle
+// stays usable, and the tree-house picture shows the tree (ADR 0016)
+const LABELS: Record<string, string> = { "street-01": "House inspiration", "castle-01": "Castle inspiration", [SCENE]: "Tree-house inspiration" };
+const WIDTHS = [
+  { name: "1920", vp: { width: 1920, height: 1080 }, mobile: false },
+  { name: "1280", vp: { width: 1280, height: 800 }, mobile: false },
+  { name: "1024", vp: { width: 1024, height: 768 }, mobile: false },
+  { name: "390", vp: { width: 390, height: 844 }, mobile: true },
+  { name: "360", vp: { width: 360, height: 740 }, mobile: true },
+];
+const cardProblems: unknown[] = [];
+for (const [sceneId, label] of Object.entries(LABELS)) {
+  for (const w of WIDTHS) {
+    const ctx = await browser.newContext({ viewport: w.vp, isMobile: w.mobile, hasTouch: w.mobile, deviceScaleFactor: w.mobile ? 2 : 1 });
+    const page = await ctx.newPage();
+    await page.goto(`${base}/build/room/?local&scene=${sceneId}&debug`, { waitUntil: "domcontentloaded" });
+    await editorReady(page);
+    const toggle = page.getByRole("button", { name: label, exact: true });
+    if ((await toggle.count()) !== 1 || (await toggle.getAttribute("aria-expanded")) !== "false") cardProblems.push({ sceneId, w: w.name, problem: "no closed toggle named " + label });
+    await toggle.click();
+    await page.locator(".target-card img").waitFor({ timeout: 20000 });
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const card = document.querySelector(".target-card") as HTMLElement;
+      const head = card.querySelector(".target-head") as HTMLElement;
+      const body = card.querySelector(".target-body") as HTMLElement;
+      const button = document.querySelector(".target > button") as HTMLElement;
+      const dock = document.querySelector(".dock") as HTMLElement;
+      const hb = head.getBoundingClientRect();
+      const cb = card.getBoundingClientRect();
+      const bb = button.getBoundingClientRect();
+      // sample the heading's whole row: every point must be the heading itself
+      const covered: string[] = [];
+      for (let i = 1; i < 10; i++) {
+        for (const y of [hb.top + 3, hb.top + hb.height / 2, hb.bottom - 3]) {
+          const el = document.elementFromPoint(hb.left + (hb.width * i) / 10, y);
+          if (!el || !head.contains(el)) covered.push(el ? `${el.tagName}.${el.className}` : "nothing");
+        }
+      }
+      const atButton = document.elementFromPoint(bb.left + bb.width / 2, bb.top + bb.height / 2);
+      body.scrollTop = body.scrollHeight;
+      const caption = card.querySelector("figcaption")!.getBoundingClientRect();
+      return {
+        covered,
+        hint: !!document.querySelector(".camera-hint"),
+        inView: cb.left >= 0 && cb.right <= innerWidth && cb.top >= 0,
+        aboveDock: cb.bottom <= dock.getBoundingClientRect().top + 1,
+        captionReachable: caption.bottom <= cb.bottom + 1 && caption.top >= cb.top,
+        toggleFree: !!atButton && button.contains(atButton),
+        expanded: button.getAttribute("aria-expanded"),
+        labelled: card.getAttribute("aria-label"),
+      };
+    });
+    const ok = r.covered.length === 0 && !r.hint && r.inView && r.aboveDock && r.captionReachable && r.toggleFree && r.expanded === "true" && r.labelled === label;
+    if (!ok) cardProblems.push({ sceneId, w: w.name, ...r, covered: r.covered.slice(0, 4) });
+    await page.locator(".target-body").evaluate((el) => (el.scrollTop = 0));
+    if (sceneId === SCENE && (w.name === "1280" || w.name === "390")) await page.screenshot({ path: `${out}/inspiration-${w.name}.png` });
+    if (sceneId === SCENE && w.name === "1280") {
+      // the picture has the tree: its top third holds the canopy and the
+      // crown (the castle's or a house's picture has nothing up there)
+      const upper = await page.locator(".target-card img").evaluate(async (img: HTMLImageElement) => {
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const g = c.getContext("2d")!;
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, c.width, Math.floor(c.height / 3)).data;
+        let solid = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 200) solid++;
+        return solid / (d.length / 4);
+      });
+      check("the tree-house picture shows the tree above the cabins (its top third is not empty)", upper > 0.15, upper.toFixed(2));
+    }
+    await page.getByRole("button", { name: "Hide inspiration" }).click();
+    check(`${sceneId} at ${w.name}: Hide inspiration closes the card again`, (await page.locator(".target-card").count()) === 0 && (await page.locator(".target > button").textContent()) === label);
+    await ctx.close();
+  }
+}
+check("the inspiration card's heading is never covered, the hint makes way, and the card fits above the dock and scrolls inside, in all three scenes at 1920, 1280, 1024, 390 and 360", cardProblems.length === 0, cardProblems);
+
 // ---- 8. loading: with the environment held back, the canvas shows a
 // status line on the page background, never an unlit (black) plot
 const slow = await newVisitor(browser);
+// the scene's environment chunk is held until the check below has looked,
+// not for a fixed time, so a slow start can't let it through early
+let release: () => void = () => {};
+const held = new Promise<void>((ok) => (release = ok));
 await slow.route(/Environment-[^/]*\.js$/, async (r) => {
-  await new Promise((ok) => setTimeout(ok, 3000));
+  await held;
   await r.continue();
 });
 await slow.goto(`${base}/build/room/?local&scene=${SCENE}&debug`, { waitUntil: "domcontentloaded" });
@@ -357,6 +445,7 @@ const waiting = await slow.evaluate(() => {
 });
 await slow.screenshot({ path: `${out}/loading-desktop.png` });
 check("while the environment loads, a status line shows and the canvas draws nothing (no unlit plot)", waiting.status === "Loading the scene…" && waiting.drawn === 0, waiting);
+release();
 await editorReady(slow);
 await slow.waitForTimeout(3000);
 check("once it has loaded the status line is gone", (await slow.locator(".scene-loading").count()) === 0);

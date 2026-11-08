@@ -5,6 +5,7 @@ import { sceneInfo } from "./scenes/registry.ts";
 import { brandMark } from "./ui/iso.ts";
 import { Workbench } from "./scene/Workbench.tsx";
 import { pictures, type Pictures } from "./scene/thumbnails.ts";
+import { INSPIRATION_CONTEXT } from "./scenes/inspiration.ts";
 import { inviteToRoom, leaveRoom, myFriends, saveRoom, sendFriendRequest } from "./state/api.ts";
 import { useDisplayNames, who as whoName } from "./state/names.ts";
 import { useLeavesHidden } from "./state/leaves.ts";
@@ -522,26 +523,72 @@ function Notice() {
   );
 }
 
-function Target({ pics, open, onToggle }: { pics: Pictures | null; open: boolean; onToggle: () => void }) {
+/**
+ * The reference panel: one idea for what the kit can build, shown as
+ * optional inspiration, never a goal (ADR 0016). It opens under its toggle
+ * in the left column, scrolls inside itself when the window is short, and
+ * the camera hint makes way for it while it is open.
+ */
+function Inspiration({ pics, open, onToggle }: { pics: Pictures | null; open: boolean; onToggle: () => void }) {
+  const info = sceneInfo(scene.id);
+  const label = info?.inspiration.label ?? "Inspiration";
+  const [w, h] = info?.inspiration.size ?? [360, 300];
+  const note = info?.inspiration.note;
+  // On a narrow screen the view chips on the right wrap into rows that can
+  // reach across the left column. The open card starts below whichever of
+  // them it would run into, so its heading is never under a chip (layout,
+  // not stacking order).
+  const box = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const button = box.current?.querySelector("button")?.getBoundingClientRect();
+      const width = box.current?.querySelector(".target-card")?.getBoundingClientRect().width ?? 0;
+      if (!button) return;
+      const right = button.left + width;
+      let below = 0;
+      for (const chip of document.querySelectorAll(".overlay-right > *")) {
+        const r = chip.getBoundingClientRect();
+        if (r.width && r.left < right + 6 && r.bottom > button.bottom) below = Math.max(below, r.bottom);
+      }
+      // the card's own gap below the toggle is 0.45rem (about 7px)
+      setShift(Math.max(0, Math.ceil(below + 6 - (button.bottom + 7))));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    const nav = document.querySelector(".overlay-right");
+    if (nav) ro.observe(nav);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
   return (
-    <div className="target">
-      <button className="chip-button" aria-expanded={open} onClick={onToggle}>
-        {open ? "Hide target" : (sceneInfo(scene.id)?.targetLabel ?? "Target")}
+    <div className="target" ref={box} style={{ "--card-shift": `${shift}px` } as CSSProperties}>
+      <button className="chip-button" aria-expanded={open} aria-controls="inspiration-card" onClick={onToggle}>
+        {open ? "Hide inspiration" : label}
       </button>
       {open && (
-        <figure className="target-card">
-          <div className="target-head">
-            <span className="target-step" aria-hidden="true">
-              1
-            </span>
-            <span>The target</span>
+        <figure className="target-card" id="inspiration-card" aria-label={label}>
+          <h2 className="target-head">{label}</h2>
+          <div className="target-body">
+            {pics ? <img src={pics.target} alt={info?.inspiration.alt ?? "One idea for this kit."} width={w} height={h} /> : <span className="thumb-wait" style={{ aspectRatio: `${w} / ${h}` }} />}
+            {note && (
+              <dl className="target-note">
+                <div>
+                  <dt>Already there</dt>
+                  <dd>{note.fixed}</dd>
+                </div>
+                <div>
+                  <dt>Yours to build</dt>
+                  <dd>{note.built}</dd>
+                </div>
+              </dl>
+            )}
+            <figcaption>One idea for this kit, not a goal. Build it, change it, or make something else: the colours are only a suggestion.</figcaption>
           </div>
-          {pics ? (
-            <img src={pics.target} alt={sceneInfo(scene.id)?.targetAlt ?? "The target model."} width={360} height={300} />
-          ) : (
-            <span className="thumb-wait" />
-          )}
-          <figcaption>What this kit was drawn from. Build it, change it, or make something else: the colours are only a suggestion.</figcaption>
         </figure>
       )}
     </div>
@@ -835,8 +882,9 @@ function LeavesButton() {
 }
 
 /** A small, always-visible reminder of how to move the camera; the nav tool's own hint while one is on. */
-function CameraHint() {
+function CameraHint({ hidden }: { hidden: boolean }) {
   const navTool = useApp((s) => s.navTool);
+  if (hidden && !navTool) return null;
   return (
     <p className={`camera-hint${navTool ? " on" : ""}`} aria-live="polite">
       {navTool ? (
@@ -902,7 +950,8 @@ export function App() {
   useEffect(() => {
     if (!sceneId) return;
     document.title = `${info?.title ?? sceneId} · Brick Commons`;
-    void pictures(scene.reference).then(setPics);
+    const context = INSPIRATION_CONTEXT[scene.id];
+    void pictures(scene.reference, context ? context() : null, info?.inspiration.size).then(setPics);
   }, [sceneId]);
   useLayoutEffect(() => {
     const el = dockRef.current;
@@ -943,7 +992,10 @@ export function App() {
           </a>
           <h1 className="chip-title">{info?.title ?? scene.id}</h1>
         </div>
-        <Target pics={pics} open={targetOpen} onToggle={() => setTargetOpen((o) => !o)} />
+        <Inspiration pics={pics} open={targetOpen} onToggle={() => setTargetOpen((o) => !o)} />
+        {/* the controls hint sits in the same column, so nothing overlaps; it
+            makes way for the open inspiration card unless a tool is on */}
+        <CameraHint hidden={targetOpen} />
       </header>
 
       <nav className="overlay overlay-right" aria-label="View and status">
@@ -962,7 +1014,6 @@ export function App() {
       </nav>
 
       <Notice />
-      <CameraHint />
 
       <section ref={dockRef} className={`dock${trayOpen ? "" : " folded"}${mode === "plan" ? " planning" : ""}`} aria-label="Building controls">
         <div className="dock-top">

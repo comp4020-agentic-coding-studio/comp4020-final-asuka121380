@@ -130,17 +130,29 @@ kbd {
 .navigating .stage:active {
   cursor: grabbing;
 }
+/* the controls hint, in the left column's flow under the title and the
+   inspiration toggle, so it can never cross them (ADR 0016) */
 .camera-hint {
-  position: absolute;
-  left: 0.75rem;
-  top: 7.4rem;
   margin: 0;
+  max-width: min(34rem, calc(100vw - 1.5rem));
   padding: 0.2rem 0.55rem;
   border-radius: 8px;
   background: rgb(255 255 255 / 0.85);
   color: var(--ink-soft);
   font: 700 0.74rem var(--font-body);
-  z-index: 2;
+  pointer-events: none;
+}
+/* both columns pass clicks on their gaps through, to the scene or to the
+   other column: the right one's wrapped rows can span the left one's card */
+.overlay-left,
+.overlay-right {
+  pointer-events: none;
+}
+.overlay-left > *,
+.overlay-right > * {
+  pointer-events: auto;
+}
+.overlay-left > .camera-hint {
   pointer-events: none;
 }
 .camera-hint.on {
@@ -189,11 +201,24 @@ kbd {
   font: 700 1.05rem/1 var(--font-display);
 }
 
-/* ---- the target, as a page from an instruction booklet ------------------- */
+/* ---- the inspiration card, as a page from an instruction booklet --------- */
 
+.target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+/* never taller than the room between the toggle and the dock: the heading
+   stays put and the body scrolls inside the card */
 .target-card {
+  display: flex;
+  flex-direction: column;
   margin: 0;
-  width: 15rem;
+  width: 17rem;
+  margin-top: var(--card-shift, 0px);
+  max-height: calc(100dvh - var(--dock-h, 14rem) - 8.5rem - var(--card-shift, 0px));
+  min-height: 9rem;
   overflow: hidden;
   background: var(--white);
   border: 2px solid var(--line);
@@ -201,28 +226,36 @@ kbd {
   box-shadow: var(--lift);
 }
 .target-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
+  flex: none;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
   background: var(--yellow);
-  font: 700 0.95rem/1 var(--font-display);
+  font: 700 0.95rem/1.15 var(--font-display);
 }
-.target-step {
-  display: grid;
-  place-items: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 50%;
-  background: var(--white);
-  border: 2px solid var(--ink);
-  font-size: 0.85rem;
+.target-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.target-card img {
+.target-card img,
+.target-card .thumb-wait {
   display: block;
   width: 100%;
   height: auto;
   background: #e8f1fb;
+}
+.target-note {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.5rem 0.65rem 0;
+  font-size: 0.78rem;
+}
+.target-note dt {
+  font-weight: 700;
+}
+.target-note dd {
+  margin: 0;
+  color: var(--ink-soft);
 }
 .target-card figcaption {
   padding: 0.45rem 0.65rem 0.6rem;
@@ -612,8 +645,6 @@ kbd {
     display: none;
   }
   .camera-hint {
-    left: 0.5rem;
-    top: 6.4rem;
     max-width: calc(100vw - 1rem);
     font-size: 0.7rem;
   }
@@ -645,7 +676,8 @@ kbd {
     line-height: 1.05;
   }
   .target-card {
-    width: 11rem;
+    width: min(17rem, calc(100vw - 1rem));
+    max-height: calc(100dvh - var(--dock-h, 14rem) - 7.5rem - var(--card-shift, 0px));
   }
   .dock {
     bottom: 0;

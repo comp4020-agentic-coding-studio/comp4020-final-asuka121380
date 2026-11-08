@@ -385,10 +385,10 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsa
   await page.keyboard.press("Escape");
 
   // the target reference
-  await page.locator(".target button").click();
-  check("the target card opens", await page.locator(".target-card img").isVisible());
+  await page.locator(".target > button").click();
+  check("the inspiration card opens", await page.locator(".target-card img").isVisible());
   await shot(page, "desktop-target");
-  await page.locator(".target button").click();
+  await page.locator(".target > button").click();
 
   // reload: everything comes back from the server
   const saved = (await state(page)).parts.map((q) => `${q.id}:${q.partId}@${q.x},${q.y},${q.z}r${q.rot}:${q.colour}`).sort();

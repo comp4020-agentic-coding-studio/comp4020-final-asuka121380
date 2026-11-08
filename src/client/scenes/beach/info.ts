@@ -11,7 +11,9 @@ export const beach: SceneInfo = {
     "Build on the empty plot between colourful neighbours, with the promenade and the beach in front. The kit holds everything for a small house with a pointed roof and its tree, and a few extras to make it your own.",
   cover: "/scenes/beach-houses.webp",
   coverAlt: "The empty plot between a lavender and a pink beach house, seen from the lane behind, with the beach, the sea and the evening sky beyond.",
-  targetLabel: "Target house",
-  targetAlt: "The target: a small house with a pointed roof, a door between two walls, and a tree beside it.",
+  inspiration: {
+    label: "House inspiration",
+    alt: "One idea for the kit: a small house with a pointed roof, a door between two walls, and a tree beside it.",
+  },
   suggestedColours: ["coral", "turquoise", "bright-yellow", "white", "lavender", "bright-red"],
 };

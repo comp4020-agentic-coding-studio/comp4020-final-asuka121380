@@ -22,6 +22,14 @@ export default defineConfig({
         lobby: resolve(import.meta.dirname, "src/client/build/index.html"),
         editor: resolve(import.meta.dirname, "src/client/build/room/index.html"),
       },
+      output: {
+        // drei's lighting helper (its Environment and HDR loaders) is shared
+        // by the homepage table and the scenes' lighting. Rollup would name
+        // that shared chunk after the module, "Environment", like the
+        // scenes' own environments; give it a name of its own so the two
+        // are never confused (ADR 0016).
+        chunkFileNames: (chunk) => (chunk.name === "Environment" && chunk.moduleIds.every((id) => !id.includes("/src/client/scenes/")) ? "assets/drei-lighting-[hash].js" : "assets/[name]-[hash].js"),
+      },
     },
   },
   server: {

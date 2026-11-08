@@ -26,8 +26,19 @@ export interface SceneInfo {
   /** The colour a new editor session starts with, if not the editor's default. */
   startColour?: string;
   /** The target picture's button, e.g. "Target house", and its alt text. */
-  targetLabel: string;
-  targetAlt: string;
+  /**
+   * The editor's reference panel: optional inspiration, never a goal (ADR
+   * 0016). `label` names the toggle and the card ("Tree-house
+   * inspiration"); `alt` describes the picture; `note`, if given, says what
+   * in the picture is already in the scene and what the kit builds.
+   */
+  inspiration: {
+    label: string;
+    alt: string;
+    note?: { fixed: string; built: string };
+    /** The picture's size in pixels, if not 360 × 300. */
+    size?: [number, number];
+  };
   /** The plot's surface, if not the default light grey baseplate. */
   plot?: { colour: string; vary: number };
   /** What the editor's opening view frames round the plot's centre, in studs. */
@@ -37,7 +48,15 @@ export interface SceneInfo {
    * the opening view's centre height, how high the orbit centre may be
    * panned or focused, and the farthest zoom. Defaults suit a low plot.
    */
-  camera?: { centreY: number; panHeight: number; maxDistance: number };
+  camera?: {
+    centreY: number;
+    panHeight: number;
+    maxDistance: number;
+    /** The opening view's pitch from straight down, in radians (default 1.32). */
+    polar?: number;
+    /** Where the orbit centre sits on the free screen, from the top (default 0.6). */
+    targetAt?: number;
+  };
   /** Whether the editor offers "Hide leaves": a local view setting that hides only the canopy (ADR 0016). */
   foliageToggle?: boolean;
 }
