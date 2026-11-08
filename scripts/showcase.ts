@@ -4,11 +4,17 @@
 // save, view read-only, continue into an independent new room, publish,
 // a second player saving the published version and continuing it, and the
 // negative case — a restricted snapshot stays unreachable through
-// publication, a public derived room, or a public preview.
-//   node scripts/showcase.ts [base-url]
+// publication, a public derived room, or a public preview. Then the same
+// for a Woodland Commons room (ADR 0016): a part on the tree's left
+// platform, saved, viewed read-only with the scene named, published and
+// continued by B into a Woodland room with the part still on the platform.
+//   node scripts/showcase.ts [base-url] [out-dir]
+import { mkdirSync } from "node:fs";
 import { chromium, type Page } from "playwright-core";
 
 const base = process.argv[2] ?? "http://localhost:8080";
+const out = process.argv[3] ?? "/tmp/showcase";
+mkdirSync(out, { recursive: true });
 
 type Result = { name: string; ok: boolean; detail: string };
 const results: Result[] = [];
@@ -20,9 +26,22 @@ function check(name: string, ok: boolean, detail: unknown = ""): void {
 
 const selfId = (page: Page) => page.evaluate(async () => (await (await fetch("/api/me")).json()).visitorId);
 
-async function placeOne(page: Page): Promise<void> {
+/** The lobby's room form unfolds from the "Start a shared room" tile (731c920). */
+async function createRoom(page: Page, label: string, scene: string | null = null, inviteOnly = false): Promise<void> {
+  await page.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
+  if (scene) await page.getByRole("radio", { name: new RegExp(scene) }).check();
+  await page.locator(".start-plot-shared").click();
+  await page.waitForSelector("text=Create and open");
+  await page.fill('input[placeholder="e.g. Saturday build"]', label);
+  if (inviteOnly) await page.locator('input[name="start-visibility"]').nth(1).check();
+  await page.getByRole("button", { name: "Create and open" }).click();
+  await page.waitForURL(/\/build\/room\/.*debug/);
+  await page.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
+}
+
+async function placeOne(page: Page, at: [number, number, number] = [2.5, 0, 2.5]): Promise<void> {
   await page.locator('.tray button[aria-label^="Brick 2×4,"]').click();
-  const p = await page.evaluate(() => (window as any).__project(2.5, 0, 2.5));
+  const p = await page.evaluate(([x, y, z]) => (window as any).__project(x, y, z), at);
   await page.mouse.move(p.x, p.y, { steps: 3 });
   await page.waitForTimeout(100);
   await page.mouse.click(p.x, p.y);
@@ -37,12 +56,8 @@ const pageA = await ctxA.newPage();
 const pageB = await ctxB.newPage();
 
 // ---- A creates a public, publishable room and builds something -----------
-await pageA.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
 const label = `Showcase check ${Date.now()}`;
-await pageA.fill('input[placeholder="e.g. Saturday build"]', label);
-await pageA.getByRole("button", { name: "Create and open" }).click();
-await pageA.waitForURL(/\/build\/room\/.*debug/);
-await pageA.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
+await createRoom(pageA, label);
 await placeOne(pageA);
 const idA = await selfId(pageA);
 
@@ -120,12 +135,7 @@ const friendButtons = await pageB.locator(".credits button:has-text(\"+ friend\"
 check("friend-request actions are offered from the credits", friendButtons >= 1, friendButtons);
 
 // ---- negative test: a restricted snapshot stays unreachable ---------------
-await pageA.goto(`${base}/build/?debug`, { waitUntil: "domcontentloaded" });
-await pageA.fill('input[placeholder="e.g. Saturday build"]', `Private ${Date.now()}`);
-await pageA.locator('input[name="visibility"]').nth(1).check(); // invite-only
-await pageA.getByRole("button", { name: "Create and open" }).click();
-await pageA.waitForURL(/\/build\/room\/.*debug/);
-await pageA.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
+await createRoom(pageA, `Private ${Date.now()}`, null, true); // invite-only
 await placeOne(pageA);
 await pageA.getByRole("button", { name: /^Room/ }).click();
 await pageA.getByRole("button", { name: "Save a copy" }).click();
@@ -161,6 +171,44 @@ check("a stranger cannot join the derived room", strangerJoin === 403, strangerJ
 
 const bogusPreview = await pageB.evaluate(async (id: string) => (await fetch(`/api/showcase/${id}`)).status, privateSnapshotId);
 check("there is no public preview endpoint that exposes the restricted snapshot by its own id", bogusPreview === 404, bogusPreview);
+
+// ---- Woodland Commons (ADR 0016): save, view, publish and continue a tree-house build
+await createRoom(pageA, `Woodland showcase ${Date.now()}`, "Woodland Commons");
+const woodScene = await pageA.evaluate(() => (window as any).__state().snapshot.sceneId);
+// a brick 2×4 on the tree's left platform (x 1–8, z 4–11, top at plate 12)
+await placeOne(pageA, [4, 12 * 0.4, 7.5]);
+const woodPart = await pageA.evaluate(() => (window as any).__state().snapshot.parts[0]);
+check("W1. a Woodland room is created from the lobby and a part is placed on the tree's left platform", woodScene === "treehouse-01" && woodPart?.y === 12, { woodScene, woodPart });
+await pageA.getByRole("button", { name: /^Room/ }).click();
+await pageA.getByRole("button", { name: "Save a copy" }).click();
+await pageA.waitForSelector("text=Saved to your collection.");
+const woodHref = await pageA.locator('a:has-text("View it")').getAttribute("href");
+await pageA.goto(`${base}${woodHref}`, { waitUntil: "domcontentloaded" });
+await pageA.waitForSelector("text=Saved version");
+const woodHint = await pageA.locator(".snapshot-info .lobby-hint").first().textContent();
+await pageA.waitForTimeout(2500);
+await pageA.screenshot({ path: `${out}/woodland-snapshot-desktop.png` });
+check("W2. the saved Woodland version opens read-only and names its scene", /Woodland Commons/.test(woodHint ?? "") && !(await pageA.locator(".tray").count()), woodHint);
+const woodSnapshotId = new URL(pageA.url()).searchParams.get("snapshot")!;
+const woodPublish = await pageA.evaluate(async (id: string) => (await fetch(`/api/snapshots/${id}/publish`, { method: "POST" })).status, woodSnapshotId);
+check("W3. the public Woodland room's saved version can be published", woodPublish === 200 || woodPublish === 201, woodPublish);
+await pageB.goto(`${base}/build/?view=showcase`, { waitUntil: "domcontentloaded" });
+const woodRow = pageB.locator(".room-row", { hasText: "Woodland Commons" }).first();
+await woodRow.waitFor({ timeout: 8000 });
+const woodShowHref = await woodRow.getByRole("link", { name: /View/ }).getAttribute("href");
+await pageB.goto(`${base}${woodShowHref}`, { waitUntil: "domcontentloaded" });
+await pageB.waitForSelector("text=Saved version, published");
+await pageB.getByRole("button", { name: "Continue in a new room" }).click();
+await pageB.waitForURL(/\/build\/room\//, { timeout: 5000 });
+await pageB.goto(`${pageB.url()}?debug`, { waitUntil: "domcontentloaded" });
+await pageB.waitForFunction(() => (window as any).__state?.().snapshot && (window as any).__project);
+const woodB = await pageB.evaluate(() => {
+  const s = (window as any).__state().snapshot;
+  return { sceneId: s.sceneId, maxPlayers: s.maxPlayers, parts: s.parts.map((p: any) => `${p.partId}@${p.x},${p.y},${p.z}`) };
+});
+check("W4. B continues the published Woodland version into a Woodland room of six places, the part still on the platform", woodB.sceneId === "treehouse-01" && woodB.maxPlayers === 6 && woodB.parts.length === 1 && woodB.parts[0] === `${woodPart.partId}@${woodPart.x},${woodPart.y},${woodPart.z}`, woodB);
+await pageB.waitForTimeout(2000);
+await pageB.screenshot({ path: `${out}/woodland-continued-desktop.png` });
 
 await browser.close();
 
