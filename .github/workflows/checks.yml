@@ -85,7 +85,32 @@ jobs:
       APP_URL: https://${{ github.event.repository.name }}.fly.dev
     steps:
       - uses: actions/checkout@v7
-      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+      - name: Install flyctl (pinned, checksum-verified)
+        # setup-flyctl resolved "latest" and downloaded it from
+        # github.com/.../releases/download, which returned HTTP 504 to this
+        # job on every attempt on 8 Nov 2026 (evidence 0029) while the REST
+        # API kept answering. Same official superfly/flyctl release asset,
+        # fetched through api.github.com with this job's read-only token,
+        # pinned and checked against the release's published SHA-256.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FLYCTL_VERSION: "0.5.5"
+          FLYCTL_ASSET_ID: "714492250" # flyctl_0.5.5_Linux_x86_64.tar.gz
+          FLYCTL_SHA256: 2c64e1c7f320fafed0452fbce9adff57fcaf733619f0faa315ae883ec03d7ef6
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/flyctl"
+          mkdir -p "$dir"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o "$dir/flyctl.tar.gz" \
+            "https://api.github.com/repos/superfly/flyctl/releases/assets/$FLYCTL_ASSET_ID"
+          echo "$FLYCTL_SHA256  $dir/flyctl.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/flyctl.tar.gz" -C "$dir" flyctl
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/flyctl" version | grep -F "v$FLYCTL_VERSION"
       - name: Deploy
         # --remote-only builds the Dockerfile on Fly's builders; --ha=false
         # keeps the app at one machine and one volume.
