@@ -22,13 +22,89 @@ function check(name: string, ok: boolean, detail: unknown = ""): void {
   console.log(`${ok ? "PASS" : "FAIL"}  [${run}] ${name}${d ? `  — ${d}` : ""}`);
 }
 
-type Cam = { position: number[]; target: number[]; moving: boolean; lastPathClear: boolean | null; lastPathLift: number | null };
+type Cam = { position: number[]; target: number[]; moving: boolean; destination: { position: number[]; target: number[] }; lastPathClear: boolean | null; lastPathLift: number | null };
 const cam = (page: Page): Promise<Cam> => page.evaluate(() => (window as any).__tableCamera());
 const url = (q = "") => `${base}/${q ? `?${q}&debug` : "?debug"}`;
 
 async function ready(page: Page): Promise<void> {
   await page.waitForSelector('.table-page[data-status="ready"]', { timeout: 20000 });
   await page.waitForTimeout(400);
+}
+
+type Step = { ms: number; moving: boolean; position: number[]; dialog: boolean; path: string; status: string | null };
+const dist = (a: number[], b: number[]) => Math.hypot(...a.map((v, i) => v - b[i]));
+
+/**
+ * One camera move, observed in animation time rather than wall time.
+ *
+ * Counting frames in wall time fails under software rendering: SwiftShader
+ * can take longer than the whole 700 ms move to draw one frame, so the app
+ * (rightly, being time-based) lands on its first frame and a sampler sees
+ * no frame in between (evidence 0026, follow-up). Here the page's clock
+ * (`page.clock`) is already installed and paused by motion(); the activation
+ * is made and time is advanced 100 ms at a time, one frame per step. Every
+ * step records the real camera pose, so `moving` alone can't pass: the
+ * camera has to be seen part-way, getting nearer the pose that was asked
+ * for, with no dialog, and then to land there. Under reduced motion there is
+ * no move; see reducedMotion().
+ * `closing`: a move back from an open panel, which starts with one open.
+ */
+async function travel(page: Page, activate: () => Promise<void>, closing = false): Promise<{ ok: boolean; detail: { stepsMoving: number; dialogWhileMoving: number; [k: string]: unknown }; steps: Step[] }> {
+  const start = await cam(page);
+  const startDialog = (await page.locator('[role="dialog"]').count()) > 0;
+  const reduce = await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const steps: Step[] = [];
+  let dest: Cam["destination"] | null = null;
+  let navigated = false;
+  try {
+    await activate();
+    await page.waitForFunction(() => (window as any).__tableCamera().moving, null, { timeout: 4000, polling: 50 }).catch(() => {});
+    dest = (await cam(page)).destination;
+    for (let ms = 0; ms <= 1500; ms += 100) {
+      if (ms > 0) await page.clock.fastForward(100);
+      const s = await page
+        .evaluate(() => {
+          const c = (window as any).__tableCamera();
+          return { moving: c.moving as boolean, position: c.position as number[], dialog: !!document.querySelector('[role="dialog"]'), path: location.pathname, status: document.querySelector(".table-intro")?.textContent ?? null };
+        })
+        .catch(() => null); // the booklet leaves for /readme/ on arrival
+      if (!s) {
+        navigated = true;
+        break;
+      }
+      steps.push({ ms, ...s });
+      if (!s.moving && ms > 0) break;
+    }
+  } catch (e) {
+    if (!String(e).includes("context was destroyed")) throw e;
+    navigated = true;
+  }
+  const d = dest!;
+  const moving = steps.filter((s) => s.moving);
+  // part-way: clearly away from where it started and from where it is going
+  const between = moving.filter((s) => dist(s.position, start.position) > 0.5 && dist(s.position, d.position) > 0.5);
+  const nearer = moving.every((s, i) => i === 0 || dist(s.position, d.position) <= dist(moving[i - 1].position, d.position) + 1e-3);
+  const last = steps[steps.length - 1];
+  const landed = navigated || (!last.moving && dist(last.position, d.position) < 0.01);
+  const arrivedAt = navigated ? null : last.ms;
+  const detail = {
+    reduce,
+    startMoving: start.moving,
+    startDialog,
+    startToDestination: +dist(start.position, d.position).toFixed(2),
+    stepsMoving: moving.length,
+    stepsPartWay: between.length,
+    nearerEachStep: nearer,
+    dialogWhileMoving: moving.filter((s) => s.dialog).length,
+    arrivedAtMs: arrivedAt,
+    landed,
+    track: steps.map((s) => `${s.ms}:${s.moving ? "m" : "-"}${s.dialog ? "D" : ""}:${s.position.map((v) => v.toFixed(1)).join(",")}`),
+  };
+  const ok =
+    !reduce && !start.moving && startDialog === closing && dist(start.position, d.position) > 5 &&
+    between.length >= 3 && nearer && detail.dialogWhileMoving === 0 && landed &&
+    (navigated || (arrivedAt! >= 600 && arrivedAt! <= 900));
+  return { ok, detail, steps };
 }
 
 async function settled(page: Page): Promise<Cam> {
@@ -93,14 +169,9 @@ async function desktop(browser: Browser): Promise<void> {
   check("hovering the sign's post lights the face", (await page.locator(".sign-face.is-active").count()) === 1);
   await page.screenshot({ path: `${out}/hover-desktop.png` });
 
-  // click the physical sign (post, not the HTML face)
+  // click the physical sign (post, not the HTML face); the move itself, step
+  // by step in animation time, is checked in motion()
   await page.mouse.click(onPost.x, onPost.y);
-  await page.waitForTimeout(120);
-  // read the camera and the dialog in the same instant: under software
-  // rendering, separate round trips can straddle the end of the move
-  const mid = await page.evaluate(() => ({ ...(window as any).__tableCamera(), dialog: !!document.querySelector('[role="dialog"]') }));
-  check("clicking the sign's post starts a camera move", mid.moving, mid);
-  check("the panel waits for the camera to arrive", mid.moving && !mid.dialog, { moving: mid.moving, dialog: mid.dialog });
   const there = await settled(page);
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 });
   check("camera arrived nearer the sign", Math.hypot(...there.position.map((v, i) => v - there.target[i])) < Math.hypot(...overview.position.map((v, i) => v - overview.target[i])) - 5, { from: overview.position, to: there.position });
@@ -263,16 +334,19 @@ async function reducedMotion(browser: Browser): Promise<void> {
   const page = await ctx.newPage();
   await page.goto(url(), { waitUntil: "networkidle" });
   await ready(page);
+  const start = await cam(page);
   const f = await signFaceCentre(page);
   await page.mouse.click(f.x, f.y);
-  await page.waitForTimeout(60);
+  // the first state after the click: already at the sign, never moving
+  await page.waitForFunction((p) => (window as any).__tableCamera().position.join() !== p, start.position.join(), { timeout: 3000, polling: 20 });
   const c = await cam(page);
-  check("the camera cuts instead of travelling", !c.moving);
+  check("the camera cuts instead of travelling: at the sign at once, never moving", !c.moving && dist(c.position, c.destination.position) < 0.01 && dist(c.position, start.position) > 5, { moving: c.moving, position: c.position, destination: c.destination.position });
   await page.waitForSelector('[role="dialog"]', { timeout: 1500 });
   check("panel available at once", true);
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(60);
-  check("return is a cut too", !(await cam(page)).moving);
+  await page.waitForFunction((p) => (window as any).__tableCamera().position.join() !== p, c.position.join(), { timeout: 3000, polling: 20 });
+  const r = await cam(page);
+  check("return is a cut too: back at the overview at once", !r.moving && dist(r.position, start.position) < 0.01, { moving: r.moving, position: r.position });
   await ctx.close();
 }
 
@@ -437,23 +511,9 @@ async function entrances(browser: Browser): Promise<void> {
     const p = await hitPoint(page, e);
     check(`${e}: hovering the object lights its label`, !!p, p);
     if (!p) continue;
-    // sample every animation frame from the click until arrival: the move must
-    // start, and no dialog may exist on any frame while the camera is moving
-    await page.evaluate(() => {
-      const w = window as any;
-      w.__frames = [];
-      const tick = () => {
-        w.__frames.push({ moving: w.__tableCamera().moving, dialog: !!document.querySelector('[role="dialog"]') });
-        if (!document.querySelector('[role="dialog"]') && w.__frames.length < 600) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
+    // the move itself, step by step in animation time, is checked in motion()
     await page.mouse.click(p.x, p.y);
     await page.waitForSelector('[role="dialog"]', { timeout: 6000 });
-    const frames: { moving: boolean; dialog: boolean }[] = await page.evaluate(() => (window as any).__frames);
-    const moved = frames.filter((f) => f.moving).length;
-    const early = frames.filter((f) => f.moving && f.dialog).length;
-    check(`${e}: clicking the object moves the camera, the panel waits for arrival`, moved >= 1 && early === 0 && frames[0].dialog === false, { framesMoving: moved, dialogWhileMoving: early });
     const there = await settled(page);
     check(`${e}: the camera's path kept clear of the other objects`, there.lastPathClear === true, { clear: there.lastPathClear, lift: there.lastPathLift });
     const dialog = page.locator(`[role="dialog"][data-panel="${e}-panel"]`);
@@ -610,10 +670,8 @@ async function entrances(browser: Browser): Promise<void> {
   await page.goto(url(), { waitUntil: "networkidle" });
   await ready(page);
   const leave = page.waitForURL(/\/readme\/$/, { timeout: 10000 });
+  // the approach itself, step by step, is checked in motion()
   await page.locator('.entrance-face[data-entrance="about"]').click();
-  await page.waitForTimeout(80);
-  const approach = await page.evaluate(() => ({ moving: (window as any).__tableCamera().moving, path: location.pathname, status: document.querySelector(".table-intro")?.textContent ?? null }));
-  check("booklet: the camera approaches first, saying where it is going", approach.moving && approach.path === "/" && approach.status === "Opening the booklet…", approach);
   await leave;
   check("booklet: arrives at /readme/", page.url().endsWith("/readme/"), page.url());
   // README.md's header now shares the same markup every dedicated page
@@ -638,6 +696,139 @@ async function entrances(browser: Browser): Promise<void> {
  * timing-dependent delay, so the test exercises the exact event sequence
  * that broke rather than hoping to catch a slow-rendering window.
  */
+// ---- camera motion, in animation time (evidence 0026, follow-up) ----
+
+/**
+ * Every move to and from an object, stepped in animation time with
+ * `page.clock`, so the check means the same under SwiftShader as on a GPU.
+ * The clock lives only in this context: left installed across a long run it
+ * stopped the page's frames (and so every later frame-polled wait) once the
+ * test went back to real time, so the other sections keep the real clock.
+ */
+async function motion(browser: Browser): Promise<void> {
+  run = "camera motion, desktop 1920×1080";
+  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+  const page = await ctx.newPage();
+  const errors = errorsOf(page);
+  await page.clock.install();
+  await page.goto(url(), { waitUntil: "networkidle" });
+  await ready(page);
+  const overview = await settled(page);
+  // From here the page's clock stands still; time moves only by fastForward.
+  // (Resumed, the installed clock's frame timers fell behind SwiftShader's
+  // slow frames and the page stopped drawing, so it is never resumed here.)
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 50));
+  const poll = { timeout: 4000, polling: 50 } as const;
+  const panelNow = () => page.evaluate(() => document.querySelector('[role="dialog"]')?.getAttribute("data-panel") ?? null);
+  check("the table starts at the overview, still, with no dialog and normal motion", overview.destination.position.join() === overview.position.join() && (await page.locator('[role="dialog"]').count()) === 0 && !(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)));
+
+  const closeToOverview = async () => {
+    const back = await travel(page, () => page.keyboard.press("Escape"), true);
+    const last = back.steps[back.steps.length - 1];
+    return { ok: back.ok && !last.dialog && dist(last.position, overview.position) < 0.01, detail: back.detail };
+  };
+
+  // the four entrances with panels, by mouse on the object itself
+  for (const e of ["scenes", "rooms", "friends", "shelf"] as const) {
+    const p = await hitPoint(page, e);
+    if (!p) {
+      check(`${e}: the object can be pointed at`, false);
+      continue;
+    }
+    const move = await travel(page, () => page.mouse.click(p.x, p.y));
+    const last = move.steps[move.steps.length - 1];
+    check(`${e}: clicking the object moves the camera, the panel waits for arrival`, move.ok && last.dialog && page.url().includes(`focus=${e}`), move.detail);
+    const back = await closeToOverview();
+    check(`${e}: Escape moves the camera back to the overview the same way`, back.ok && !page.url().includes("focus="), back.detail);
+  }
+
+  // the sign, by keyboard (Enter on its focused face)
+  await page.locator(".sign-face").focus();
+  const sign = await travel(page, () => page.keyboard.press("Enter"));
+  check("sign-in: Enter on the focused sign moves the camera, the panel waits for arrival", sign.ok && sign.steps[sign.steps.length - 1].dialog && page.url().includes("focus=sign-in"), sign.detail);
+  await page.waitForFunction(() => !!document.activeElement?.closest('[role="dialog"]'), null, poll).catch(() => {});
+  check("sign-in: focus moved into the dialog once it opened", await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')));
+
+  // Back to table, then at once (the same tick) another object: the newer
+  // choice wins, the camera goes there, and only its panel opens
+  {
+    await page.evaluate(() => {
+      (document.querySelector(".back-to-table") as HTMLElement).click();
+      (document.querySelector('.entrance-face[data-entrance="rooms"]') as HTMLElement).click();
+    });
+    await page.waitForFunction(() => (window as any).__tableCamera().moving, null, poll);
+    const from = await cam(page);
+    const track: string[] = [];
+    let early = 0;
+    for (let i = 0; i < 12; i++) {
+      await page.clock.fastForward(100);
+      const s = await page.evaluate(() => ({ c: (window as any).__tableCamera(), panel: document.querySelector('[role="dialog"]')?.getAttribute("data-panel") ?? null }));
+      track.push(`${s.c.moving ? "m" : "-"}${s.panel ? "D" : ""}:${s.c.position.map((v: number) => v.toFixed(1))}`);
+      if (s.c.moving && s.panel) early++;
+      if (!s.c.moving) break;
+    }
+    const end = await cam(page);
+    const panel = await panelNow();
+    check(
+      "Back to table and at once the noticeboard: the camera goes to the noticeboard and only its panel opens",
+      track.length >= 4 && early === 0 && !end.moving && dist(end.position, end.destination.position) < 0.01 && dist(end.position, from.position) > 5 && panel === "rooms-panel" && page.url().includes("focus=rooms"),
+      { track, panel, url: page.url() },
+    );
+    // browser Back from the focused noticeboard moves back to the overview
+    const back = await travel(page, () => page.goBack().then(() => undefined), true);
+    const last = back.steps[back.steps.length - 1];
+    check("browser Back from a focused object moves the camera back and closes the panel", back.ok && !last.dialog && dist(last.position, overview.position) < 0.01 && !page.url().includes("focus="), { ...back.detail, url: page.url() });
+    const fwd = await travel(page, () => page.goForward().then(() => undefined));
+    check("browser Forward moves to it again and reopens the panel once there", fwd.ok && fwd.steps[fwd.steps.length - 1].dialog && page.url().includes("focus=rooms"), fwd.detail);
+    await closeToOverview();
+  }
+
+  // A second choice mid-move retargets from wherever the camera is: 300 ms
+  // into a move to the tray, choosing the noticeboard must continue from
+  // that pose (no jump back or to the tray) and open only its panel.
+  {
+    await page.locator('.entrance-face[data-entrance="scenes"]').click();
+    await page.waitForFunction(() => (window as any).__tableCamera().moving, null, poll);
+    for (let i = 0; i < 3; i++) await page.clock.fastForward(100);
+    const mid = await cam(page);
+    await page.locator('.entrance-face[data-entrance="rooms"]').click({ force: true });
+    await page.waitForFunction((d) => (window as any).__tableCamera().destination.position.join() !== d, mid.destination.position.join(), poll);
+    const turned = await cam(page);
+    await page.clock.fastForward(100);
+    const next = await cam(page);
+    const seen: string[] = [];
+    for (let i = 0; i < 12 && (await cam(page)).moving; i++) {
+      await page.clock.fastForward(100);
+      seen.push((await panelNow()) ?? "-");
+    }
+    const end = await cam(page);
+    const panel = await panelNow();
+    check(
+      "a second choice mid-move turns the camera from where it is, and only the newer panel opens",
+      mid.moving && dist(turned.position, mid.position) < 0.5 && dist(next.position, mid.position) < 2 && dist(next.position, turned.destination.position) < dist(mid.position, turned.destination.position) &&
+        !end.moving && dist(end.position, turned.destination.position) < 0.01 && panel === "rooms-panel" && !seen.includes("scenes-panel") && page.url().includes("focus=rooms"),
+      { mid: mid.position, next: next.position, end: end.position, panel, seen },
+    );
+    await closeToOverview();
+  }
+
+  // the booklet: an approach, then the README
+  const booklet = await travel(page, () => page.locator('.entrance-face[data-entrance="about"]').click());
+  const approach = booklet.steps.find((s) => s.moving && s.ms > 0);
+  check(
+    "booklet: the camera approaches first, saying where it is going",
+    booklet.ok && !!approach && approach.path === "/" && approach.status === "Opening the booklet…",
+    { ...booklet.detail, path: approach?.path, status: approach?.status },
+  );
+  // on arrival the page asks for /readme/ (its load, under the paused clock,
+  // isn't awaited here; the desktop run follows it through in real time)
+  const asked = page.waitForRequest((r) => new URL(r.url()).pathname === "/readme/", { timeout: 4000 }).then(() => true, () => false);
+  for (let i = 0; i < 5; i++) await page.clock.fastForward(100).catch(() => {});
+  check("booklet: arriving asks for /readme/", (await asked) || page.url().endsWith("/readme/"), page.url());
+  check("no console errors while moving", errors.length === 0, errors.join(" | "));
+  await ctx.close();
+}
+
 async function activation(browser: Browser): Promise<void> {
   run = "activation reliability";
   const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
@@ -827,6 +1018,7 @@ for (const [name, fn] of [
   ["failures", failures],
   ["others", others],
   ["entrances", entrances],
+  ["motion", motion],
   ["activation", activation],
   ["invitations", invitations],
   ["mobile-entrances", mobileEntrances],
@@ -836,7 +1028,7 @@ for (const [name, fn] of [
   try {
     await fn(browser);
   } catch (e) {
-    check(`run completed`, false, String(e).split("\n")[0]);
+    check(`run completed`, false, String(e).split("\n")[0] + " @ " + (String((e as Error).stack).split("\n").find((l) => l.includes("tabletop.ts")) ?? ""));
   }
 }
 await browser.close();

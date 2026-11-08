@@ -192,6 +192,8 @@ function CameraRig({ focus, layout, reducedMotion, onArrive }: Pick<SceneProps, 
   const target = useRef(new THREE.Vector3(...poseFor(layout, "overview").target));
   const move = useRef<{ path: Path; tFrom: THREE.Vector3; tTo: THREE.Vector3; fovFrom: number; fovTo: number; start: number; focus: Focus } | null>(null);
   const lastPath = useRef<Path | null>(null);
+  // the pose last asked for (read only by `?debug` checks)
+  const requested = useRef<Pose>(poseFor(layout, focus));
   const first = useRef(true);
 
   const jump = (to: Pose) => {
@@ -205,6 +207,7 @@ function CameraRig({ focus, layout, reducedMotion, onArrive }: Pick<SceneProps, 
 
   useEffect(() => {
     const to = poseFor(layout, focus);
+    requested.current = to;
     if (first.current || reducedMotion) {
       first.current = false;
       move.current = null;
@@ -226,7 +229,8 @@ function CameraRig({ focus, layout, reducedMotion, onArrive }: Pick<SceneProps, 
     lastLayout.current = layout;
     const wasMoving = !!move.current;
     move.current = null;
-    jump(poseFor(layout, focus));
+    requested.current = poseFor(layout, focus);
+    jump(requested.current);
     if (wasMoving) onArrive(focus);
   }, [layout]);
 
@@ -258,6 +262,7 @@ function CameraRig({ focus, layout, reducedMotion, onArrive }: Pick<SceneProps, 
       position: cam.position.toArray(),
       target: target.current.toArray(),
       moving: !!move.current,
+      destination: { position: [...requested.current.position], target: [...requested.current.target] },
       lastPathClear: lastPath.current ? pathClear(lastPath.current, lastLayout.current) : null,
       lastPathLift: lastPath.current ? +(lastPath.current.control.y - (lastPath.current.from.y + lastPath.current.to.y) / 2).toFixed(2) : null,
     });
