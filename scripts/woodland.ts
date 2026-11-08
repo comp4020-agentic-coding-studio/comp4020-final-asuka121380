@@ -252,7 +252,8 @@ check("Reset brings the view back to the scene's own opening frame", Math.abs(re
 // orbiting round behind, close in, would put the camera inside the trunk:
 // it is kept out, on the target's side of the bark (scene/obstacles.ts)
 await host.mouse.move(800, 400);
-for (let i = 0; i < 40 && (await camera(host)).distance > 9; i++) {
+// up to 80 steps: each wheel step is about 5 %, from ~106 (topClear, 8 Nov)
+for (let i = 0; i < 80 && (await camera(host)).distance > 9; i++) {
   await host.mouse.wheel(0, -400);
   await host.waitForTimeout(40);
 }

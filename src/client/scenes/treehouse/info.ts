@@ -25,6 +25,6 @@ export const treehouse: SceneInfo = {
   startColour: "nougat",
   plot: { colour: "#8fae5a", vary: 0.08 },
   frame: { across: 20, above: 32, below: 17 },
-  camera: { centreY: 15, panHeight: 32, maxDistance: 130, polar: 1.3, targetAt: 0.6 },
+  camera: { centreY: 15, panHeight: 32, maxDistance: 130, polar: 1.3, targetAt: 0.6, topClear: 96 },
   foliageToggle: true,
 };

@@ -56,6 +56,12 @@ export interface SceneInfo {
     polar?: number;
     /** Where the orbit centre sits on the free screen, from the top (default 0.6). */
     targetAt?: number;
+    /**
+     * Pixels at the top of the screen the opening and reset views keep the
+     * scene out of, so a tall scene's top isn't framed under the floating
+     * controls (default 0: the frame reaches the top edge).
+     */
+    topClear?: number;
   };
   /** Whether the editor offers "Hide leaves": a local view setting that hides only the canopy (ADR 0016). */
   foliageToggle?: boolean;

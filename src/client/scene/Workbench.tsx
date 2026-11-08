@@ -61,6 +61,9 @@ const maxDistance = () => cameraOf()?.maxDistance ?? 95;
 // below the middle, leaving headroom for roofs and the horizon
 const TARGET_AT = 0.6;
 const targetAt = () => cameraOf()?.targetAt ?? TARGET_AT;
+// a band at the top of the screen kept out of the opening frame, for a tall
+// scene whose top would otherwise sit under the floating controls (px)
+const topClear = () => cameraOf()?.topClear ?? 0;
 // what the opening view frames around the target: the plot's width, a
 // two-storey house above (the reference house tops out near 12 units), and
 // the plot's front edge below; a scene may set its own
@@ -71,10 +74,11 @@ const DRAG_PX = { mouse: 6, pen: 6, touch: 10 } as const;
 /** The angles from the orbit target to the edges of the screen the dock leaves clear. */
 function viewAngles(camera: THREE.PerspectiveCamera, width: number, height: number, dock: number) {
   const focal = height / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-  const targetY = targetAt() * (height - dock);
+  const clear = topClear();
+  const targetY = clear + targetAt() * (height - dock - clear);
   return {
     across: Math.atan(width / 2 / focal),
-    above: Math.atan(targetY / focal),
+    above: Math.atan((targetY - clear) / focal),
     below: Math.atan((height - dock - targetY) / focal),
     // pixels to shift the lens down so the target lands at targetY
     offsetY: height / 2 - targetY,
