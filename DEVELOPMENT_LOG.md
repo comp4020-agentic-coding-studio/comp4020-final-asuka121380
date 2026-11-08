@@ -4097,3 +4097,51 @@ Fly volume.
 - Production keeps a few "Verify 202611080906 …" records, one public
   showcase entry and one `verify…` account.
 - Recovery pairs and steps are in 0028 §10.
+
+## 2026-11-08 20:55 AEDT — CI deploy job repaired: pinned, checksum-verified flyctl via the GitHub API
+
+**Who decided.** The author asked for the failing deployment workflow to
+be fixed, and authorised the repair, the push, the rerun and the
+deployment. The agent did the diagnosis and chose the fix.
+
+**Commit.**
+- [`b225762`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/b225762) CI deploy: install a pinned, checksum-verified flyctl via the GitHub API
+  - In `.github/workflows/checks.yml`, the deploy job's `setup-flyctl`
+    step is replaced by one that downloads flyctl 0.5.5's official Linux
+    asset through `api.github.com`, with the job's read-only token.
+  - It checks the asset against the release's SHA-256, failing closed,
+    and checks the version.
+  - Everything else in the workflow is unchanged: the check job, the
+    secret scans, the guards, `concurrency` and the deploy command.
+
+**Why** (evidence [0029](doc/evidence/0029-ci-deploy-flyctl-download.md)):
+- The deploy job failed on every attempt: runs 42464680743 and
+  42466691739, including one rerun of the failed job only.
+- Each time it got HTTP 504 from
+  `github.com/superfly/flyctl/releases/download/…`. The action resolved
+  `latest` through the Fly API without trouble; the GitHub release
+  download is what failed.
+- The same host also failed for mise (the check job's first attempt) and
+  for other repositories' assets, while `api.github.com` stayed up.
+- GitHub reported no incident. The cause is external and intermittent,
+  not configuration, permissions or the application.
+
+**Result.**
+- **Run 42468652819 succeeded.** Both jobs passed; the deploy log shows
+  the checksum OK and `flyctl v0.5.5`.
+- **Fly release v15**, from `b225762` (image label `GH_SHA`). Same
+  machine and volume. The application code is `625f14b`'s.
+- **Data.** Production was fingerprinted read-only before and after:
+  table counts, and hashes of every room's parts, every inventory row and
+  every saved version's parts. All were identical. The pre-reset backup's
+  hash is unchanged.
+- **Live checks.** The homepage, About and an existing room render on v15
+  with no page errors.
+
+**Known limitations.**
+- The GitHub-side fault is inferred; there was no published incident.
+- flyctl is now pinned and needs a manual bump.
+- The check job's mise download can still hit the same host on a cache
+  miss.
+- This entry's commit triggers one more deploy of unchanged code. Its
+  result isn't given another bookkeeping commit.
