@@ -3810,3 +3810,122 @@ older, unrelated server and was not used.
 - README.md and PROCESS.md were not edited (the author's prose). Claims
   there that now need the author's update are listed in the hand-off.
 - Nothing pushed or deployed.
+
+## 2026-11-08 16:25 AEDT — Woodland Commons presentation pass: inspiration card, opening view, homepage scene panel (ADR 0016)
+
+**Who decided.** The author's brief of 8 Nov 2026 asked for:
+- a reference picture that shows the fixed tree;
+- a fix for the hint/heading overlap;
+- a default camera that explains the vertical setting;
+- a refined tree look, reference and clearing;
+- a compact homepage scene panel;
+- the reference and kit numbers related in the docs;
+- `scripts/showcase.ts` repaired for the current lobby;
+- no rise in draw calls.
+
+The agent chose how. The pass was paused at the author's request partway
+through the same day and resumed later. The fixed tree's boxes, the rules,
+the kit and saved data are unchanged.
+
+**Commits.**
+- [`725eb58`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/725eb58) Woodland reference redesigned: lodge, commons, bunkhouse, lookout
+  - `src/domain/treehouse.ts`: 389 parts, 27 % of the 1,426-part kit.
+  - `spec/domain/treehouse.test.ts`: 35 tests. They cover two cabins
+    with doors, a common deck on stilts at plate 12, a crown lookout,
+    stairs at plates 0, 12 and 24, and a part count below the kit.
+  - `doc/research/0003`: a new "Reference and kit: four different
+    numbers" section (official assemblies, 1,090 required, 1,426
+    allocated, the picture). The picture column is renamed and
+    recounted; the allocation is unchanged.
+- [`af67301`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/af67301) Woodland tree, clearing and batching refined
+  - `scenes/treehouse/tree.ts` (new) holds the tree drawing shared by
+    the editor and the inspiration picture. The bark, knots, collars and
+    foot lie on or inside the rule boxes.
+  - Groves of differing density, stepping stones, and a quieter backdrop.
+  - `scene/scenery.ts` `buildColoured` and `Batched.tsx`
+    `BatchedColoured`: one vertex-coloured mesh for the tree, the canopy
+    and the near forest.
+  - `scene-perf.ts`'s ready threshold is lowered to more than 10 calls.
+- [`689a4a6`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/689a4a6) Inspiration card and the tree-house opening view
+  - "Target" becomes "House / Castle / Tree-house inspiration".
+  - The tree-house picture draws the fixed tree (thinned canopy) plus the
+    cabins, from the editor-only lazy `scenes/inspiration.ts`.
+  - The note separates what is already there from what you build.
+  - The card scrolls inside itself, capped above the dock.
+  - The controls hint moves into the left column's flow and hides while
+    the card is open.
+  - The card starts below wrapped view chips (a measured `--card-shift`),
+    and the overlay gaps pass clicks through.
+  - Woodland's camera gains `polar` 1.3 and `targetAt` 0.6, with
+    maximum zoom 130.
+  - Vite names drei's shared chunk `drei-lighting-*`.
+  - `woodland.ts` adds the card loop (3 scenes × 5 widths) and a
+    homepage Woodland choice. `castle.ts` and `interaction.ts` follow
+    the renamed label.
+- [`8ad7c20`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/8ad7c20) Homepage scene panel: compact choices, actions kept in view
+  - `panels.tsx` and `home.css`: compact rows (cover, name,
+    size/builders), a radio group with arrows, Home and End and one tab
+    stop.
+  - Then the chosen scene's plot and status, the two actions, and a
+    fixed-height "About" for the chosen scene.
+  - `tabletop.ts` gains checks for these.
+- [`f533f91`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/f533f91) showcase.ts: the current lobby form, and a Woodland run
+  - `createRoom` unfolds the shared-room tile (`731c920`'s form) and
+    places one part.
+  - New W1–W4: a Woodland snapshot, its view, and continuing it.
+- [`17a35d9`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/17a35d9) showcase.ts: choose a scene by its label, not the covered radio
+  - The card's picture intercepted `check()` on the hidden radio. The
+    script now clicks the card and asserts the radio is checked.
+
+**Tests run.** Production build; local server on port 8417 with a fresh
+disposable `DATA_DIR` (`/tmp/wp-data`), confirmed up first.
+- `pnpm typecheck` clean.
+- `APP_URL=http://localhost:8417 pnpm check` 304/304, with the logging
+  tests. `pnpm check:evidence` passes.
+- Chrome 156 via Playwright:
+  - `woodland.ts` 64/64
+  - `tabletop.ts` 176/177
+  - `interaction.ts` 85/85
+  - `castle.ts` 34/34
+  - `multiplayer.ts` 17/17
+  - `showcase.ts` 20/20 (after `17a35d9`)
+  - `log-rehearsal.ts` 13/13
+- **The tabletop failure** is "scenes: clicking the object moves the
+  camera, the panel waits for arrival" (`framesMoving` 0). It fails the
+  same way on `a3cdb33`, built and run on its own (173/174), so it
+  predates this pass and is left as it was.
+- **Log rehearsal.** All 33 log lines were read. Nothing on the
+  never-logged list appears; the only word match was the reason code
+  `no_cookie`.
+- **WebKit smoke test** in Playwright's WebKit 26.6 build (not Safari):
+  - the reference, desktop and touch-phone;
+  - the inspiration card with its heading uncovered and the hint hidden;
+  - the homepage Woodland choice with both actions in view;
+  - no errors.
+- **Performance** (`scene-perf.ts`, Chrome, M1 Metal, 1920×1080, on mains
+  power):
+  - Woodland: 19 draw calls empty (was 61), 841 with the reference (was
+    1,009 with the old 450-part one).
+  - Every scene at 16.67 ms mean frame.
+  - An earlier battery-powered run gave 30 Hz everywhere; those numbers
+    are not used.
+
+**Observed.** Screenshots of the real renders were looked at:
+- the opening views (empty and built, tray open and folded, desktop and
+  phone);
+- Focus on three levels and Hide leaves;
+- the inspiration cards for all three scenes at 360 px;
+- the homepage panel at 1440, 390 and 360 px.
+
+Evidence: [0026](doc/evidence/0026-woodland-presentation-pass.md) and
+`doc/evidence/shots/0026/`. Decisions: ADR 0016, "Presentation pass".
+
+**Known limitations.**
+- Chrome and Playwright WebKit only; no Safari, Firefox or physical
+  phone. Phone sizes are emulation.
+- Performance is from one Mac, vsync-bound; it is no evidence for phones.
+- The open front corridor is enforced in code and seen in screenshots,
+  with no automated check.
+- The tabletop camera-arrival failure is still open.
+- README.md, PROCESS.md and `reflections/` were not edited.
+- Nothing pushed or deployed.

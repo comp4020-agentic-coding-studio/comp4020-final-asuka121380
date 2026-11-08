@@ -115,14 +115,12 @@ rules out.
   their whole box: nothing tucks under a flight.
 - **A colour** `nougat` (warm timber) is added at the end of the palette.
   No existing colour changes (ADR 0004).
-- **The reference** (450 parts) is an adapted assembly, built only from
-  the kit and checked through the rules:
-  - three cabins, one on each platform
-  - stairs from the ground to both side platforms and from the right
-    porch to the crown
-  - porch railings and a picnic spot
-
-  It is a target picture and a test fixture. **New rooms start empty.**
+- **The reference** is one idea for the kit, built only from it and
+  checked through the rules. It is an inspiration picture and a test
+  fixture. **New rooms start empty.**
+  - 7 Nov: 450 parts, three like cabins.
+  - Since 8 Nov ("Presentation pass" below): 389 parts in four
+    structures.
 
 ### Server and logs
 
@@ -177,9 +175,9 @@ view (ADR 0004):
 
 - **Optional camera limits.** A scene's registry entry may set `camera`:
   - the opening view's centre height (Woodland 10 world units, about 2
-    cabin storeys)
+    cabin storeys; 15 since the presentation pass)
   - how high the orbit centre may be panned or focused (32, the crown)
-  - the farthest zoom (120)
+  - the farthest zoom (120; 130 since the presentation pass)
   Without it a scene keeps the defaults, so Beach Houses and the castle
   are unchanged.
 - **The default frame** is frontal and slightly oblique, through the
@@ -241,6 +239,76 @@ them shorter.
   before release, not a change to a frozen tree.
 - **Pinned from now on.** The same commit pins every box in a test, so any
   later change fails.
+
+### Presentation pass (agent, 8 Nov 2026, within the author's brief of that day)
+
+The author's brief asked:
+- that the reference show how the cabins belong to the tree;
+- that the opening view explain the vertical setting;
+- that the editor and homepage keep their essential controls in view.
+
+The fixed tree's coordinates, the rules, the kit and saved data are
+unchanged.
+
+- **The inspiration card** (renamed from "Target house" / "Target"; the
+  labels are now "House inspiration", "Castle inspiration" and
+  "Tree-house inspiration").
+  - **The picture.** For the tree house it draws the fixed tree from the
+    same boxes and code as the editor (`scenes/treehouse/tree.ts`) with a
+    thinned canopy, then the cabins on it, framed to the whole structure.
+    The tree is only drawn: it is never in the build, the kit, the saved
+    parts or the editable construction. The context comes from
+    `scenes/inspiration.ts`, an editor-only lazy module, so the homepage
+    entry still imports no three.js.
+  - **The note** under the picture says what is already there (tree,
+    branches, platforms) and what the kit builds, and that the picture is
+    optional.
+  - **Layout:**
+    - The card is a header plus a body that scrolls inside it.
+    - Its height is capped to the space between the toggle and the dock.
+    - The controls hint is now in the left column's flow, so it can't
+      cross the card, and it makes way while the card is open, unless a
+      navigation tool is on.
+    - On narrow screens the card starts below any of the right-hand view
+      chips that wrap across it (measured, not stacked by z-index).
+    - Both overlay columns pass clicks on their gaps through.
+    - The same fixes apply to all three scenes.
+- **The reference** (`src/domain/treehouse.ts`) is redesigned as four
+  structures:
+  - the lodge on the left platform;
+  - a shared deck on stilts in front of the trunk;
+  - the bunkhouse on the right platform;
+  - an open lookout on the crown.
+
+  Stairs run ground → deck → bunkhouse → crown, with a fire ring in
+  front. It has 389 parts, 27 % of the kit. The research record's
+  "Reference and kit" section separates the official assemblies, the
+  mapped requirement (1,090), the allocated kit (1,426, `ceil(×1.30)` per
+  type) and this picture.
+- **The opening view.** Woodland's `camera` gains `polar` (1.3) and
+  `targetAt` (0.6). The frame now holds the whole tree from the roots to
+  the canopy. The farthest zoom rises to 130 so a phone's taller frame
+  fits. The defaults for other scenes are unchanged. Nothing moves the
+  camera after placement.
+- **The tree's look.** Bark segments, shades, corner bevels, knots,
+  collars where branches join and a darker or mossy foot. All of it lies
+  on or inside each rule box: no new surface, ledge or support.
+- **The clearing.**
+  - Groves of differing density and mix at the forest edge.
+  - Open ground round the tree, and stepping stones along the path.
+  - A quieter, hazier distant tree line.
+  - The front corridor stays open at every height.
+- **The homepage scene panel.**
+  - Each scene is a compact row: a small cover, the name, size and
+    builders. The panel is a radio group with one tab stop, where the
+    arrows, Home and End move the choice.
+  - Only the chosen scene's plot and status follow.
+  - Then the two actions, which stay in place whichever scene is chosen.
+  - Then the chosen scene's setting and description, with every scene's
+    text sharing one cell so the panel keeps one height.
+- **Build.** drei's shared lighting chunk is named `drei-lighting-*`, so it
+  is never confused with a scene's own `Environment-*` chunk. The
+  homepage still loads no scene environment.
 
 ## Consequences
 
