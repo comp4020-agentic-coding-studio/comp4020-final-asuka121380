@@ -4229,3 +4229,10 @@ deployment. The agent did the diagnosis and chose the fix.
 - **Change:** [ae3fd2c](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/ae3fd2c), `PROCESS: record the author-directed implementation and review workflow`, replaces the C10 overview with the exact approved final draft. It covers narrative scope, stack and realtime trade-offs, staged tabletop work, Plan interaction and scene refinement, repair review, and deployed verification.
 - **Verification:** reviewed the committed diff; `pnpm check:evidence` passed with 22 resolving PROCESS commit references and all three reflections; `git diff --check` passed. This is a prose-only change; no application suite was rerun and no new user test is claimed.
 - **Scope:** no push or deployment; existing untracked HANDOFF.md is untouched.
+
+## 9 November 2026, 00:18 AEDT — Final harness alignment approved by the author
+
+- **Decision:** the author approved the discussed harness revision and requested local modification and commits only.
+- **Change:** [256cd3c](https://github.com/comp4020-agentic-coding-studio/comp4020-final-asuka121380/commit/256cd3c), `CLAUDE: align final scope, narrative constraints and review workflow`, replaces the obsolete C10 status with the implemented three-scene scope. It adds the approved narrative and visual constraints, author-directed staged implementation and review, failure diagnosis and verification standards, and production dependency/image checks. Existing detailed technical rules and historical ADR references remain; the authorship rule also explicitly covers participant feedback and prompt quotations.
+- **Verification:** reviewed the committed diff; `pnpm check:evidence` passed (three reflections and 22 resolving PROCESS citations); `git diff --check` passed. No application code changed or runtime tests were rerun.
+- **Scope:** no push, deployment or data change. Existing untracked HANDOFF.md is untouched.
